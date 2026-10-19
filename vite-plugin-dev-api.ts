@@ -1,0 +1,71 @@
+/**
+ * 로컬 개발용: /api/* 요청을 api/<name>.ts 의 Web-표준 핸들러(Request → Response)로 연결한다.
+ * Vercel Edge Function 과 같은 시그니처를 쓰므로 배포 시에는 이 플러그인이 필요 없다.
+ */
+import type { Plugin, ViteDevServer } from 'vite';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import { loadEnv } from 'vite';
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+
+type Handler = (req: Request) => Promise<Response> | Response;
+
+const readBody = (req: IncomingMessage): Promise<Buffer> =>
+  new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (c: Buffer) => chunks.push(c));
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
+
+const toRequest = async (req: IncomingMessage): Promise<Request> => {
+  const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
+  const headers = new Headers();
+  for (const [k, v] of Object.entries(req.headers)) {
+    if (typeof v === 'string') headers.set(k, v);
+    else if (Array.isArray(v)) headers.set(k, v.join(', '));
+  }
+  const method = req.method ?? 'GET';
+  const body = method === 'GET' || method === 'HEAD' ? undefined : new Uint8Array(await readBody(req));
+  return new Request(url, { method, headers, body });
+};
+
+const writeResponse = async (res: ServerResponse, out: Response): Promise<void> => {
+  const headers: Record<string, string> = {};
+  out.headers.forEach((v, k) => { headers[k] = v; });
+  res.writeHead(out.status, headers);
+  if (!out.body) { res.end(); return; }
+  const reader = out.body.getReader();
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    res.write(value);
+    (res as ServerResponse & { flush?: () => void }).flush?.();
+  }
+  res.end();
+};
+
+export const devApi = (): Plugin => ({
+  name: 'menulens-dev-api',
+  config(_, { mode }) {
+    const env = loadEnv(mode, process.cwd(), '');
+    for (const [k, v] of Object.entries(env)) if (process.env[k] === undefined) process.env[k] = v;
+  },
+  configureServer(server: ViteDevServer) {
+    server.middlewares.use(async (req, res, next) => {
+      const m = /^\/api\/([a-z0-9_-]+)(?:\?|$)/i.exec(req.url ?? '');
+      if (!m) return next();
+      const file = path.resolve(process.cwd(), 'api', `${m[1]}.ts`);
+      if (!existsSync(file)) { res.statusCode = 404; res.end('not found'); return; }
+      try {
+        const mod = (await server.ssrLoadModule(file)) as { default: Handler };
+        const out = await mod.default(await toRequest(req));
+        await writeResponse(res, out);
+      } catch (e) {
+        server.config.logger.error(String(e));
+        res.statusCode = 500;
+        res.end(JSON.stringify({ error: String(e) }));
+      }
+    });
+  },
+});
