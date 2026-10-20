@@ -8,3 +8,4 @@ dist/
 
 # 개인 설정 (Claude Code)
 CLAUDE.local.md
+__pycache__/
