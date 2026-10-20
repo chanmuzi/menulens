@@ -109,7 +109,7 @@ export const App = () => {
       const totalMs = Date.now() - t0;
       setCurrent((s) => {
         if (!s) return s;
-        const ok = s.items.length > 0;
+        const ok = s.items.length > 0 || s.notes.length > 0;
         const done: Scan = { ...s, status: ok ? 'done' : 'error', error: ok ? null : '글자를 찾지 못했어요. 더 가까이, 밝게 찍어 주세요.', timing: { ...s.timing, totalMs } };
         if (ok) void saveScan(done).then(setScans); // 사진 모드가 준비되면 여기서 prefetchPhotos(done.items) 를 호출
         return done;

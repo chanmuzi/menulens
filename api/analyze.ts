@@ -172,7 +172,8 @@ const handler = async (req: Request): Promise<Response> => {
         const notes = results.flatMap((r) => (Array.isArray(r.meta?.notes) ? r.meta!.notes! : []));
         send({ t: 'meta', kind: first?.kind ?? 'menu', shop_name: first?.shop_name ?? null, notes });
         const all = results.flatMap((r) => r.items);
-        if (all.length > 0) await runStage2(timelyKey, all, send);
+        // 안내문·기타는 요리 설명(2단계)이 필요 없다. 생략하면 그만큼 빨리 끝난다
+        if (all.length > 0 && (first?.kind ?? 'menu') === 'menu') await runStage2(timelyKey, all, send);
         send({ t: 'done' });
         await saveDebug({ at: new Date().toISOString(), mode: ocr ? 'ocr' : 'image', width: ocr?.width ?? 0, height: ocr?.height ?? 0, rotation: ocr?.rotation ?? 0, tilt: ocr?.tilt ?? 0, words: ocr?.words ?? [], items: results.flatMap((r) => r.raw), notes, chunks: chunks.length }, image);
       } catch (e) {

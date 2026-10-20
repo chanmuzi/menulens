@@ -14,7 +14,9 @@ type Props = { readonly scan: Scan; readonly rate: Rate | null; readonly mode: I
 const KIND_LABEL = { menu: '메뉴판', sign: '안내문', other: '사진 속 글자' } as const;
 
 export const ResultScreen = ({ scan, rate, mode, onMode, onHome, originalFile }: Props) => {
-  const [view, setView] = useState<View>('cards');
+  const isMenu = scan.kind === 'menu';
+  // 안내문·기타는 카드가 의미 없으니 오버레이만 보여준다
+  const [view, setView] = useState<View>(isMenu ? 'cards' : 'overlay');
   const [selected, setSelected] = useState<MenuItem | null>(null);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const streaming = scan.status === 'streaming' || scan.status === 'reading';
@@ -26,10 +28,17 @@ export const ResultScreen = ({ scan, rate, mode, onMode, onHome, originalFile }:
   return (
     <div className="app">
       <TopBar onBack={onHome} backLabel="홈으로" center={
-        <div style={{ position: 'relative' }}>
-          <Segmented shadow label="보기 방식" value={view} onChange={setView} options={[{ value: 'cards', label: '카드' }, { value: 'overlay', label: '오버레이' }]} />
-          <span aria-hidden="true" className="dot" style={{ position: 'absolute', top: -9, right: -10, fontSize: 8, padding: '1px 4px', background: 'var(--vermilion)', color: 'var(--paper-2)', border: '1px solid var(--ink)', lineHeight: 1.2, letterSpacing: '0.1em' }}>BETA</span>
-        </div>
+        isMenu ? (
+          <div style={{ position: 'relative' }}>
+            <Segmented shadow label="보기 방식" value={view} onChange={setView} options={[{ value: 'cards', label: '카드' }, { value: 'overlay', label: '오버레이' }]} />
+            <span aria-hidden="true" className="dot" style={{ position: 'absolute', top: -9, right: -10, fontSize: 8, padding: '1px 4px', background: 'var(--vermilion)', color: 'var(--paper-2)', border: '1px solid var(--ink)', lineHeight: 1.2, letterSpacing: '0.1em' }}>BETA</span>
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center' }}>
+            <div className="dot" style={{ fontSize: 16 }}>{KIND_LABEL[scan.kind]}</div>
+            <div className="dot muted" style={{ fontSize: 11 }}>あんない</div>
+          </div>
+        )
       } right={
         <button type="button" className="btn btn--icon" aria-label="사진을 기기에 저장" title="사진 저장" onClick={() => {
           void savePhoto(originalFile, scan.imageDataUrl).then((r) => {
@@ -43,15 +52,15 @@ export const ResultScreen = ({ scan, rate, mode, onMode, onHome, originalFile }:
       {saveMsg && <div role="status" className="frame frame--flat" style={{ padding: '8px 12px', fontSize: 12 }}>{saveMsg}</div>}
 
       <div style={{ minWidth: 0 }}>
-        <div className="jp" style={{ fontSize: 20, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{scan.shopName ?? KIND_LABEL[scan.kind]}</div>
+        <div className="jp" style={{ fontSize: 20, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{scan.shopName ?? (isMenu ? KIND_LABEL[scan.kind] : (scan.notes[0]?.text_ko ?? KIND_LABEL[scan.kind]))}</div>
         <div className="muted small">
-          {scan.items.length}개{summary && ` · ${summary}`}{formatRateLine(rate) && ` · ${formatRateLine(rate)}`}
+          {isMenu ? <>{scan.items.length}개{summary && ` · ${summary}`}{formatRateLine(rate) && ` · ${formatRateLine(rate)}`}</> : <>{scan.notes.length}줄 번역 · 일본어만</>}
           {streaming && <span className="blink"> ▌</span>}
           {detailing && <span> · 설명 쓰는 중<span className="blink">▌</span></span>}
         </div>
       </div>
 
-      {view === 'overlay'
+      {view === 'overlay' || !isMenu
         ? <OverlayView scan={scan} selectedId={selected?.id ?? null} onSelect={setSelected} />
         : <CardsView scan={scan} rate={rate} mode={mode} onMode={onMode} onSelect={setSelected} />}
 
