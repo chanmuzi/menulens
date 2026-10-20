@@ -116,7 +116,7 @@ export const OverlayView = ({ scan, selectedId, onSelect }: Props) => {
   const approxW = 350, approxHi = (approxW * scan.height) / scan.width;
   const isMenu = scan.kind === 'menu';
   // 안내문은 줄 단위로 번역되므로 길어도 제자리에 덮는다(줄 바꿈·아래로 늘어남). 메뉴판의 긴 안내만 ※ 목록으로 뺀다
-  const longNotes = isMenu ? scan.notes.filter((n) => n.bbox && !fitsInBox(n.bbox, n.text_ko, approxW, approxHi)) : [];
+  const longNotes: typeof scan.notes = [];
   const colors = useBoxColors(scan.imageDataUrl, [
     ...scan.notes.flatMap((n, i) => (n.bbox ? [[`n${i}`, n.bbox] as const] : [])),
     ...(isMenu ? [] : scan.items.flatMap((it) => (it.bbox ? [[it.id, it.bbox] as const] : []))),
@@ -134,7 +134,8 @@ export const OverlayView = ({ scan, selectedId, onSelect }: Props) => {
           {(ctx) => {
             if (!showMarks) return null;
             let marker = 0;
-            const covers = scan.notes.filter((n) => n.bbox).map((n, i) =>
+            // 메뉴판은 번호 배지만 남긴다. 분류 제목·안내 문구 덮기는 사진을 어지럽혀 안내문(sign)에서만 쓴다
+            const covers = isMenu ? [] : scan.notes.filter((n) => n.bbox).map((n, i) =>
               !isMenu || fitsInBox(n.bbox!, n.text_ko, approxW, approxHi) // 아래 목록과 같은 기준으로 판정해 번호가 맞도록
                 ? <CoverLabel key={`n${i}`} bbox={n.bbox!} text={n.text_ko} W={ctx.W} Hi={ctx.Hi} rotation={scan.rotation} rot={rot} colors={colors.get(`n${i}`)} />
                 : <NoteMarker key={`n${i}`} bbox={n.bbox!} n={++marker} scale={ctx.markerScale} />);
