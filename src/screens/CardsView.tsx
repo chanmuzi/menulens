@@ -3,15 +3,17 @@ import type { Category, ImageMode, MenuItem, Rate, Scan } from '../types';
 import { formatJpy, formatKrw } from '../lib/money';
 import { ItemImage } from '../components/ItemImage';
 import { Segmented } from '../components/Segmented';
+import { QtyStepper } from '../components/QtyStepper';
+import type { Order } from '../lib/order';
 
 type Filter = '전체' | Category | '매운맛';
 const FILTERS: readonly Filter[] = ['전체', '안주', '식사', '음료', '디저트', '기타', '매운맛'];
 
-type Props = { readonly scan: Scan; readonly rate: Rate | null; readonly mode: ImageMode; readonly onMode: (m: ImageMode) => void; readonly onSelect: (item: MenuItem) => void };
+type Props = { readonly scan: Scan; readonly rate: Rate | null; readonly mode: ImageMode; readonly onMode: (m: ImageMode) => void; readonly onSelect: (item: MenuItem) => void; readonly order: Order; readonly onQty: (id: string, qty: number) => void };
 
 const matches = (it: MenuItem, f: Filter): boolean => f === '전체' || (f === '매운맛' ? it.tags.includes('매움') : it.category === f);
 
-export const CardsView = ({ scan, rate, mode, onMode, onSelect }: Props) => {
+export const CardsView = ({ scan, rate, mode, onMode, onSelect, order, onQty }: Props) => {
   const [filter, setFilter] = useState<Filter>('전체');
   const present = new Set(scan.items.map((i) => i.category));
   const filters = FILTERS.filter((f) => f === '전체' || f === '매운맛' ? true : present.has(f));
@@ -53,6 +55,11 @@ export const CardsView = ({ scan, rate, mode, onMode, onSelect }: Props) => {
               </span>
             )}
           </button>
+          {scan.kind === 'menu' && it.category !== '기타' && (
+            <div style={{ flexShrink: 0, alignSelf: 'flex-end' }}>
+              <QtyStepper qty={order[it.id] ?? 0} onChange={(q) => onQty(it.id, q)} label={it.name_ko} size="small" />
+            </div>
+          )}
         </article>
       ))}
     </div>

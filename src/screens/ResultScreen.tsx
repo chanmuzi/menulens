@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { savePhoto } from '../lib/savePhoto';
 import type { ImageMode, MenuItem, Rate, Scan } from '../types';
 import { TopBar } from '../components/TopBar';
@@ -7,6 +7,9 @@ import { OverlayView } from './OverlayView';
 import { CardsView } from './CardsView';
 import { ItemSheet } from './ItemSheet';
 import { formatRateLine } from '../lib/money';
+import { loadOrder, orderLines, saveOrder, withQty, type Order } from '../lib/order';
+import { OrderBar } from '../components/OrderBar';
+import { OrderSheet } from './OrderSheet';
 
 type View = 'overlay' | 'cards';
 type Props = { readonly scan: Scan; readonly rate: Rate | null; readonly mode: ImageMode; readonly onMode: (m: ImageMode) => void; readonly onHome: () => void; readonly originalFile: File | null };
@@ -19,6 +22,12 @@ export const ResultScreen = ({ scan, rate, mode, onMode, onHome, originalFile }:
   const [view, setView] = useState<View>(isMenu ? 'cards' : 'overlay');
   const [selected, setSelected] = useState<MenuItem | null>(null);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  // 주문 수량(메뉴판만). 스캔별로 기기에 저장
+  const [order, setOrder] = useState<Order>(() => (isMenu ? loadOrder(scan.id) : {}));
+  const [orderOpen, setOrderOpen] = useState(false);
+  useEffect(() => { if (isMenu) saveOrder(scan.id, order); }, [isMenu, scan.id, order]);
+  const setQty = (id: string, qty: number) => setOrder((o) => withQty(o, id, qty));
+  const lines = isMenu ? orderLines(scan, order) : [];
   const streaming = scan.status === 'streaming' || scan.status === 'reading';
   const detailing = scan.status === 'detailing';
   const counts: Record<string, number> = {};
@@ -62,9 +71,12 @@ export const ResultScreen = ({ scan, rate, mode, onMode, onHome, originalFile }:
 
       {view === 'overlay' || !isMenu
         ? <OverlayView scan={scan} selectedId={selected?.id ?? null} onSelect={setSelected} />
-        : <CardsView scan={scan} rate={rate} mode={mode} onMode={onMode} onSelect={setSelected} />}
+        : <CardsView scan={scan} rate={rate} mode={mode} onMode={onMode} onSelect={setSelected} order={order} onQty={setQty} />}
 
-      {selected && <ItemSheet item={selected} rate={rate} mode={mode} onClose={() => setSelected(null)} />}
+      {lines.length > 0 && <div aria-hidden="true" style={{ height: 72 }} />}
+      {isMenu && <OrderBar lines={lines} rate={rate} onOpen={() => setOrderOpen(true)} />}
+      {orderOpen && <OrderSheet lines={lines} rate={rate} onQty={setQty} onClear={() => { setOrder({}); setOrderOpen(false); }} onClose={() => setOrderOpen(false)} />}
+      {selected && <ItemSheet item={selected} rate={rate} mode={mode} onClose={() => setSelected(null)} qty={isMenu ? (order[selected.id] ?? 0) : null} onQty={(q) => setQty(selected.id, q)} />}
     </div>
   );
 };
