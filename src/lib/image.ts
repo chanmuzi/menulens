@@ -15,7 +15,7 @@ export type PreparedImage = {
 const MAX_SIDE = 1280;
 const QUALITY = 0.85;
 
-const loadImage = (file: File): Promise<HTMLImageElement> =>
+export const loadImage = (file: File): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const img = new Image();

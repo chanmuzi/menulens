@@ -150,7 +150,7 @@ export const App = () => {
   const remove = (id: string) => void removeScan(id).then(setScans);
   if (route === 'confirm' && pending) {
     const file = pending;
-    return <ConfirmScreen file={file} onConfirm={() => { setPending(null); void startScan(file); }} onCancel={goHome} />;
+    return <ConfirmScreen file={file} onConfirm={(f) => { setPending(null); void startScan(f); }} onCancel={goHome} />;
   }
   if (route === 'history') {
     return <HistoryScreen scans={scans} installHint={installHint} onBack={() => setRoute('home')} onOpen={openScan} onRemove={remove} onClear={() => void clearScans().then(setScans)} />;
