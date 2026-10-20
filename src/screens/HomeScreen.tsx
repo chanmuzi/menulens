@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import type { PickSource, Scan } from '../types';
 import { hasFiles, imageFromDropEvent } from '../lib/drop';
+import { isIos } from '../lib/platform';
 import { PixelIcon } from '../components/PixelIcon';
 import { ScanRow } from '../components/ScanRow';
 import { InstallHint } from '../components/InstallHint';
@@ -35,6 +36,9 @@ export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRe
   const [hint, setHint] = useState<{ readonly text: string; readonly at: number } | null>(null);
   const pasteSupported = canReadClipboard();
   const [dragging, setDragging] = useState(false);
+  /** iOS 홈 화면 앱 등에서 clipboard.read 가 막혔을 때 띄우는 붙여넣기 상자 */
+  const [pasteBox, setPasteBox] = useState(false);
+  const pasteBoxRef = useRef<HTMLDivElement>(null);
   const handle = (source: PickSource) => (e: ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     e.target.value = '';
@@ -60,6 +64,9 @@ export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRe
     return () => document.removeEventListener('paste', onPaste);
   }, [onPick]);
 
+  // 붙여넣기 상자가 뜨면 포커스를 줘서 길게 누르면 바로 「붙여넣기」 메뉴가 나오게 한다
+  useEffect(() => { if (pasteBox) pasteBoxRef.current?.focus(); }, [pasteBox]);
+
   // 데스크톱: 화면 어디에나 이미지 파일을 끌어다 놓기 (기본 동작 차단은 App 이 모든 화면에서 맡는다)
   useEffect(() => {
     const onOver = (e: DragEvent) => { if (hasFiles(e)) setDragging(true); };
@@ -80,8 +87,9 @@ export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRe
   // 모바일: 버튼 탭 → 클립보드 읽기 (사용자 동작 안에서 호출해야 한다)
   const pasteFromButton = async () => {
     const r = await readImageFromClipboard();
-    if (r.ok) onPick(r.file, 'paste');
-    else setHint({ text: HINT_BY_REASON[r.reason], at: Date.now() });
+    if (r.ok) { onPick(r.file, 'paste'); return; }
+    if (isIos()) { setPasteBox(true); return; } // 상자를 길게 눌러 네이티브 「붙여넣기」 → paste 이벤트
+    setHint({ text: HINT_BY_REASON[r.reason], at: Date.now() });
   };
 
   return (
@@ -137,6 +145,18 @@ export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRe
         </section>
       )}
 
+      {pasteBox && (
+        <div className="frame frame--flat" style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--paper-dark)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 13 }}>
+            <span>붙여넣기 권한이 막혀 있어요. 아래 상자를 <strong>길게 눌러 「붙여넣기」</strong>를 고르세요</span>
+            <button type="button" className="btn btn--quiet" onClick={() => setPasteBox(false)} aria-label="닫기" style={{ minHeight: 32, padding: '0 6px' }}>✕</button>
+          </div>
+          <div ref={pasteBoxRef} contentEditable suppressContentEditableWarning inputMode="none" aria-label="붙여넣기 상자" onInput={(e) => { e.currentTarget.textContent = ''; }}
+            style={{ minHeight: 56, border: '2px dashed var(--vermilion)', background: 'var(--paper-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: 'var(--muted)', outline: 'none', caretColor: 'transparent' }}>
+            여기를 길게 누르기
+          </div>
+        </div>
+      )}
       <InstallHint hint={installHint} />
     </div>
   );
