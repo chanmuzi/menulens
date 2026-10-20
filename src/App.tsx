@@ -35,6 +35,7 @@ export const App = () => {
   const [mode, setMode] = useState<ImageMode>(() => loadImageMode());
   const abortRef = useRef<AbortController | null>(null);
   const lastFile = useRef<File | null>(null);
+  const lastScanId = useRef<string | null>(null);
 
   useEffect(() => {
     if (rate || route === 'gate') return;
@@ -50,7 +51,9 @@ export const App = () => {
     abortRef.current?.abort();
     const ac = new AbortController();
     abortRef.current = ac;
-    setCurrent(emptyScan());
+    const fresh = emptyScan();
+    lastScanId.current = fresh.id;
+    setCurrent(fresh);
     setRoute('processing');
     const t0 = Date.now();
     try {
@@ -110,7 +113,7 @@ export const App = () => {
     return <ProcessingScreen scan={current} onCancel={goHome} onPeek={() => setRoute('result')} onRetry={() => { if (lastFile.current) void startScan(lastFile.current); }} />;
   }
   if (route === 'result' && current) {
-    return <ResultScreen scan={current} rate={rate} mode={mode} onMode={changeMode} onHome={goHome} />;
+    return <ResultScreen scan={current} rate={rate} mode={mode} onMode={changeMode} onHome={goHome} originalFile={lastFile.current && lastScanId.current === current.id ? lastFile.current : null} />;
   }
   return (
     <HomeScreen
