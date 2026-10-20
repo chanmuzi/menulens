@@ -18,6 +18,8 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--font-ui); -webkit-font-smoothing: antialiased; }
 body { min-height: 100dvh; overscroll-behavior-y: none; }
+/* iOS 홈 화면 앱: 상태바 영역을 먹색 띠로 채운다 (black-translucent 는 상태바 글자가 흰색이라 밝은 종이색 위에선 안 보인다) */
+body::before { content: ''; position: fixed; left: 0; right: 0; top: 0; height: var(--safe-top); background: var(--ink); z-index: 100; pointer-events: none; }
 button, input { font: inherit; color: inherit; }
 a { color: var(--vermilion); text-decoration: none; }
 img { display: block; max-width: 100%; }
