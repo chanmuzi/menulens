@@ -35,9 +35,10 @@ export const CardsView = ({ scan, rate, mode, onMode, onSelect, order, onQty }: 
       </div>}
       {list.length === 0 && <div className="muted small" style={{ textAlign: 'center', padding: 20 }}>해당하는 메뉴가 없어요</div>}
       {list.map((it) => (
-        <article key={it.id} className="frame" style={{ display: 'flex', gap: 12, padding: 12, alignItems: 'center' }}>
+        <article key={it.id} className="frame" style={{ display: 'flex', gap: 12, padding: 12, alignItems: 'flex-start' }}>
           <ItemImage item={it} mode={mode} size={76} />
-          <button type="button" onClick={() => onSelect(it)} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4, background: 'none', border: 0, padding: 0, textAlign: 'left', cursor: 'pointer' }}>
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <button type="button" onClick={() => onSelect(it)} style={{ display: 'flex', flexDirection: 'column', gap: 4, background: 'none', border: 0, padding: 0, textAlign: 'left', cursor: 'pointer' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
               <span className="jp" style={{ fontSize: 17 }}>{it.name_ja}</span>
               <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0 }}>
@@ -56,10 +57,12 @@ export const CardsView = ({ scan, rate, mode, onMode, onSelect, order, onQty }: 
             )}
           </button>
           {scan.kind === 'menu' && it.category !== '기타' && (
-            <div style={{ flexShrink: 0, alignSelf: 'flex-end', marginLeft: -4 }}>
+            // 본문 아래 줄, 오른쪽 정렬: 이름·가격·설명이 카드 폭을 다 쓴다
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <QtyStepper qty={order[it.id] ?? 0} onChange={(q) => onQty(it.id, q)} label={it.name_ko} size="small" />
             </div>
           )}
+          </div>
         </article>
       ))}
     </div>
