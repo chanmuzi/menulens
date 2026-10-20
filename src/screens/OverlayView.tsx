@@ -31,6 +31,24 @@ const badgeSizes = (items: readonly MenuItem[], ctx: MarkerCtx): Map<string, num
 /** 글자 폭 추정(em): CJK 1, 그 외 0.55 */
 const textEm = (t: string): number => [...t].reduce((n, ch) => n + (/[\u1100-\u11FF\u3000-\u9FFF\uAC00-\uD7AF\uF900-\uFAFF\uFF00-\uFFEF]/.test(ch) ? 1 : 0.55), 0);
 
+/** 상자에 두 줄 이내로 들어가는지 (안 들어가면 제자리 덮기 대신 ※마커 + 아래 목록) */
+const fitsInBox = (bbox: readonly [number, number, number, number], text: string, W: number, Hi: number): boolean => {
+  const [x0, y0, x1, y1] = bbox;
+  const wPx = ((x1 - x0) / 1000) * W, hPx = ((y1 - y0) / 1000) * Hi;
+  const vertical = hPx > wPx * 2;
+  const along = vertical ? hPx : wPx, across = vertical ? wPx : hPx;
+  const em = Math.max(1, textEm(text));
+  const oneLine = Math.min(across * 0.78, (along * 0.94) / em);
+  if (oneLine >= 9) return true;
+  const twoLineFont = Math.min(across * 0.78, 12, (along * 0.94 * 2) / em);
+  return twoLineFont >= 9;
+};
+
+const NoteMarker = ({ bbox, n, scale }: { bbox: readonly [number, number, number, number]; n: number; scale: number }) => (
+  <div aria-hidden="true" className="dot" style={{ position: 'absolute', left: `${bbox[0] / 10}%`, top: `${bbox[1] / 10}%`, transform: `translate(-20%, -20%) scale(${scale})`, transformOrigin: 'top left',
+    background: 'var(--paper-2)', color: 'var(--vermilion)', border: '2px solid var(--vermilion)', fontSize: 11, lineHeight: 1, padding: '2px 4px', zIndex: 2 }}>※{n}</div>
+);
+
 const CoverLabel = ({ bbox, text, W, Hi, onClick }: { bbox: readonly [number, number, number, number]; text: string; W: number; Hi: number; onClick?: () => void }) => {
   const [x0, y0, x1, y1] = bbox;
   const wPx = ((x1 - x0) / 1000) * W, hPx = ((y1 - y0) / 1000) * Hi;
@@ -65,6 +83,8 @@ export const OverlayView = ({ scan, selectedId, onSelect }: Props) => {
   const badges = scan.kind === 'menu' && scan.items.length > CHIP_LIMIT;
   const [showMarks, setShowMarks] = useState(true);
   const rot = scan.rotation + scan.tilt;
+  const approxW = 350, approxHi = (approxW * scan.height) / scan.width;
+  const longNotes = scan.notes.filter((n) => n.bbox && !fitsInBox(n.bbox, n.text_ko, approxW, approxHi));
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div className="frame" style={{ boxShadow: '4px 4px 0 var(--ink)', overflow: 'hidden', position: 'relative' }}>
@@ -75,7 +95,11 @@ export const OverlayView = ({ scan, selectedId, onSelect }: Props) => {
         <MenuPhoto src={scan.imageDataUrl} width={scan.width} height={scan.height} words={scan.words} rotation={scan.rotation} tilt={scan.tilt} maxHeight={620} zoomable>
           {(ctx) => {
             if (!showMarks) return null;
-            const covers = scan.notes.filter((n) => n.bbox).map((n, i) => <CoverLabel key={`n${i}`} bbox={n.bbox!} text={n.text_ko} W={ctx.W} Hi={ctx.Hi} />);
+            let marker = 0;
+            const covers = scan.notes.filter((n) => n.bbox).map((n, i) =>
+              fitsInBox(n.bbox!, n.text_ko, approxW, approxHi) // 아래 목록과 같은 기준으로 판정해 번호가 맞도록
+                ? <CoverLabel key={`n${i}`} bbox={n.bbox!} text={n.text_ko} W={ctx.W} Hi={ctx.Hi} />
+                : <NoteMarker key={`n${i}`} bbox={n.bbox!} n={++marker} scale={ctx.markerScale} />);
             if (scan.kind !== 'menu') {
               return [...covers, ...scan.items.filter((it) => it.bbox).map((it) => <CoverLabel key={it.id} bbox={it.bbox!} text={it.name_ko} W={ctx.W} Hi={ctx.Hi} onClick={() => onSelect(it)} />)];
             }
@@ -114,6 +138,16 @@ export const OverlayView = ({ scan, selectedId, onSelect }: Props) => {
           }}
         </MenuPhoto>
       </div>
+      {longNotes.length > 0 && (
+        <ul style={{ margin: 0, padding: '10px 12px', listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--paper-dark)', border: '2px solid var(--ink)' }}>
+          {longNotes.map((n, i) => (
+            <li key={i} style={{ display: 'flex', gap: 8, fontSize: 13, lineHeight: 1.45 }}>
+              <span className="dot" style={{ color: 'var(--vermilion)', flexShrink: 0 }}>※{i + 1}</span>
+              <span>{n.text_ko}</span>
+            </li>
+          ))}
+        </ul>
+      )}
       <div className="muted small" style={{ textAlign: 'center' }}>{badges ? '번호를 탭하면 상세가 열려요 · 두 손가락으로 확대, 두 번 탭하면 원래대로' : scan.kind !== 'menu' ? '번역을 탭하면 원문과 설명이 열려요 · 두 손가락으로 확대' : '칩을 탭하면 설명과 원화 가격이 열려요'}</div>
       {badges && (
         <ol style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '6px 10px' }}>
