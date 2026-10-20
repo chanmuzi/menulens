@@ -71,11 +71,11 @@ export const ProcessingScreen = ({ scan, onCancel, onPeek, onRetry }: Props) => 
           ) : (
             <>
               <Step active={reading} done={!reading && scan.status !== 'preparing'} todo={scan.status === 'preparing'}>
-                {reading ? '글자를 찾는 중' : wordsRead > 0 ? `글자 ${wordsRead}개 읽었어요` : '글자 읽기 건너뜀'}
+                {reading ? '글자를 찾는 중' : wordsRead > 0 ? `단어 ${wordsRead}개 읽었어요` : '글자 읽기 건너뜀'}
                 {reading && <span className="blink">▌</span>}
               </Step>
               <Step active={streaming} done={scan.status === 'done'} todo={!streaming && scan.status !== 'done'}>
-                {found === 0 ? '번역하는 중' : `${found}개 번역했어요`}
+                {found === 0 ? '메뉴로 묶어 번역하는 중' : `메뉴 ${found}개 찾았어요`}
                 {streaming && <span className="blink">▌</span>}
               </Step>
             </>

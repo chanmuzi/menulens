@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ImageMode, MenuItem, OcrWord, Rate, Scan } from './types';
+import type { ImageMode, Note, OcrWord, Rate, Scan, ScanKind } from './types';
 import { analyzeImage, fetchRate } from './lib/api';
 import { prepareImage } from './lib/image';
-import { createItemParser, extractKind, extractQuadRaw, extractShopName } from './lib/streamItems';
-import { newScanId, toMenuItem, toQuad } from './lib/scan';
+import { applyDetails, insertItem, newScanId, toMenuItem, toNote } from './lib/scan';
 import { getAccessCode, loadImageMode, loadRate, loadScans, removeScan, saveImageMode, saveRate, saveScan, setAccessCode } from './lib/storage';
 import { GateScreen } from './screens/GateScreen';
 import { HomeScreen } from './screens/HomeScreen';
@@ -14,15 +13,19 @@ type Route = 'gate' | 'home' | 'processing' | 'result';
 
 const emptyScan = (): Scan => ({
   id: newScanId(), createdAt: Date.now(), imageDataUrl: '', width: 4, height: 3, kind: 'menu', shopName: null, sheetQuad: null,
-  words: [], rotation: 0, tilt: 0, items: [], status: 'preparing', error: null, timing: { ocrMs: null, firstItemMs: null, totalMs: null },
+  words: [], rotation: 0, tilt: 0, notes: [], items: [], status: 'preparing', error: null,
+  timing: { ocrMs: null, firstItemMs: null, listMs: null, totalMs: null },
 });
 
 /** 이전 버전에 저장된 스캔도 열리도록 빠진 필드를 채운다 */
 const upgrade = (s: Scan): Scan => ({
   ...emptyScan(), ...s,
-  words: s.words ?? [], rotation: s.rotation ?? 0, tilt: s.tilt ?? 0, kind: s.kind ?? 'menu', sheetQuad: s.sheetQuad ?? null,
-  timing: s.timing ?? { ocrMs: null, firstItemMs: null, totalMs: null },
+  words: s.words ?? [], rotation: s.rotation ?? 0, tilt: s.tilt ?? 0, kind: s.kind ?? 'menu', sheetQuad: s.sheetQuad ?? null, notes: s.notes ?? [],
+  items: (s.items ?? []).map((it) => ({ ...it, pron_ko: it.pron_ko ?? '', desc_ko: it.desc_ko ?? '', tags: it.tags ?? [], photo_query: it.photo_query ?? it.name_ja, detailed: it.detailed ?? true })),
+  timing: { ...emptyScan().timing, ...(s.timing ?? {}) },
 });
+
+const toKind = (k: string): ScanKind => (k === 'sign' || k === 'other' ? k : 'menu');
 
 export const App = () => {
   const [route, setRoute] = useState<Route>(() => (getAccessCode() ? 'home' : 'gate'));
@@ -54,11 +57,7 @@ export const App = () => {
       const img = await prepareImage(file);
       if (ac.signal.aborted) return;
       update((s) => ({ ...s, imageDataUrl: img.dataUrl, width: img.width, height: img.height, status: 'reading' }));
-      const parser = createItemParser();
       let words: readonly OcrWord[] = [];
-      let count = 0;
-      let quadSeen = false;
-      let kindSeen = false;
       let firstItemMs: number | null = null;
       await analyzeImage(img.base64, img.mediaType, {
         signal: ac.signal,
@@ -67,27 +66,26 @@ export const App = () => {
           update((s) => ({ ...s, words, rotation: r.used ? r.rotation : 0, tilt: r.used ? r.tilt : 0, timing: { ...s.timing, ocrMs: r.ms } }));
         },
         onMode: () => update((s) => ({ ...s, status: 'streaming' })),
-        onText: (chunk) => {
-          const items = parser.push(chunk).map((raw) => toMenuItem(raw, count++, words)).filter((x): x is MenuItem => x !== null);
-          if (!kindSeen) { const k = extractKind(parser.text()); if (k) { kindSeen = true; update((s) => ({ ...s, kind: k })); } }
-          if (!quadSeen) {
-            const raw = extractQuadRaw(parser.text());
-            if (raw !== undefined) { quadSeen = true; const quad = toQuad(raw); if (quad) update((s) => ({ ...s, sheetQuad: quad })); }
-          }
-          if (items.length > 0) {
-            if (firstItemMs === null) firstItemMs = Date.now() - t0;
-            const first = firstItemMs;
-            update((s) => ({ ...s, items: [...s.items, ...items], timing: { ...s.timing, firstItemMs: first } }));
-          }
+        onItem: (key, raw) => {
+          const item = toMenuItem(raw, key, words);
+          if (!item) return;
+          if (firstItemMs === null) firstItemMs = Date.now() - t0;
+          const first = firstItemMs;
+          update((s) => ({ ...s, items: insertItem(s.items, item), timing: { ...s.timing, firstItemMs: first } }));
         },
+        onMeta: (m) => {
+          const notes = m.notes.map((n) => toNote(n, words)).filter((n): n is Note => n !== null);
+          const listMs = Date.now() - t0;
+          update((s) => ({ ...s, kind: toKind(m.kind), shopName: m.shop_name, notes, status: s.items.length > 0 ? 'detailing' : s.status, timing: { ...s.timing, listMs } }));
+        },
+        onDetails: (details) => update((s) => ({ ...s, items: applyDetails(s.items, details) })),
       });
       if (ac.signal.aborted) return;
-      const shopName = extractShopName(parser.text());
       const totalMs = Date.now() - t0;
       setCurrent((s) => {
         if (!s) return s;
         const ok = s.items.length > 0;
-        const done: Scan = { ...s, shopName, status: ok ? 'done' : 'error', error: ok ? null : '글자를 찾지 못했어요. 더 가까이, 밝게 찍어 주세요.', timing: { ...s.timing, totalMs } };
+        const done: Scan = { ...s, status: ok ? 'done' : 'error', error: ok ? null : '글자를 찾지 못했어요. 더 가까이, 밝게 찍어 주세요.', timing: { ...s.timing, totalMs } };
         if (ok) setScans(saveScan(done)); // 사진 모드가 준비되면 여기서 prefetchPhotos(done.items) 를 호출
         return done;
       });
@@ -99,8 +97,9 @@ export const App = () => {
     }
   }, [update]);
 
+  // 목록이 완성되면(상세는 아직이어도) 결과 화면으로 넘어간다
   useEffect(() => {
-    if (route === 'processing' && current?.status === 'done') setRoute('result');
+    if (route === 'processing' && (current?.status === 'detailing' || current?.status === 'done')) setRoute('result');
   }, [route, current?.status]);
 
   const goHome = () => { abortRef.current?.abort(); setCurrent(null); setRoute('home'); };

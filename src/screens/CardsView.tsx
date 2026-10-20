@@ -31,9 +31,20 @@ export const CardsView = ({ scan, rate, mode, onMode, onSelect }: Props) => {
           <Segmented size="small" label="대표 이미지 종류" value={mode} onChange={onMode} options={[{ value: 'art', label: '그림' }, { value: 'photo', label: '사진', disabled: true }]} />
         </div>
       </div>
+      {scan.notes.length > 0 && filter === '전체' && (
+        <section style={{ background: 'var(--paper-dark)', border: '2px solid var(--ink)', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <span className="dot" style={{ fontSize: 11, color: 'var(--vermilion)', letterSpacing: '0.1em' }}>메뉴판 문구</span>
+          {scan.notes.map((n, i) => (
+            <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <span style={{ fontSize: 13, fontWeight: 500 }}>{n.text_ko}</span>
+              <span className="jp muted" style={{ fontSize: 12, fontWeight: 500 }}>{n.text_ja}</span>
+            </div>
+          ))}
+        </section>
+      )}
       {list.length === 0 && <div className="muted small" style={{ textAlign: 'center', padding: 20 }}>해당하는 메뉴가 없어요</div>}
       {list.map((it) => (
-        <article key={it.id} className="frame" style={{ display: 'flex', gap: 12, padding: 12 }}>
+        <article key={it.id} className="frame" style={{ display: 'flex', gap: 12, padding: 12, alignItems: 'center' }}>
           <ItemImage item={it} mode={mode} size={76} />
           <button type="button" onClick={() => onSelect(it)} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4, background: 'none', border: 0, padding: 0, textAlign: 'left', cursor: 'pointer' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
@@ -44,7 +55,9 @@ export const CardsView = ({ scan, rate, mode, onMode, onSelect }: Props) => {
               </span>
             </div>
             <span style={{ fontSize: 14, fontWeight: 600 }}>{it.name_ko}</span>
-            {it.desc_ko && <span style={{ fontSize: 12, color: 'var(--body)', lineHeight: 1.45 }}>{it.desc_ko}</span>}
+            {it.desc_ko
+              ? <span style={{ fontSize: 12, color: 'var(--body)', lineHeight: 1.45 }}>{it.desc_ko}</span>
+              : !it.detailed && scan.status !== 'done' && <span className="muted" style={{ fontSize: 12 }}>설명 쓰는 중<span className="blink">▌</span></span>}
             {it.tags.length > 0 && (
               <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {it.tags.map((t) => <span key={t} className={`chip${t === '매움' ? ' chip--accent' : ''}`}>{t}</span>)}

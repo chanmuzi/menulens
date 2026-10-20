@@ -32,7 +32,9 @@ export const ItemSheet = ({ item, rate, mode, onClose }: Props) => {
                 {formatKrw(item.price_jpy, rate) && <span className="muted" style={{ fontSize: 11 }}>{formatKrw(item.price_jpy, rate)}</span>}
               </span>
             </div>
-            {item.desc_ko && <p style={{ margin: 0, fontSize: 13, color: 'var(--body)', lineHeight: 1.5 }}>{item.desc_ko}</p>}
+            {item.desc_ko
+              ? <p style={{ margin: 0, fontSize: 13, color: 'var(--body)', lineHeight: 1.5 }}>{item.desc_ko}</p>
+              : !item.detailed && <p className="muted" style={{ margin: 0, fontSize: 13 }}>설명 쓰는 중<span className="blink">▌</span></p>}
           </div>
         </div>
         {item.tags.length > 0 && <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{item.tags.map((t) => <span key={t} className="chip">{t}</span>)}</div>}

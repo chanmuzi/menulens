@@ -12,25 +12,22 @@ type Props = { readonly scan: Scan; readonly rate: Rate | null; readonly mode: I
 
 const KIND_LABEL = { menu: '메뉴판', sign: '안내문', other: '사진 속 글자' } as const;
 
-const sec = (ms: number | null): string => (ms === null ? '-' : `${(ms / 1000).toFixed(1)}s`);
-
 export const ResultScreen = ({ scan, rate, mode, onMode, onHome }: Props) => {
   const [view, setView] = useState<View>('cards');
   const [selected, setSelected] = useState<MenuItem | null>(null);
   const streaming = scan.status === 'streaming' || scan.status === 'reading';
+  const detailing = scan.status === 'detailing';
   const counts: Record<string, number> = {};
   for (const it of scan.items) counts[it.category] = (counts[it.category] ?? 0) + 1;
   const summary = Object.entries(counts).map(([k, n]) => `${k} ${n}`).join(' · ');
-  const t = scan.timing;
-  const timingLine = t.totalMs !== null ? `OCR ${sec(t.ocrMs)} · 첫 항목 ${sec(t.firstItemMs)} · 완료 ${sec(t.totalMs)}` : null;
 
   return (
     <div className="app">
       <TopBar onBack={onHome} backLabel="홈으로" center={
-        <Segmented shadow label="보기 방식" value={view} onChange={setView} options={[
-          { value: 'cards', label: '카드' },
-          { value: 'overlay', label: <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>오버레이<span style={{ fontSize: 8, padding: '1px 3px', border: '1px solid currentColor', lineHeight: 1, letterSpacing: '0.08em' }}>BETA</span></span> },
-        ]} />
+        <div style={{ position: 'relative' }}>
+          <Segmented shadow label="보기 방식" value={view} onChange={setView} options={[{ value: 'cards', label: '카드' }, { value: 'overlay', label: '오버레이' }]} />
+          <span aria-hidden="true" className="dot" style={{ position: 'absolute', top: -9, right: -10, fontSize: 8, padding: '1px 4px', background: 'var(--vermilion)', color: 'var(--paper-2)', border: '1px solid var(--ink)', lineHeight: 1.2, letterSpacing: '0.1em' }}>BETA</span>
+        </div>
       } />
 
       <div style={{ minWidth: 0 }}>
@@ -38,8 +35,8 @@ export const ResultScreen = ({ scan, rate, mode, onMode, onHome }: Props) => {
         <div className="muted small">
           {scan.items.length}개{summary && ` · ${summary}`}{formatRateLine(rate) && ` · ${formatRateLine(rate)}`}
           {streaming && <span className="blink"> ▌</span>}
+          {detailing && <span> · 설명 쓰는 중<span className="blink">▌</span></span>}
         </div>
-        {timingLine && <div className="dot muted" style={{ fontSize: 10, marginTop: 2 }}>{timingLine}</div>}
       </div>
 
       {view === 'overlay'

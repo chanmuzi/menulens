@@ -1,5 +1,5 @@
-/** 모델이 준 원시 객체를 검증해 MenuItem / Quad 로 정규화한다. */
-import type { Box, Category, MenuItem, OcrWord, Point, Quad } from '../types';
+/** 모델이 준 원시 객체를 검증해 MenuItem / Note / Quad 로 정규화한다. */
+import type { Box, Category, MenuItem, Note, OcrWord, Point, Quad } from '../types';
 import { resolveIcon } from './icons';
 
 const CATEGORIES: readonly Category[] = ['안주', '식사', '음료', '디저트', '기타'];
@@ -16,30 +16,76 @@ export const unionBox = (ids: readonly number[], words: readonly OcrWord[]): Box
   ];
 };
 
-export const toMenuItem = (raw: unknown, index: number, words: readonly OcrWord[]): MenuItem | null => {
+const str = (r: Record<string, unknown>, k: string): string => (typeof r[k] === 'string' ? (r[k] as string).trim() : '');
+
+/** word_ids(OCR 모드) 또는 bbox(이미지 폴백) 에서 상자를 얻는다 */
+const boxOf = (r: Record<string, unknown>, words: readonly OcrWord[]): Box | null => {
+  const ids = Array.isArray(r.word_ids) ? r.word_ids.filter((n): n is number => typeof n === 'number') : [];
+  const fromWords = ids.length > 0 ? unionBox(ids, words) : null;
+  if (fromWords) return fromWords;
+  return Array.isArray(r.bbox) && r.bbox.length === 4 ? [clamp(r.bbox[0]), clamp(r.bbox[1]), clamp(r.bbox[2]), clamp(r.bbox[3])] : null;
+};
+
+/** 1단계 항목 → MenuItem (상세는 비워 둠) */
+export const toMenuItem = (raw: unknown, key: string, words: readonly OcrWord[]): MenuItem | null => {
   if (typeof raw !== 'object' || raw === null) return null;
   const r = raw as Record<string, unknown>;
-  const name_ja = typeof r.name_ja === 'string' ? r.name_ja.trim() : '';
+  const name_ja = str(r, 'name_ja');
   if (!name_ja) return null;
   const category = CATEGORIES.includes(r.category as Category) ? (r.category as Category) : '안주';
   const price = typeof r.price_jpy === 'number' && Number.isFinite(r.price_jpy) ? Math.round(r.price_jpy) : null;
-  const str = (k: string): string => (typeof r[k] === 'string' ? (r[k] as string).trim() : '');
-  const ids = Array.isArray(r.word_ids) ? r.word_ids.filter((n): n is number => typeof n === 'number') : [];
-  const fromWords = ids.length > 0 ? unionBox(ids, words) : null;
-  const fromModel = Array.isArray(r.bbox) && r.bbox.length === 4 ? ([clamp(r.bbox[0]), clamp(r.bbox[1]), clamp(r.bbox[2]), clamp(r.bbox[3])] as const) : null;
   return {
-    id: `${index}-${name_ja}`,
+    id: key,
     name_ja,
-    name_ko: str('name_ko') || name_ja,
-    pron_ko: str('pron_ko'),
+    name_ko: str(r, 'name_ko') || name_ja,
     price_jpy: price,
-    desc_ko: str('desc_ko'),
-    tags: Array.isArray(r.tags) ? r.tags.filter((t): t is string => typeof t === 'string').slice(0, 4) : [],
     category,
-    icon: resolveIcon(name_ja, str('icon') || undefined, category),
-    photo_query: str('photo_query') || name_ja,
-    bbox: fromWords ?? fromModel,
+    icon: resolveIcon(name_ja, str(r, 'icon') || undefined, category),
+    bbox: boxOf(r, words),
+    pron_ko: str(r, 'pron_ko'),
+    desc_ko: str(r, 'desc_ko'),
+    tags: Array.isArray(r.tags) ? r.tags.filter((t): t is string => typeof t === 'string').slice(0, 4) : [],
+    photo_query: str(r, 'photo_query') || name_ja,
+    detailed: false,
   };
+};
+
+/** 항목 키 "묶음:순번" → 읽기 순서 정렬용 숫자 */
+const keyOrder = (key: string): number => {
+  const [c, p] = key.split(':').map(Number);
+  return (c ?? 0) * 10000 + (p ?? 0);
+};
+
+/** 묶음별로 도착하는 항목을 읽기 순서로 끼워 넣는다 */
+export const insertItem = (items: readonly MenuItem[], item: MenuItem): readonly MenuItem[] =>
+  [...items, item].sort((a, b) => keyOrder(a.id) - keyOrder(b.id));
+
+/** 2단계 상세를 key 로 찾아 합친다 */
+export const applyDetails = (items: readonly MenuItem[], details: readonly unknown[]): readonly MenuItem[] => {
+  const byKey = new Map<string, Record<string, unknown>>();
+  for (const d of details) {
+    if (typeof d === 'object' && d !== null && typeof (d as { key?: unknown }).key === 'string') byKey.set((d as { key: string }).key, d as Record<string, unknown>);
+  }
+  return items.map((it) => {
+    const d = byKey.get(it.id);
+    if (!d) return it;
+    return {
+      ...it,
+      pron_ko: str(d, 'pron_ko') || it.pron_ko,
+      desc_ko: str(d, 'desc_ko') || it.desc_ko,
+      tags: Array.isArray(d.tags) ? d.tags.filter((t): t is string => typeof t === 'string').slice(0, 4) : it.tags,
+      photo_query: str(d, 'photo_query') || it.photo_query,
+      detailed: true,
+    };
+  });
+};
+
+export const toNote = (raw: unknown, words: readonly OcrWord[]): Note | null => {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const r = raw as Record<string, unknown>;
+  const text_ja = str(r, 'text_ja');
+  if (!text_ja) return null;
+  return { text_ja, text_ko: str(r, 'text_ko') || text_ja, bbox: boxOf(r, words) };
 };
 
 const toPoint = (p: unknown): Point | null =>

@@ -11,17 +11,24 @@ export const verifyCode = async (code: string): Promise<boolean> => {
   return res.ok;
 };
 
+export type OcrEvent = { words: readonly OcrWord[]; width: number; height: number; rotation: 0 | 90 | 180 | 270; tilt: number; ms: number; used: boolean };
+export type MetaEvent = { kind: string; shop_name: string | null; notes: readonly unknown[] };
+
 export type AnalyzeHandlers = {
-  readonly onOcr: (r: { words: readonly OcrWord[]; width: number; height: number; rotation: 0 | 90 | 180 | 270; tilt: number; ms: number; used: boolean }) => void;
+  readonly onOcr: (r: OcrEvent) => void;
   readonly onMode: (mode: 'ocr' | 'image') => void;
-  readonly onText: (chunk: string) => void;
+  readonly onItem: (key: string, raw: unknown) => void;
+  readonly onMeta: (m: MetaEvent) => void;
+  readonly onDetails: (items: readonly unknown[]) => void;
   readonly signal?: AbortSignal;
 };
 
 type Event =
-  | { t: 'ocr'; width: number; height: number; words: OcrWord[]; rotation: 0 | 90 | 180 | 270; tilt: number; ms: number; used: boolean }
-  | { t: 'mode'; mode: 'ocr' | 'image' }
-  | { t: 'text'; d: string }
+  | ({ t: 'ocr' } & OcrEvent)
+  | { t: 'mode'; mode: 'ocr' | 'image'; chunks?: number }
+  | { t: 'item'; key: string; item: unknown }
+  | ({ t: 'meta' } & MetaEvent)
+  | { t: 'details'; items: unknown[] }
   | { t: 'error'; m: string }
   | { t: 'done' };
 
@@ -42,10 +49,15 @@ export const analyzeImage = async (base64: string, mediaType: string, h: Analyze
   const handle = (raw: string) => {
     if (!raw.trim()) return;
     const ev = JSON.parse(raw) as Event;
-    if (ev.t === 'ocr') h.onOcr({ words: ev.words, width: ev.width, height: ev.height, rotation: ev.rotation ?? 0, tilt: ev.tilt ?? 0, ms: ev.ms, used: ev.used });
-    else if (ev.t === 'mode') h.onMode(ev.mode);
-    else if (ev.t === 'text') h.onText(ev.d);
-    else if (ev.t === 'error') throw new Error(ev.m || '모델 응답 오류');
+    switch (ev.t) {
+      case 'ocr': h.onOcr({ words: ev.words, width: ev.width, height: ev.height, rotation: ev.rotation ?? 0, tilt: ev.tilt ?? 0, ms: ev.ms, used: ev.used }); break;
+      case 'mode': h.onMode(ev.mode); break;
+      case 'item': h.onItem(ev.key, ev.item); break;
+      case 'meta': h.onMeta({ kind: ev.kind, shop_name: ev.shop_name, notes: ev.notes ?? [] }); break;
+      case 'details': h.onDetails(ev.items ?? []); break;
+      case 'error': throw new Error(ev.m || '모델 응답 오류');
+      default: break;
+    }
   };
   for (;;) {
     const { done, value } = await reader.read();

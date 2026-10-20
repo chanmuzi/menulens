@@ -15,18 +15,23 @@ export type MenuItem = {
   readonly id: string;
   readonly name_ja: string;
   readonly name_ko: string;
-  readonly pron_ko: string;
   readonly price_jpy: number | null;
-  readonly desc_ko: string;
-  readonly tags: readonly string[];
   readonly category: Category;
   readonly icon: string;
-  readonly photo_query: string;
   /** OCR 단어 상자의 합집합(정확) 또는 모델 추정(폴백). 없으면 null */
   readonly bbox: Box | null;
+  /** 2단계에서 채워지는 상세. 도착 전에는 빈 문자열/빈 배열 */
+  readonly pron_ko: string;
+  readonly desc_ko: string;
+  readonly tags: readonly string[];
+  readonly photo_query: string;
+  readonly detailed: boolean;
 };
 
-export type ScanStatus = 'preparing' | 'reading' | 'streaming' | 'done' | 'error';
+/** 메뉴 항목이 아닌 문구 (제목, 안내문) */
+export type Note = { readonly text_ja: string; readonly text_ko: string; readonly bbox: Box | null };
+
+export type ScanStatus = 'preparing' | 'reading' | 'streaming' | 'detailing' | 'done' | 'error';
 
 export type Scan = {
   readonly id: string;
@@ -42,11 +47,12 @@ export type Scan = {
   readonly rotation: 0 | 90 | 180 | 270;
   /** 미세 기울기(도). OCR 글줄 각도의 중앙값 */
   readonly tilt: number;
+  readonly notes: readonly Note[];
   readonly items: readonly MenuItem[];
   readonly status: ScanStatus;
   readonly error: string | null;
-  /** 측정값: OCR 소요 ms, 첫 항목까지 ms, 완료까지 ms */
-  readonly timing: { readonly ocrMs: number | null; readonly firstItemMs: number | null; readonly totalMs: number | null };
+  /** 측정값: OCR 소요 ms, 첫 항목까지 ms, 목록 완성까지 ms, 상세까지 ms */
+  readonly timing: { readonly ocrMs: number | null; readonly firstItemMs: number | null; readonly listMs: number | null; readonly totalMs: number | null };
 };
 
 export type Rate = { readonly krwPerJpy: number; readonly date: string | null };
