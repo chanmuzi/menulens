@@ -1,7 +1,5 @@
-import type { Photo, Rate } from '../types';
+import type { OcrWord, Photo, Rate } from '../types';
 import { getAccessCode } from './storage';
-
-const ERROR_MARK = '\u0000ERROR:';
 
 const headers = (): Record<string, string> => ({
   'content-type': 'application/json',
@@ -14,11 +12,20 @@ export const verifyCode = async (code: string): Promise<boolean> => {
 };
 
 export type AnalyzeHandlers = {
+  readonly onOcr: (r: { words: readonly OcrWord[]; width: number; height: number; rotation: 0 | 90 | 180 | 270; tilt: number; ms: number; used: boolean }) => void;
+  readonly onMode: (mode: 'ocr' | 'image') => void;
   readonly onText: (chunk: string) => void;
   readonly signal?: AbortSignal;
 };
 
-/** 분석 스트림을 읽어 텍스트 조각을 콜백으로 넘긴다. 서버 오류는 예외로 던진다. */
+type Event =
+  | { t: 'ocr'; width: number; height: number; words: OcrWord[]; rotation: 0 | 90 | 180 | 270; tilt: number; ms: number; used: boolean }
+  | { t: 'mode'; mode: 'ocr' | 'image' }
+  | { t: 'text'; d: string }
+  | { t: 'error'; m: string }
+  | { t: 'done' };
+
+/** NDJSON 분석 스트림을 읽어 이벤트별 콜백으로 넘긴다. 서버 오류는 예외로 던진다. */
 export const analyzeImage = async (base64: string, mediaType: string, h: AnalyzeHandlers): Promise<void> => {
   const res = await fetch('/api/analyze', {
     method: 'POST', headers: headers(), body: JSON.stringify({ image: base64, mediaType }), signal: h.signal,
@@ -31,14 +38,24 @@ export const analyzeImage = async (base64: string, mediaType: string, h: Analyze
   if (!res.body) throw new Error('응답이 비어 있어요');
   const reader = res.body.getReader();
   const dec = new TextDecoder();
+  let pending = '';
+  const handle = (raw: string) => {
+    if (!raw.trim()) return;
+    const ev = JSON.parse(raw) as Event;
+    if (ev.t === 'ocr') h.onOcr({ words: ev.words, width: ev.width, height: ev.height, rotation: ev.rotation ?? 0, tilt: ev.tilt ?? 0, ms: ev.ms, used: ev.used });
+    else if (ev.t === 'mode') h.onMode(ev.mode);
+    else if (ev.t === 'text') h.onText(ev.d);
+    else if (ev.t === 'error') throw new Error(ev.m || '모델 응답 오류');
+  };
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
-    const text = dec.decode(value, { stream: true });
-    const errAt = text.indexOf(ERROR_MARK);
-    if (errAt >= 0) throw new Error(text.slice(errAt + ERROR_MARK.length).trim() || '모델 응답 오류');
-    h.onText(text);
+    pending += dec.decode(value, { stream: true });
+    const lines = pending.split('\n');
+    pending = lines.pop() ?? '';
+    for (const l of lines) handle(l);
   }
+  if (pending.trim()) handle(pending);
 };
 
 export const fetchRate = async (): Promise<Rate> => {

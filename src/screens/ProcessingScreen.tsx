@@ -13,9 +13,12 @@ const EXPECTED_BLOCKS = 8;
 export const ProcessingScreen = ({ scan, onCancel, onPeek, onRetry }: Props) => {
   const tip = useMemo(() => pickTip(scan.createdAt), [scan.createdAt]);
   const found = scan.items.length;
+  const reading = scan.status === 'reading';
   const streaming = scan.status === 'streaming';
+  const busy = reading || streaming || scan.status === 'preparing';
   const failed = scan.status === 'error';
   const recent = scan.items.slice(-4);
+  const wordsRead = scan.words.length;
 
   return (
     <div className="app">
@@ -28,10 +31,10 @@ export const ProcessingScreen = ({ scan, onCancel, onPeek, onRetry }: Props) => 
 
       <div className="frame" style={{ boxShadow: '4px 4px 0 var(--ink)', overflow: 'hidden' }}>
         {scan.imageDataUrl ? (
-          <MenuPhoto src={scan.imageDataUrl} width={scan.width} height={scan.height} quad={scan.sheetQuad} maxHeight={300} dim overlay={
+          <MenuPhoto src={scan.imageDataUrl} width={scan.width} height={scan.height} words={scan.words} rotation={scan.rotation} tilt={scan.tilt} maxHeight={300} dim overlay={
             <>
               <Corners />
-              {!failed && <div className="scanline" aria-hidden="true" />}
+              {busy && <div className="scanline" aria-hidden="true" />}
               <div style={{ position: 'absolute', left: 14, right: 14, bottom: 14, display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-end' }}>
                 {recent.map((it) => (
                   <div key={it.id} className="pop" style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--paper-2)', border: '2px solid var(--ink)', padding: '4px 8px', fontSize: 12, fontWeight: 600 }}>
@@ -40,13 +43,17 @@ export const ProcessingScreen = ({ scan, onCancel, onPeek, onRetry }: Props) => 
                 ))}
               </div>
             </>
-          } />
+          }>
+            {scan.words.map((w) => (
+              <div key={w.id} className="pop" aria-hidden="true" style={{ position: 'absolute', left: `${w.box[0] / 10}%`, top: `${w.box[1] / 10}%`, width: `${(w.box[2] - w.box[0]) / 10}%`, height: `${(w.box[3] - w.box[1]) / 10}%`, border: '2px solid var(--vermilion)', boxSizing: 'border-box', opacity: 0.8 }} />
+            ))}
+          </MenuPhoto>
         ) : (
           <div style={{ height: 300, background: 'var(--wood)' }} />
         )}
       </div>
 
-      <ProgressBlocks filled={found} total={EXPECTED_BLOCKS} active={streaming} />
+      <ProgressBlocks filled={found} total={EXPECTED_BLOCKS} active={busy} />
 
       <div className="frame frame--double" style={{ display: 'flex', gap: 14, padding: '16px 16px 16px 14px' }}>
         <div style={{ position: 'relative', width: 64, height: 64, flexShrink: 0 }} aria-hidden="true">
@@ -58,16 +65,19 @@ export const ProcessingScreen = ({ scan, onCancel, onPeek, onRetry }: Props) => 
           </>}
         </div>
         <div className="dot" style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 14, lineHeight: 1.3, flex: 1 }} aria-live="polite">
-          <Step done>사진 정리했어요</Step>
+          <Step done={scan.status !== 'preparing'} active={scan.status === 'preparing'}>사진 정리{scan.status === 'preparing' ? '하는 중' : '했어요'}</Step>
           {failed ? (
             <Step active fail>{scan.error ?? '알 수 없는 오류'}</Step>
           ) : (
             <>
-              <Step active={streaming} done={scan.status === 'done'}>
-                {found === 0 ? '메뉴판을 읽는 중' : `${found}개 읽고 번역하는 중`}
+              <Step active={reading} done={!reading && scan.status !== 'preparing'} todo={scan.status === 'preparing'}>
+                {reading ? '글자를 찾는 중' : wordsRead > 0 ? `글자 ${wordsRead}개 읽었어요` : '글자 읽기 건너뜀'}
+                {reading && <span className="blink">▌</span>}
+              </Step>
+              <Step active={streaming} done={scan.status === 'done'} todo={!streaming && scan.status !== 'done'}>
+                {found === 0 ? '번역하는 중' : `${found}개 번역했어요`}
                 {streaming && <span className="blink">▌</span>}
               </Step>
-              <Step done={scan.status === 'done'} todo={streaming}>마무리</Step>
             </>
           )}
         </div>

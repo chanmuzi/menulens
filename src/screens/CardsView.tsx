@@ -5,7 +5,7 @@ import { ItemImage } from '../components/ItemImage';
 import { Segmented } from '../components/Segmented';
 
 type Filter = '전체' | Category | '매운맛';
-const FILTERS: readonly Filter[] = ['전체', '안주', '식사', '음료', '디저트', '매운맛'];
+const FILTERS: readonly Filter[] = ['전체', '안주', '식사', '음료', '디저트', '기타', '매운맛'];
 
 type Props = { readonly scan: Scan; readonly rate: Rate | null; readonly mode: ImageMode; readonly onMode: (m: ImageMode) => void; readonly onSelect: (item: MenuItem) => void };
 

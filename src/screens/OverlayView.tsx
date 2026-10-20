@@ -18,8 +18,9 @@ export const OverlayView = ({ scan, selectedId, onSelect }: Props) => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div className="frame" style={{ boxShadow: '4px 4px 0 var(--ink)', overflow: 'hidden' }}>
-        <MenuPhoto src={scan.imageDataUrl} width={scan.width} height={scan.height} quad={scan.sheetQuad} maxHeight={620}>
+        <MenuPhoto src={scan.imageDataUrl} width={scan.width} height={scan.height} words={scan.words} rotation={scan.rotation} tilt={scan.tilt} maxHeight={620}>
           {scan.items.map((it, i) => {
+            if (!it.bbox) return null;
             const [x0, y0, x1, y1] = it.bbox;
             const selected = it.id === selectedId;
             const vertical = y1 - y0 > (x1 - x0) * 2;
@@ -28,7 +29,7 @@ export const OverlayView = ({ scan, selectedId, onSelect }: Props) => {
               // 글줄(이름+가격) 중앙에 배지를 둔다. 모델의 bbox 가 다소 부정확해도 줄 위치는 대체로 맞는다.
               const bx = cx;
               const by = (y0 + y1) / 2;
-              const shift = 'translate(-50%, -50%)';
+              const shift = `translate(-50%, -50%) rotate(${scan.rotation + scan.tilt}deg)`;
               return (
                 <button key={it.id} type="button" onClick={() => onSelect(it)} aria-pressed={selected} aria-label={`${i + 1}번 ${it.name_ko} ${formatJpy(it.price_jpy)}`}
                   className="dot"
@@ -40,7 +41,7 @@ export const OverlayView = ({ scan, selectedId, onSelect }: Props) => {
             }
             const lane = vertical ? i % 3 : 0;
             const top = vertical ? Math.min(y0 + 40 + lane * 95, 900) : Math.min(y1, 960);
-            const align = cx < 200 ? 'translateX(-20%)' : cx > 800 ? 'translateX(-80%)' : 'translateX(-50%)';
+            const align = `${cx < 200 ? 'translateX(-20%)' : cx > 800 ? 'translateX(-80%)' : 'translateX(-50%)'} rotate(${scan.rotation + scan.tilt}deg)`;
             return (
               <button key={it.id} type="button" onClick={() => onSelect(it)} aria-pressed={selected} aria-label={`${it.name_ko} ${formatJpy(it.price_jpy)}`}
                 style={{ position: 'absolute', left: `${cx / 10}%`, top: `${top / 10}%`, transform: align, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1, padding: '4px 7px', cursor: 'pointer',

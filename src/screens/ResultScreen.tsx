@@ -10,13 +10,19 @@ import { formatRateLine } from '../lib/money';
 type View = 'overlay' | 'cards';
 type Props = { readonly scan: Scan; readonly rate: Rate | null; readonly mode: ImageMode; readonly onMode: (m: ImageMode) => void; readonly onHome: () => void };
 
+const KIND_LABEL = { menu: '메뉴판', sign: '안내문', other: '사진 속 글자' } as const;
+
+const sec = (ms: number | null): string => (ms === null ? '-' : `${(ms / 1000).toFixed(1)}s`);
+
 export const ResultScreen = ({ scan, rate, mode, onMode, onHome }: Props) => {
   const [view, setView] = useState<View>('cards');
   const [selected, setSelected] = useState<MenuItem | null>(null);
-  const streaming = scan.status === 'streaming';
-  const counts = { 안주: 0, 식사: 0, 음료: 0, 디저트: 0 };
-  for (const it of scan.items) counts[it.category]++;
-  const summary = Object.entries(counts).filter(([, n]) => n > 0).map(([k, n]) => `${k} ${n}`).join(' · ');
+  const streaming = scan.status === 'streaming' || scan.status === 'reading';
+  const counts: Record<string, number> = {};
+  for (const it of scan.items) counts[it.category] = (counts[it.category] ?? 0) + 1;
+  const summary = Object.entries(counts).map(([k, n]) => `${k} ${n}`).join(' · ');
+  const t = scan.timing;
+  const timingLine = t.totalMs !== null ? `OCR ${sec(t.ocrMs)} · 첫 항목 ${sec(t.firstItemMs)} · 완료 ${sec(t.totalMs)}` : null;
 
   return (
     <div className="app">
@@ -28,11 +34,12 @@ export const ResultScreen = ({ scan, rate, mode, onMode, onHome }: Props) => {
       } />
 
       <div style={{ minWidth: 0 }}>
-        <div className="jp" style={{ fontSize: 20, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{scan.shopName ?? '메뉴판'}</div>
+        <div className="jp" style={{ fontSize: 20, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{scan.shopName ?? KIND_LABEL[scan.kind]}</div>
         <div className="muted small">
-          {scan.items.length}개 메뉴{summary && ` · ${summary}`}{formatRateLine(rate) && ` · ${formatRateLine(rate)}`}
+          {scan.items.length}개{summary && ` · ${summary}`}{formatRateLine(rate) && ` · ${formatRateLine(rate)}`}
           {streaming && <span className="blink"> ▌</span>}
         </div>
+        {timingLine && <div className="dot muted" style={{ fontSize: 10, marginTop: 2 }}>{timingLine}</div>}
       </div>
 
       {view === 'overlay'

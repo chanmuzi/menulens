@@ -1,11 +1,16 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import type { Quad } from '../types';
+import type { Box, OcrWord } from '../types';
 
 type Props = {
   readonly src: string;
   readonly width: number;
   readonly height: number;
-  readonly quad: Quad | null;
+  /** OCR 단어들. 글자 영역으로 확대·중앙 정렬하는 기준 */
+  readonly words: readonly OcrWord[];
+  /** 글자가 시계 방향으로 돌아간 각도. 이만큼 되돌려 세운다 */
+  readonly rotation?: 0 | 90 | 180 | 270;
+  /** 미세 기울기(도). 이만큼 되돌려 글줄을 수평으로 */
+  readonly tilt?: number;
   readonly maxHeight: number;
   readonly dim?: boolean;
   /** 사진과 함께 회전·확대되는 레이어 (bbox 기준 마커). 좌표는 % 로 둔다. */
@@ -14,47 +19,44 @@ type Props = {
   readonly overlay?: ReactNode;
 };
 
-type Fit = { readonly boxH: number; readonly transform: string; readonly angle: number; readonly scale: number };
+export type Fit = { readonly boxH: number; readonly transform: string; readonly angle: number; readonly scale: number };
 
-const MAX_ANGLE = 15;
-/** 메뉴판이 사진의 이 비율(가로·세로 각각) 이상을 차지할 때만 모서리를 신뢰한다 */
-const MIN_QUAD_SPAN = 0.45;
+const MAX_TILT = 15;
+/** 글자 영역 주변 여백 (영역 크기 대비) */
+const FOCUS_PAD = 0.08;
+/** 단어가 이보다 적으면 글자 영역 확대를 하지 않는다 */
+const MIN_WORDS_FOR_FOCUS = 3;
 
-/** 모서리가 그럴듯한 사각형인지 (순서가 뒤섞였거나 너무 작으면 보정하지 않는다) */
-const isTrustworthy = (q: Quad): boolean => {
-  const [tl, tr, br, bl] = q;
-  const w = Math.min(tr[0] - tl[0], br[0] - bl[0]);
-  const h = Math.min(bl[1] - tl[1], br[1] - tr[1]);
-  return w > MIN_QUAD_SPAN * 1000 && h > MIN_QUAD_SPAN * 1000;
+/** 단어 상자 합집합 + 여백. 0~1000 좌표 */
+export const focusBox = (words: readonly OcrWord[]): Box | null => {
+  if (words.length < MIN_WORDS_FOR_FOCUS) return null;
+  const x0 = Math.min(...words.map((w) => w.box[0])), y0 = Math.min(...words.map((w) => w.box[1]));
+  const x1 = Math.max(...words.map((w) => w.box[2])), y1 = Math.max(...words.map((w) => w.box[3]));
+  const px = (x1 - x0) * FOCUS_PAD, py = (y1 - y0) * FOCUS_PAD;
+  return [Math.max(0, x0 - px), Math.max(0, y0 - py), Math.min(1000, x1 + px), Math.min(1000, y1 + py)];
 };
 
 /**
- * 메뉴판 네 모서리(quad)가 있으면 윗변 기울기만큼 되돌려 세우고, 메뉴판 영역이 꽉 차도록 확대·중앙 정렬한다.
- * 원근 왜곡까지 펴지는 않는다 (CSS 2D 변환). quad 가 없으면 사진 전체를 가운데 맞춤.
+ * 사진을 가로 W 로 놓고, 글자 방향(rotation)과 미세 기울기(tilt)를 되돌린 뒤,
+ * 글자 영역(focus)이 상자에 꽉 차도록 확대·중앙 정렬하는 CSS transform 을 계산한다. 원근 왜곡은 펴지 않는다.
  */
-const computeFit = (W: number, imgW: number, imgH: number, quad: Quad | null, maxH: number): Fit => {
-  const Hi = (W * imgH) / imgW;                     // 사진을 가로 W 로 놓았을 때 높이
-  const toPx = (p: readonly [number, number]) => [(p[0] / 1000) * W, (p[1] / 1000) * Hi] as const;
+export const computeFit = (W: number, imgW: number, imgH: number, focus: Box | null, maxH: number, rotation = 0, tilt = 0): Fit => {
+  const Hi = (W * imgH) / imgW;
   const c = [W / 2, Hi / 2] as const;
-  let angle = 0;
-  let pts: ReadonlyArray<readonly [number, number]> = [[0, 0], [W, 0], [W, Hi], [0, Hi]];
-  const usable = quad !== null && isTrustworthy(quad);
-  if (quad && usable) {
-    const q = quad.map(toPx);
-    const a = (Math.atan2(q[1]![1] - q[0]![1], q[1]![0] - q[0]![0]) * 180) / Math.PI;
-    angle = Math.abs(a) <= MAX_ANGLE ? a : 0;
-    pts = q;
-  }
+  const toPx = (x: number, y: number) => [(x / 1000) * W, (y / 1000) * Hi] as const;
+  const pts: ReadonlyArray<readonly [number, number]> = focus
+    ? [toPx(focus[0], focus[1]), toPx(focus[2], focus[1]), toPx(focus[2], focus[3]), toPx(focus[0], focus[3])]
+    : [[0, 0], [W, 0], [W, Hi], [0, Hi]];
+  const angle = rotation + (Math.abs(tilt) <= MAX_TILT ? tilt : 0);
   const rad = (-angle * Math.PI) / 180;
   const rot = pts.map(([x, y]) => {
     const dx = x - c[0], dy = y - c[1];
     return [c[0] + dx * Math.cos(rad) - dy * Math.sin(rad), c[1] + dx * Math.sin(rad) + dy * Math.cos(rad)] as const;
   });
-  const pad = usable ? 0.03 : 0;
   const minX = Math.min(...rot.map((p) => p[0])), maxX = Math.max(...rot.map((p) => p[0]));
   const minY = Math.min(...rot.map((p) => p[1])), maxY = Math.max(...rot.map((p) => p[1]));
-  const cw = (maxX - minX) * (1 + pad * 2), ch = (maxY - minY) * (1 + pad * 2);
-  const boxH = Math.min(maxH, (W * ch) / cw);
+  const cw = Math.max(1, maxX - minX), ch = Math.max(1, maxY - minY);
+  const boxH = Math.max(120, Math.min(maxH, (W * ch) / cw));
   const scale = Math.min(W / cw, boxH / ch);
   const cc = [(minX + maxX) / 2, (minY + maxY) / 2] as const;
   const dx = W / 2 - c[0] - scale * (cc[0] - c[0]);
@@ -62,24 +64,25 @@ const computeFit = (W: number, imgW: number, imgH: number, quad: Quad | null, ma
   return { boxH, angle, scale, transform: `translate(${dx}px, ${dy}px) rotate(${-angle}deg) scale(${scale})` };
 };
 
-export const MenuPhoto = ({ src, width, height, quad, maxHeight, dim = false, children, overlay }: Props) => {
+export const MenuPhoto = ({ src, width, height, words, rotation = 0, tilt = 0, maxHeight, dim = false, children, overlay }: Props) => {
   const ref = useRef<HTMLDivElement>(null);
   const [W, setW] = useState(0);
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => setW(el.clientWidth));
     setW(el.clientWidth);
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => setW(el.clientWidth));
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const fit = W > 0 ? computeFit(W, width, height, quad, maxHeight) : null;
+  const fit = W > 0 ? computeFit(W, width, height, focusBox(words), maxHeight, rotation, tilt) : null;
   const Hi = W > 0 ? (W * height) / width : 0;
 
   return (
     <div ref={ref} style={{ position: 'relative', width: '100%', height: fit?.boxH ?? maxHeight, overflow: 'hidden', background: 'var(--wood)' }}>
       {fit && (
-        <div style={{ position: 'absolute', left: 0, top: 0, width: W, height: Hi, transformOrigin: `${W / 2}px ${Hi / 2}px`, transform: fit.transform }}>
+        <div style={{ position: 'absolute', left: 0, top: 0, width: W, height: Hi, transformOrigin: `${W / 2}px ${Hi / 2}px`, transform: fit.transform, willChange: 'transform' }}>
           <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'fill', opacity: dim ? 0.5 : 1 }} />
           {children}
         </div>
@@ -88,8 +91,3 @@ export const MenuPhoto = ({ src, width, height, quad, maxHeight, dim = false, ch
     </div>
   );
 };
-
-/** children 안에서 마커를 세워 두고 싶을 때 쓰는 역변환 */
-export const counterTransform = (angle: number, scale: number): string => `rotate(${angle}deg) scale(${1 / scale})`;
-
-export { computeFit };

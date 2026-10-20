@@ -52,11 +52,20 @@ export const createItemParser = (): ItemParser => {
   return { push, text: () => buf };
 };
 
+const stringField = (text: string, key: string): string | null | undefined => {
+  const m = new RegExp(`"${key}"\\s*:\\s*("(?:[^"\\\\]|\\\\.)*"|null)`).exec(text);
+  if (!m) return undefined;
+  if (m[1] === 'null') return null;
+  try { return JSON.parse(m[1]!) as string; } catch { return undefined; }
+};
+
 /** 가게 이름 (없으면 null). items 앞에 오므로 스트림 초반에도 뽑을 수 있다. */
-export const extractShopName = (text: string): string | null => {
-  const m = /"shop_name"\s*:\s*("(?:[^"\\]|\\.)*"|null)/.exec(text);
-  if (!m || m[1] === 'null') return null;
-  try { return JSON.parse(m[1]) as string; } catch { return null; }
+export const extractShopName = (text: string): string | null => stringField(text, 'shop_name') ?? null;
+
+/** 사진 종류. 아직 안 왔으면 undefined. */
+export const extractKind = (text: string): 'menu' | 'sign' | 'other' | undefined => {
+  const v = stringField(text, 'kind');
+  return v === 'menu' || v === 'sign' || v === 'other' ? v : undefined;
 };
 
 /** 메뉴판 네 모서리 원시 배열 (없거나 아직 안 왔으면 undefined, 명시적 null 이면 null). */
@@ -64,5 +73,5 @@ export const extractQuadRaw = (text: string): unknown | null | undefined => {
   const m = /"sheet_quad"\s*:\s*(null|\[\s*\[[^\]]*\]\s*,\s*\[[^\]]*\]\s*,\s*\[[^\]]*\]\s*,\s*\[[^\]]*\]\s*\])/.exec(text);
   if (!m) return undefined;
   if (m[1] === 'null') return null;
-  try { return JSON.parse(m[1]) as unknown; } catch { return undefined; }
+  try { return JSON.parse(m[1]!) as unknown; } catch { return undefined; }
 };
