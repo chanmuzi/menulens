@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { MenuItem, Scan } from '../types';
 import { formatJpy } from '../lib/money';
 import { MenuPhoto, type MarkerCtx } from '../components/MenuPhoto';
+import { loadSampler, sampleBox, type BoxColors } from '../lib/sample';
 
 type Props = { readonly scan: Scan; readonly selectedId: string | null; readonly onSelect: (item: MenuItem) => void };
 
@@ -49,29 +50,58 @@ const NoteMarker = ({ bbox, n, scale }: { bbox: readonly [number, number, number
     background: 'var(--paper-2)', color: 'var(--vermilion)', border: '2px solid var(--vermilion)', fontSize: 11, lineHeight: 1, padding: '2px 4px', zIndex: 2 }}>※{n}</div>
 );
 
-const CoverLabel = ({ bbox, text, W, Hi, onClick }: { bbox: readonly [number, number, number, number]; text: string; W: number; Hi: number; onClick?: () => void }) => {
+type CoverProps = { bbox: readonly [number, number, number, number]; text: string; W: number; Hi: number; rotation: number; rot: number; colors?: BoxColors; onClick?: () => void };
+
+/**
+ * 파파고식 덮어쓰기: 원문 자리를 사진에서 뽑은 배경색으로 덮고 원문 글자색으로 번역을 쓴다. 테두리 없음.
+ * 사진 층이 rot 만큼 돌아가 있으므로 라벨은 역회전해 바로 세운다(번호 배지와 같은 방식). 90·270 이면 화면상 가로·세로가 바뀐다.
+ */
+const CoverLabel = ({ bbox, text, W, Hi, rotation, rot, colors, onClick }: CoverProps) => {
   const [x0, y0, x1, y1] = bbox;
-  const wPx = ((x1 - x0) / 1000) * W, hPx = ((y1 - y0) / 1000) * Hi;
-  const vertical = hPx > wPx * 2;
+  const rawW = ((x1 - x0) / 1000) * W, rawH = ((y1 - y0) / 1000) * Hi;
+  const swap = rotation === 90 || rotation === 270;
+  const wPx = swap ? rawH : rawW, hPx = swap ? rawW : rawH; // 화면 기준 상자 크기
+  const vertical = hPx > wPx * 2;                              // 화면 기준 세로 글줄이면 세로쓰기
   const along = vertical ? hPx : wPx;   // 글줄 진행 방향 길이
   const across = vertical ? wPx : hPx;  // 글줄 굵기
   const em = Math.max(1, textEm(text));
-  // 한 줄로 넣을 때 가능한 글자 크기: 굵기 기준과 길이 기준 중 작은 쪽
-  const oneLine = Math.min(across * 0.78, (along * 0.94) / em, 28);
+  // 한 줄로 넣을 때 가능한 글자 크기: 굵기 기준과 길이 기준 중 작은 쪽. 원문 글자 크기(굵기)에 가깝게
+  const oneLine = Math.min(across * 0.82, (along * 0.96) / em, 30);
   const wrap = oneLine < 9;
-  const fontSize = wrap ? Math.max(8, Math.min(across * 0.78, 12)) : oneLine;
-  const minAcross = Math.max(14, across);
+  const fontSize = wrap ? Math.max(8, Math.min(across * 0.82, 12)) : oneLine;
+  const bg = colors?.bg ?? 'rgba(251,246,236,.97)', fg = colors?.fg ?? 'var(--ink)';
   return (
-    <div role={onClick ? 'button' : undefined} tabIndex={onClick ? 0 : undefined} onClick={onClick}
-      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } } : undefined}
-      style={{ position: 'absolute', left: `${x0 / 10}%`, top: `${y0 / 10}%`,
-        width: vertical ? minAcross : `${(x1 - x0) / 10}%`, height: vertical ? `${(y1 - y0) / 10}%` : (wrap ? 'auto' : minAcross), minHeight: vertical ? undefined : minAcross,
-        boxSizing: 'border-box', padding: '1px 3px', background: 'rgba(251,246,236,.97)', color: 'var(--ink)', border: '1px solid rgba(42,33,27,.35)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', fontSize, lineHeight: 1.12, fontWeight: 600,
-        overflow: 'hidden', whiteSpace: wrap ? 'normal' : 'nowrap', wordBreak: 'keep-all', writingMode: vertical ? 'vertical-rl' : 'horizontal-tb', cursor: onClick ? 'pointer' : 'default', zIndex: 2 }}>
-      {text}
+    <div style={{ position: 'absolute', left: `${x0 / 10}%`, top: `${y0 / 10}%`, width: `${(x1 - x0) / 10}%`, height: `${(y1 - y0) / 10}%`, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2, pointerEvents: 'none' }}>
+      <div role={onClick ? 'button' : undefined} tabIndex={onClick ? 0 : undefined} onClick={onClick}
+        onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } } : undefined}
+        style={{ flexShrink: 0, transform: `rotate(${rot}deg)`,
+          width: vertical ? Math.max(across, fontSize * 1.3) : wPx, height: vertical ? hPx : (wrap ? 'auto' : Math.max(across, fontSize * 1.3)), minHeight: vertical ? undefined : across,
+          boxSizing: 'border-box', padding: vertical ? '2px 0' : '0 2px', background: bg, color: fg, boxShadow: `0 0 0 2px ${bg}`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', fontSize, lineHeight: 1.1, fontWeight: 600,
+          overflow: 'visible', whiteSpace: wrap ? 'normal' : 'nowrap', wordBreak: 'keep-all', writingMode: vertical ? 'vertical-rl' : 'horizontal-tb', textOrientation: vertical ? 'upright' : undefined,
+          cursor: onClick ? 'pointer' : 'default', pointerEvents: 'auto' }}>
+        {text}
+      </div>
     </div>
   );
+};
+
+/** 덮어쓸 상자들의 배경·글자색을 사진에서 한 번 뽑는다 (사진이 바뀔 때만) */
+const useBoxColors = (imageDataUrl: string, boxes: ReadonlyArray<readonly [string, readonly [number, number, number, number]]>): ReadonlyMap<string, BoxColors> => {
+  const [map, setMap] = useState<ReadonlyMap<string, BoxColors>>(new Map());
+  const keys = boxes.map(([k]) => k).join('|');
+  useEffect(() => {
+    let alive = true;
+    if (!imageDataUrl || boxes.length === 0) { setMap(new Map()); return; }
+    void loadSampler(imageDataUrl).then((ctx) => {
+      if (!alive || !ctx) return;
+      setMap(new Map(boxes.map(([k, b]) => [k, sampleBox(ctx, b)] as const)));
+    });
+    return () => { alive = false; };
+    // boxes 는 매 렌더 새 배열이라 키 문자열로 비교한다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [imageDataUrl, keys]);
+  return map;
 };
 
 /**
@@ -84,24 +114,32 @@ export const OverlayView = ({ scan, selectedId, onSelect }: Props) => {
   const [showMarks, setShowMarks] = useState(true);
   const rot = scan.rotation + scan.tilt;
   const approxW = 350, approxHi = (approxW * scan.height) / scan.width;
-  const longNotes = scan.notes.filter((n) => n.bbox && !fitsInBox(n.bbox, n.text_ko, approxW, approxHi));
+  const isMenu = scan.kind === 'menu';
+  // 안내문은 줄 단위로 번역되므로 길어도 제자리에 덮는다(줄 바꿈·아래로 늘어남). 메뉴판의 긴 안내만 ※ 목록으로 뺀다
+  const longNotes = isMenu ? scan.notes.filter((n) => n.bbox && !fitsInBox(n.bbox, n.text_ko, approxW, approxHi)) : [];
+  const colors = useBoxColors(scan.imageDataUrl, [
+    ...scan.notes.flatMap((n, i) => (n.bbox ? [[`n${i}`, n.bbox] as const] : [])),
+    ...(isMenu ? [] : scan.items.flatMap((it) => (it.bbox ? [[it.id, it.bbox] as const] : []))),
+  ]);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div className="frame" style={{ boxShadow: '4px 4px 0 var(--ink)', overflow: 'hidden', position: 'relative' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
         <button type="button" onClick={() => setShowMarks((v) => !v)} aria-pressed={showMarks}
-          style={{ position: 'absolute', top: 8, right: 8, zIndex: 5, height: 32, padding: '0 10px', background: showMarks ? 'var(--ink)' : 'var(--paper-2)', color: showMarks ? 'var(--paper)' : 'var(--ink)', border: '2px solid var(--ink)', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>
+          style={{ height: 32, padding: '0 10px', background: showMarks ? 'var(--ink)' : 'var(--paper-2)', color: showMarks ? 'var(--paper)' : 'var(--ink)', border: '2px solid var(--ink)', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>
           {showMarks ? '표시 끄기' : '표시 켜기'}
         </button>
+      </div>
+      <div className="frame" style={{ boxShadow: '4px 4px 0 var(--ink)', overflow: 'hidden', position: 'relative' }}>
         <MenuPhoto src={scan.imageDataUrl} width={scan.width} height={scan.height} words={scan.words} rotation={scan.rotation} tilt={scan.tilt} maxHeight={620} zoomable>
           {(ctx) => {
             if (!showMarks) return null;
             let marker = 0;
             const covers = scan.notes.filter((n) => n.bbox).map((n, i) =>
-              fitsInBox(n.bbox!, n.text_ko, approxW, approxHi) // 아래 목록과 같은 기준으로 판정해 번호가 맞도록
-                ? <CoverLabel key={`n${i}`} bbox={n.bbox!} text={n.text_ko} W={ctx.W} Hi={ctx.Hi} />
+              !isMenu || fitsInBox(n.bbox!, n.text_ko, approxW, approxHi) // 아래 목록과 같은 기준으로 판정해 번호가 맞도록
+                ? <CoverLabel key={`n${i}`} bbox={n.bbox!} text={n.text_ko} W={ctx.W} Hi={ctx.Hi} rotation={scan.rotation} rot={rot} colors={colors.get(`n${i}`)} />
                 : <NoteMarker key={`n${i}`} bbox={n.bbox!} n={++marker} scale={ctx.markerScale} />);
-            if (scan.kind !== 'menu') {
-              return [...covers, ...scan.items.filter((it) => it.bbox).map((it) => <CoverLabel key={it.id} bbox={it.bbox!} text={it.name_ko} W={ctx.W} Hi={ctx.Hi} onClick={() => onSelect(it)} />)];
+            if (!isMenu) {
+              return [...covers, ...scan.items.filter((it) => it.bbox).map((it) => <CoverLabel key={it.id} bbox={it.bbox!} text={it.name_ko} W={ctx.W} Hi={ctx.Hi} rotation={scan.rotation} rot={rot} colors={colors.get(it.id)} onClick={() => onSelect(it)} />)];
             }
             const sizes = badges ? badgeSizes(scan.items, ctx) : null;
             const ms = ctx.markerScale;
