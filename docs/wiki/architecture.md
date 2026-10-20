@@ -39,3 +39,9 @@ scripts/bench/  벤치·진단 스크립트        docs/wiki/   이 위키      
   테스트 이미지는 `scripts/bench/make_menu_*.py` 로 생성(세로쓰기 短冊 8개, 기울어진 가로 14개).
 - 프로덕션 스모크: `/api/auth`(틀린 코드 401), `/api/rate`, `/api/analyze` NDJSON 을 직접 호출.
 - Safari 실기기 전용(공유 시트·핀치·카메라)은 재현 불가 → 사용자 확인 요청.
+
+## 아이콘 생성 (2026-10-20)
+
+- 매칭 순서와 보유 목록은 [[icons]]. 매칭 실패 항목은 `icon: 'camera'` 자리표시 → `ItemImage` 가 `src/lib/iconStore.ts` 로 300ms 묶음 요청 → `api/icon.ts` 가 Redis 캐시 확인 후 없는 것만 상위 모델로 생성(한 요청 12개·동시 4개) → 기기 localStorage 에 저장하고 즉시 교체.
+- 비용: 메뉴명당 1회(Redis 1년 캐시). 실패한 이름은 세션 동안 재요청하지 않는다.
+
