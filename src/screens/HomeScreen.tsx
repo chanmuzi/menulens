@@ -1,11 +1,17 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import type { Scan } from '../types';
 import { PixelIcon } from '../components/PixelIcon';
+import { ScanRow } from '../components/ScanRow';
+import { InstallHint } from '../components/InstallHint';
+import type { InstallHint as Hint } from '../lib/platform';
+import { whenLabel } from '../lib/when';
 import { canReadClipboard, imageFromPasteEvent, readImageFromClipboard } from '../lib/clipboard';
 
 type Props = {
   readonly scans: readonly Scan[];
+  readonly installHint: Hint;
   readonly onPick: (file: File) => void;
+  readonly onShowAll: () => void;
   readonly onOpen: (scan: Scan) => void;
   readonly onRemove: (id: string) => void;
 };
@@ -18,17 +24,10 @@ const HINT_BY_REASON = {
 } as const;
 const HINT_MS = 3000;
 
-const whenLabel = (ts: number): string => {
-  const d = new Date(ts);
-  const today = new Date();
-  const sameDay = d.toDateString() === today.toDateString();
-  const hm = d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
-  if (sameDay) return `오늘 ${hm}`;
-  const diff = Math.round((today.setHours(0, 0, 0, 0) - new Date(ts).setHours(0, 0, 0, 0)) / 86400000);
-  return diff === 1 ? '어제' : `${d.getMonth() + 1}/${d.getDate()}`;
-};
+/** 홈에는 최근 몇 건만. 나머지는 「전체 보기」 */
+const HOME_RECENT = 5;
 
-export const HomeScreen = ({ scans, onPick, onOpen, onRemove }: Props) => {
+export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRemove }: Props) => {
   const cameraRef = useRef<HTMLInputElement>(null);
   const albumRef = useRef<HTMLInputElement>(null);
   // 같은 문구가 연달아 떠도 타이머가 다시 시작되도록 객체로 든다 (같은 문자열은 React 가 갱신을 건너뛴다)
@@ -109,23 +108,17 @@ export const HomeScreen = ({ scans, onPick, onOpen, onRemove }: Props) => {
 
       {scans.length > 0 && (
         <section style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div className="dot" style={{ fontSize: 14 }}>最近 · 최근 스캔</div>
-          {scans.map((s) => (
-            <div key={s.id} className="frame frame--flat" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px' }}>
-              <button type="button" onClick={() => onOpen(s)} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 12, background: 'none', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left', minWidth: 0 }}>
-                <div style={{ width: 48, height: 48, background: 'var(--paper-dark)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <PixelIcon icon={s.items[0]?.icon ?? 'rice'} size={2} />
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <div className="jp" style={{ fontSize: 16, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.shopName ?? (s.items[0]?.name_ja ?? '메뉴판')}</div>
-                  <div className="muted small">{s.items.length}개 메뉴 · {whenLabel(s.createdAt)}</div>
-                </div>
-              </button>
-              <button type="button" className="btn btn--quiet" onClick={() => onRemove(s.id)} aria-label="이 스캔 지우기" style={{ minHeight: 36, padding: '0 8px' }}>지우기</button>
-            </div>
-          ))}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div className="dot" style={{ fontSize: 14 }}>最近 · 최근 스캔</div>
+            {scans.length > HOME_RECENT && (
+              <button type="button" className="btn btn--quiet" onClick={onShowAll} style={{ minHeight: 32, padding: '0 6px' }}>전체 보기 ({scans.length}) ›</button>
+            )}
+          </div>
+          {scans.slice(0, HOME_RECENT).map((s) => <ScanRow key={s.id} scan={s} when={whenLabel(s.createdAt)} onOpen={onOpen} onRemove={onRemove} />)}
         </section>
       )}
+
+      <InstallHint hint={installHint} />
     </div>
   );
 };
