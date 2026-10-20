@@ -11,7 +11,7 @@ api/            Vercel Edge Functions (Web 표준 Request → Response)
   auth.ts       초대 코드 확인
   rate.ts       JPY→KRW 환율 (open.er-api.com, 12시간 캐시)
   photo.ts      대표 사진 검색 (Wikimedia Commons, 7일 캐시)
-  _lib/         접근 제어, OCR 호출, 프롬프트, 응답 헬퍼
+  _lib/         접근 제어, OCR 호출, 단어 묶음 분할, 항목 스트림 파서, 프롬프트, 응답 헬퍼
 src/
   App.tsx       화면 상태 머신 (gate → home → processing → result)
   screens/      Gate, Home, Processing, Result(Overlay / Cards / ItemSheet)
@@ -50,10 +50,11 @@ npx vercel --prod
 
 1. 촬영/앨범 → 클라이언트에서 EXIF 방향을 바로잡고 긴 변 1280px JPEG 로 축소
 2. `/api/analyze` 1단계: Upstage OCR 이 단어·좌표·글자 방향을 읽음 (≈3초). 처리 화면에 단어 상자가 바로 표시됨
-3. 2단계: 단어 목록만 Sonnet 5.5 에 보내 번역·발음·설명·아이콘을 스트리밍 (첫 항목 ≈5초, 완료 ≈10~15초)
+3. 1단계 LLM: 단어 목록을 (많으면 묶음으로 나눠 병렬로) Sonnet 5.5 에 보내 이름·가격·좌표·아이콘만 받음. 목록이 완성되면 결과 화면으로 (실제 사진 34개 기준 ≈10초)
+4. 2단계 LLM: 발음·설명·태그를 10개씩 병렬로 받아 카드에 뒤따라 채움 (≈+7초). 메뉴가 아닌 문구(제목·안내)도 번역
    OCR 이 단어를 거의 못 읽으면 이미지를 직접 보는 폴백
-4. 결과: 카드 뷰(기본) / 오버레이 뷰(BETA). 좌표는 OCR 단어 상자의 합집합이라 정확하고, 돌아간 사진은 자동으로 세움
-5. 최근 스캔 5개는 기기(localStorage)에 저장. 새 빌드가 배포되면 앱이 열릴 때 스스로 새로고침
+5. 결과: 카드 뷰(기본) / 오버레이 뷰(BETA, 표시 끄기 토글). 좌표는 OCR 단어 상자의 합집합이라 정확하고, 돌아간 사진은 자동으로 세움
+6. 최근 스캔 5개는 기기(localStorage)에 저장. 새 빌드가 배포되면 앱이 열릴 때 스스로 새로고침
 
 ## 다음 과제
 
