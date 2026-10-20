@@ -3,12 +3,13 @@ export const ICON_KEYS = [
   'yakitori', 'meat', 'pork', 'chicken', 'shrimp', 'squid', 'fish', 'egg', 'tamago', 'tofu',
   'edamame', 'eggplant', 'mushroom', 'potato', 'pepper', 'corn', 'salad', 'cheese',
   'rice', 'curry', 'soup', 'dessert', 'drink', 'dish',
+  'coffee', 'juice', 'soda', 'cake', 'icecream', 'bread',
 ] as const;
 
 /** 1단계(구조화·번역)와 2단계(설명) 모두 Sonnet. 벤치마크: docs/wiki/benchmarks.md */
 export const MODEL = 'claude-sonnet-5-5';
 
-const ICON_RULE = `"icon": ${JSON.stringify(ICON_KEYS)} 중 하나. 반드시 이 목록의 단어만. 주재료 기준 (돼지→pork, 닭→chicken, 소·소혀·곱창→meat, 새우→shrimp, 오징어·문어→squid, 생선·조개→fish, 가지→eggplant, 버섯→mushroom, 메추리알→egg, 치즈→cheese, 채소→salad, 음식이 아니면→dish)`;
+const ICON_RULE = `"icon": ${JSON.stringify(ICON_KEYS)} 중 하나. 반드시 이 목록의 단어만. 주재료 기준 (돼지→pork, 닭→chicken, 소·소혀·곱창→meat, 새우→shrimp, 오징어·문어→squid, 생선·조개→fish, 가지→eggplant, 버섯→mushroom, 메추리알→egg, 치즈→cheese, 채소→salad, 커피류→coffee, 차→drink, 과일 주스→juice, 탄산→soda, 케이크·푸딩·파르페→cake, 아이스크림→icecream, 경단·떡→dessert, 빵·샌드위치→bread, 꼬치구이·꼬치튀김→yakitori, 음식이 아니면→dish)`;
 
 /**
  * 1단계: OCR 단어 목록만 받아 항목으로 묶고 이름·가격만 번역한다. 출력을 짧게 유지해 속도를 낸다.
