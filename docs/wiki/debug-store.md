@@ -10,7 +10,7 @@
 2. 로컬에서 내려받기: `set -a && . ./.env && set +a && python3 scripts/bench/debug_pull.py <scratchpad>/debug_scans`
    → `<id>.json` + `<id>.jpg`. 표준 라이브러리만 쓴다(RESP 직접 구현).
 3. `<id>.jpg` 를 로컬 `pnpm dev` + 헤드리스 Chrome 흐름에 넣어 화면을 재현한다([[architecture]] §검증).
-4. 끝나면 사용자에게 `DEBUG_STORE=0` 으로 되돌리자고 제안한다. 내려받은 사진은 scratchpad 밖에 두지 않는다(절대 규칙 4·5).
+4. 끝나면 `DEBUG_STORE=0` 으로 되돌린다(프로덕션: `printf 0 | npx vercel env add DEBUG_STORE production --force` 후 재배포). **재현할 케이스가 없는 동안은 항상 0.** 내려받은 사진은 scratchpad 밖에 두지 않는다(절대 규칙 4·5).
 
 ## 사례
 
