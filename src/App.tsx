@@ -25,7 +25,7 @@ const emptyScan = (): Scan => ({
 const upgrade = (s: Scan): Scan => ({
   ...emptyScan(), ...s,
   words: s.words ?? [], rotation: s.rotation ?? 0, tilt: s.tilt ?? 0, kind: s.kind ?? 'menu', sheetQuad: s.sheetQuad ?? null, notes: s.notes ?? [],
-  items: (s.items ?? []).map((it) => ({ ...it, pron_ko: it.pron_ko ?? '', desc_ko: it.desc_ko ?? '', tags: it.tags ?? [], photo_query: it.photo_query ?? it.name_ja, detailed: it.detailed ?? true })),
+  items: (s.items ?? []).map((it) => ({ ...it, price_tax_jpy: it.price_tax_jpy ?? null, pron_ko: it.pron_ko ?? '', desc_ko: it.desc_ko ?? '', tags: it.tags ?? [], photo_query: it.photo_query ?? it.name_ja, detailed: it.detailed ?? true })),
   timing: { ...emptyScan().timing, ...(s.timing ?? {}) },
 });
 

@@ -16,6 +16,8 @@ export type MenuItem = {
   readonly name_ja: string;
   readonly name_ko: string;
   readonly price_jpy: number | null;
+  /** 괄호 안 세금 포함 가격 (¥380(¥418) 의 418). 없으면 null. 실제 지불액은 payableJpy() */
+  readonly price_tax_jpy: number | null;
   readonly category: Category;
   readonly icon: string;
   /** OCR 단어 상자의 합집합(정확) 또는 모델 추정(폴백). 없으면 null */
