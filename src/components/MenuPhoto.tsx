@@ -1,5 +1,9 @@
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type ReactNode, type TouchEvent } from 'react';
 import type { Box, OcrWord } from '../types';
+
+export type Fit = { readonly boxH: number; readonly transform: string; readonly angle: number; readonly scale: number };
+/** 마커 레이어에 넘겨주는 값. markerScale 을 마커 transform 에 곱하면 화면상 크기가 일정해진다 */
+export type MarkerCtx = { readonly fit: Fit; readonly zoom: number; readonly markerScale: number; readonly W: number; readonly Hi: number };
 
 type Props = {
   readonly src: string;
@@ -13,19 +17,20 @@ type Props = {
   readonly tilt?: number;
   readonly maxHeight: number;
   readonly dim?: boolean;
+  /** 두 손가락 확대·끌기 허용 (사진 안에서만 확대되고 페이지는 그대로) */
+  readonly zoomable?: boolean;
   /** 사진과 함께 회전·확대되는 레이어 (bbox 기준 마커). 좌표는 % 로 둔다. */
-  readonly children?: ReactNode;
+  readonly children?: ReactNode | ((ctx: MarkerCtx) => ReactNode);
   /** 사진 위에 고정되는 레이어 (스캔 라인, 코너 등) */
   readonly overlay?: ReactNode;
 };
-
-export type Fit = { readonly boxH: number; readonly transform: string; readonly angle: number; readonly scale: number };
 
 const MAX_TILT = 15;
 /** 글자 영역 주변 여백 (영역 크기 대비) */
 const FOCUS_PAD = 0.08;
 /** 단어가 이보다 적으면 글자 영역 확대를 하지 않는다 */
 const MIN_WORDS_FOR_FOCUS = 3;
+const MAX_ZOOM = 4;
 
 /** 단어 상자 합집합 + 여백. 0~1000 좌표 */
 export const focusBox = (words: readonly OcrWord[]): Box | null => {
@@ -64,9 +69,15 @@ export const computeFit = (W: number, imgW: number, imgH: number, focus: Box | n
   return { boxH, angle, scale, transform: `translate(${dx}px, ${dy}px) rotate(${-angle}deg) scale(${scale})` };
 };
 
-export const MenuPhoto = ({ src, width, height, words, rotation = 0, tilt = 0, maxHeight, dim = false, children, overlay }: Props) => {
+type Zoom = { z: number; tx: number; ty: number };
+const dist = (a: { clientX: number; clientY: number }, b: { clientX: number; clientY: number }) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+
+export const MenuPhoto = ({ src, width, height, words, rotation = 0, tilt = 0, maxHeight, dim = false, zoomable = false, children, overlay }: Props) => {
   const ref = useRef<HTMLDivElement>(null);
   const [W, setW] = useState(0);
+  const [zoom, setZoom] = useState<Zoom>({ z: 1, tx: 0, ty: 0 });
+  const gesture = useRef<{ startDist: number; startZoom: Zoom; mid: [number, number]; last: [number, number] | null; lastTap: number }>({ startDist: 0, startZoom: { z: 1, tx: 0, ty: 0 }, mid: [0, 0], last: null, lastTap: 0 });
+
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -79,12 +90,68 @@ export const MenuPhoto = ({ src, width, height, words, rotation = 0, tilt = 0, m
   const fit = W > 0 ? computeFit(W, width, height, focusBox(words), maxHeight, rotation, tilt) : null;
   const Hi = W > 0 ? (W * height) / width : 0;
 
+  /** 확대 후에도 사진이 상자 밖으로 완전히 나가지 않도록 이동량을 제한 */
+  const clampZoom = (q: Zoom): Zoom => {
+    if (!fit) return q;
+    const z = Math.min(MAX_ZOOM, Math.max(1, q.z));
+    const maxTx = (z - 1) * W, maxTy = (z - 1) * fit.boxH;
+    return { z, tx: Math.min(0, Math.max(-maxTx, q.tx)), ty: Math.min(0, Math.max(-maxTy, q.ty)) };
+  };
+
+  const onTouchStart = (e: TouchEvent) => {
+    if (!zoomable) return;
+    const g = gesture.current;
+    if (e.touches.length === 2) {
+      const [a, b] = [e.touches[0]!, e.touches[1]!];
+      g.startDist = dist(a, b);
+      g.startZoom = zoom;
+      const rect = ref.current!.getBoundingClientRect();
+      g.mid = [(a.clientX + b.clientX) / 2 - rect.left, (a.clientY + b.clientY) / 2 - rect.top];
+    } else if (e.touches.length === 1) {
+      const now = Date.now();
+      if (now - g.lastTap < 300) setZoom({ z: 1, tx: 0, ty: 0 }); // 두 번 탭: 원래 크기
+      g.lastTap = now;
+      g.last = zoom.z > 1 ? [e.touches[0]!.clientX, e.touches[0]!.clientY] : null;
+    }
+  };
+  const onTouchMove = (e: TouchEvent) => {
+    if (!zoomable) return;
+    const g = gesture.current;
+    if (e.touches.length === 2 && g.startDist > 0) {
+      e.preventDefault();
+      const [a, b] = [e.touches[0]!, e.touches[1]!];
+      const ratio = dist(a, b) / g.startDist;
+      const z = g.startZoom.z * ratio;
+      // 두 손가락 중점이 제자리에 남도록 이동량 보정
+      const [mx, my] = g.mid;
+      const k = z / g.startZoom.z;
+      setZoom(clampZoom({ z, tx: mx - k * (mx - g.startZoom.tx), ty: my - k * (my - g.startZoom.ty) }));
+    } else if (e.touches.length === 1 && g.last && zoom.z > 1) {
+      e.preventDefault();
+      const t = e.touches[0]!;
+      const [lx, ly] = g.last;
+      g.last = [t.clientX, t.clientY];
+      setZoom((q) => clampZoom({ ...q, tx: q.tx + (t.clientX - lx), ty: q.ty + (t.clientY - ly) }));
+    }
+  };
+  const onTouchEnd = (e: TouchEvent) => {
+    const g = gesture.current;
+    if (e.touches.length < 2) g.startDist = 0;
+    if (e.touches.length === 0) g.last = null;
+  };
+
+  const ctx: MarkerCtx | null = fit ? { fit, zoom: zoom.z, markerScale: 1 / (fit.scale * zoom.z), W, Hi } : null;
+  const content = typeof children === 'function' ? (ctx ? children(ctx) : null) : children;
+
   return (
-    <div ref={ref} style={{ position: 'relative', width: '100%', height: fit?.boxH ?? maxHeight, overflow: 'hidden', background: 'var(--wood)' }}>
+    <div ref={ref} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchEnd}
+      style={{ position: 'relative', width: '100%', height: fit?.boxH ?? maxHeight, overflow: 'hidden', background: 'var(--wood)', touchAction: zoomable ? 'none' : 'auto' }}>
       {fit && (
-        <div style={{ position: 'absolute', left: 0, top: 0, width: W, height: Hi, transformOrigin: `${W / 2}px ${Hi / 2}px`, transform: fit.transform, willChange: 'transform' }}>
-          <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'fill', opacity: dim ? 0.5 : 1 }} />
-          {children}
+        <div style={{ position: 'absolute', left: 0, top: 0, width: W, height: fit.boxH, transformOrigin: '0 0', transform: `translate(${zoom.tx}px, ${zoom.ty}px) scale(${zoom.z})` }}>
+          <div style={{ position: 'absolute', left: 0, top: 0, width: W, height: Hi, transformOrigin: `${W / 2}px ${Hi / 2}px`, transform: fit.transform, willChange: 'transform' }}>
+            <img src={src} alt="" draggable={false} style={{ width: '100%', height: '100%', objectFit: 'fill', opacity: dim ? 0.5 : 1 }} />
+            {content}
+          </div>
         </div>
       )}
       {overlay}

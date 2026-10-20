@@ -1,59 +1,84 @@
+import { useState } from 'react';
 import type { MenuItem, Scan } from '../types';
 import { formatJpy } from '../lib/money';
-import { MenuPhoto } from '../components/MenuPhoto';
+import { MenuPhoto, type MarkerCtx } from '../components/MenuPhoto';
 
 type Props = { readonly scan: Scan; readonly selectedId: string | null; readonly onSelect: (item: MenuItem) => void };
 
 /** 메뉴가 이 수를 넘으면 칩 대신 번호 배지를 붙인다 */
 const CHIP_LIMIT = 10;
+const BADGE_MAX = 26;
+const BADGE_MIN = 13;
 
 const shortName = (s: string): string => s.replace(/\s*[(（].*?[)）]\s*$/, '').trim() || s;
 
+/** 각 항목 중심에서 가장 가까운 다른 항목까지의 화면상 거리(px) → 배지 크기 */
+const badgeSizes = (items: readonly MenuItem[], ctx: MarkerCtx): Map<string, number> => {
+  const centers = items.filter((it) => it.bbox).map((it) => ({ id: it.id, x: ((it.bbox![0] + it.bbox![2]) / 2 / 1000) * ctx.W * ctx.fit.scale * ctx.zoom, y: ((it.bbox![1] + it.bbox![3]) / 2 / 1000) * ctx.Hi * ctx.fit.scale * ctx.zoom }));
+  const out = new Map<string, number>();
+  for (const c of centers) {
+    let nn = Infinity;
+    for (const o of centers) if (o !== c) nn = Math.min(nn, Math.hypot(o.x - c.x, o.y - c.y));
+    out.set(c.id, Math.round(Math.max(BADGE_MIN, Math.min(BADGE_MAX, nn * 0.85))));
+  }
+  return out;
+};
+
 /**
  * 메뉴판 사진 위에 번역을 붙인다.
- * 항목이 적으면 이름·가격 칩, 많으면 번호 배지(탭하면 상세). 세로쓰기가 빽빽하면 칩 높이를 3단으로 엇갈린다.
+ * 항목이 적으면 이름·가격 칩, 많으면 번호 배지(탭하면 상세). 배지는 이웃과의 거리에 맞춰 작아지고,
+ * 사진을 두 손가락으로 확대하면 화면상 크기는 그대로라 겹침이 풀린다.
  */
 export const OverlayView = ({ scan, selectedId, onSelect }: Props) => {
   const badges = scan.items.length > CHIP_LIMIT;
+  const [showMarks, setShowMarks] = useState(true);
+  const rot = scan.rotation + scan.tilt;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div className="frame" style={{ boxShadow: '4px 4px 0 var(--ink)', overflow: 'hidden' }}>
-        <MenuPhoto src={scan.imageDataUrl} width={scan.width} height={scan.height} words={scan.words} rotation={scan.rotation} tilt={scan.tilt} maxHeight={620}>
-          {scan.items.map((it, i) => {
-            if (!it.bbox) return null;
-            const [x0, y0, x1, y1] = it.bbox;
-            const selected = it.id === selectedId;
-            const vertical = y1 - y0 > (x1 - x0) * 2;
-            const cx = (x0 + x1) / 2;
-            if (badges) {
-              // 글줄(이름+가격) 중앙에 배지를 둔다. 모델의 bbox 가 다소 부정확해도 줄 위치는 대체로 맞는다.
-              const bx = cx;
-              const by = (y0 + y1) / 2;
-              const shift = `translate(-50%, -50%) rotate(${scan.rotation + scan.tilt}deg)`;
+      <div className="frame" style={{ boxShadow: '4px 4px 0 var(--ink)', overflow: 'hidden', position: 'relative' }}>
+        <button type="button" onClick={() => setShowMarks((v) => !v)} aria-pressed={showMarks}
+          style={{ position: 'absolute', top: 8, right: 8, zIndex: 5, height: 32, padding: '0 10px', background: showMarks ? 'var(--ink)' : 'var(--paper-2)', color: showMarks ? 'var(--paper)' : 'var(--ink)', border: '2px solid var(--ink)', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>
+          {showMarks ? '표시 끄기' : '표시 켜기'}
+        </button>
+        <MenuPhoto src={scan.imageDataUrl} width={scan.width} height={scan.height} words={scan.words} rotation={scan.rotation} tilt={scan.tilt} maxHeight={620} zoomable>
+          {(ctx) => {
+            if (!showMarks) return null;
+            const sizes = badges ? badgeSizes(scan.items, ctx) : null;
+            const ms = ctx.markerScale;
+            return scan.items.map((it, i) => {
+              if (!it.bbox) return null;
+              const [x0, y0, x1, y1] = it.bbox;
+              const selected = it.id === selectedId;
+              const vertical = y1 - y0 > (x1 - x0) * 2;
+              const cx = (x0 + x1) / 2;
+              if (badges) {
+                const size = sizes?.get(it.id) ?? BADGE_MAX;
+                return (
+                  <button key={it.id} type="button" onClick={() => onSelect(it)} aria-pressed={selected} aria-label={`${i + 1}번 ${it.name_ko} ${formatJpy(it.price_jpy)}`}
+                    className="dot"
+                    style={{ position: 'absolute', left: `${cx / 10}%`, top: `${(y0 + y1) / 2 / 10}%`, transform: `translate(-50%, -50%) rotate(${rot}deg) scale(${ms})`, width: size, height: size, padding: 0, cursor: 'pointer',
+                      background: selected ? 'var(--vermilion)' : 'var(--ink)', color: 'var(--paper)', border: '2px solid var(--paper-2)', boxShadow: '2px 2px 0 rgba(42,33,27,.6)', fontSize: Math.max(9, size / 2), lineHeight: 1, zIndex: selected ? 3 : 1 }}>
+                    {i + 1}
+                  </button>
+                );
+              }
+              const lane = vertical ? i % 3 : 0;
+              const top = vertical ? Math.min(y0 + 40 + lane * 95, 900) : Math.min(y1, 960);
+              const align = cx < 200 ? 'translateX(-20%)' : cx > 800 ? 'translateX(-80%)' : 'translateX(-50%)';
               return (
-                <button key={it.id} type="button" onClick={() => onSelect(it)} aria-pressed={selected} aria-label={`${i + 1}번 ${it.name_ko} ${formatJpy(it.price_jpy)}`}
-                  className="dot"
-                  style={{ position: 'absolute', left: `${bx / 10}%`, top: `${by / 10}%`, transform: shift, width: 26, height: 26, padding: 0, cursor: 'pointer',
-                    background: selected ? 'var(--vermilion)' : 'var(--ink)', color: 'var(--paper)', border: '2px solid var(--paper-2)', boxShadow: '2px 2px 0 rgba(42,33,27,.6)', fontSize: 13, lineHeight: 1, zIndex: selected ? 3 : 1 }}>
-                  {i + 1}
+                <button key={it.id} type="button" onClick={() => onSelect(it)} aria-pressed={selected} aria-label={`${it.name_ko} ${formatJpy(it.price_jpy)}`}
+                  style={{ position: 'absolute', left: `${cx / 10}%`, top: `${top / 10}%`, transform: `${align} rotate(${rot}deg) scale(${ms})`, transformOrigin: 'top center', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1, padding: '4px 7px', cursor: 'pointer',
+                    background: selected ? 'var(--vermilion)' : 'var(--paper-2)', color: selected ? 'var(--paper-2)' : 'var(--ink)', border: '2px solid var(--ink)', boxShadow: '3px 3px 0 var(--ink)', maxWidth: vertical ? '33%' : '46%', textAlign: 'left', zIndex: selected ? 3 : 1 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{shortName(it.name_ko)}</span>
+                  <span className="dot" style={{ fontSize: 11, lineHeight: 1 }}>{formatJpy(it.price_jpy)}</span>
                 </button>
               );
-            }
-            const lane = vertical ? i % 3 : 0;
-            const top = vertical ? Math.min(y0 + 40 + lane * 95, 900) : Math.min(y1, 960);
-            const align = `${cx < 200 ? 'translateX(-20%)' : cx > 800 ? 'translateX(-80%)' : 'translateX(-50%)'} rotate(${scan.rotation + scan.tilt}deg)`;
-            return (
-              <button key={it.id} type="button" onClick={() => onSelect(it)} aria-pressed={selected} aria-label={`${it.name_ko} ${formatJpy(it.price_jpy)}`}
-                style={{ position: 'absolute', left: `${cx / 10}%`, top: `${top / 10}%`, transform: align, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1, padding: '4px 7px', cursor: 'pointer',
-                  background: selected ? 'var(--vermilion)' : 'var(--paper-2)', color: selected ? 'var(--paper-2)' : 'var(--ink)', border: '2px solid var(--ink)', boxShadow: '3px 3px 0 var(--ink)', maxWidth: vertical ? '33%' : '46%', textAlign: 'left', zIndex: selected ? 3 : 1 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{shortName(it.name_ko)}</span>
-                <span className="dot" style={{ fontSize: 11, lineHeight: 1 }}>{formatJpy(it.price_jpy)}</span>
-              </button>
-            );
-          })}
+            });
+          }}
         </MenuPhoto>
       </div>
-      {badges ? (
+      <div className="muted small" style={{ textAlign: 'center' }}>{badges ? '번호를 탭하면 상세가 열려요 · 두 손가락으로 확대, 두 번 탭하면 원래대로' : '칩을 탭하면 설명과 원화 가격이 열려요'}</div>
+      {badges && (
         <ol style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '6px 10px' }}>
           {scan.items.map((it, i) => (
             <li key={it.id}>
@@ -65,8 +90,6 @@ export const OverlayView = ({ scan, selectedId, onSelect }: Props) => {
             </li>
           ))}
         </ol>
-      ) : (
-        <div className="muted small" style={{ textAlign: 'center' }}>칩을 탭하면 설명과 원화 가격이 열려요</div>
       )}
     </div>
   );
