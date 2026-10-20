@@ -5,3 +5,6 @@
 node_modules/
 dist/
 .vercel
+
+# 개인 설정 (Claude Code)
+CLAUDE.local.md

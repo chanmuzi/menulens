@@ -1,7 +1,7 @@
 /**
  * POST /api/analyze  { image: base64, mediaType }
  *
- * 파이프라인 (docs/benchmarks.md):
+ * 파이프라인 (docs/wiki/benchmarks.md):
  *   1) Upstage OCR → 단어·좌표·글자 방향 (≈2~4초). 결과를 먼저 클라이언트에 보낸다.
  *   2) 1단계 LLM: 단어 목록 → 항목(이름·가격·좌표·아이콘)만 짧게. 단어가 많으면 읽기 순서대로 묶어 병렬 호출.
  *      항목은 서버에서 파싱해 완성되는 즉시 보낸다.
