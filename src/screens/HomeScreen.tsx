@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
-import type { Scan } from '../types';
+import type { PickSource, Scan } from '../types';
+import { hasFiles, imageFromDropEvent } from '../lib/drop';
 import { PixelIcon } from '../components/PixelIcon';
 import { ScanRow } from '../components/ScanRow';
 import { InstallHint } from '../components/InstallHint';
@@ -10,7 +11,7 @@ import { canReadClipboard, imageFromPasteEvent, readImageFromClipboard } from '.
 type Props = {
   readonly scans: readonly Scan[];
   readonly installHint: Hint;
-  readonly onPick: (file: File) => void;
+  readonly onPick: (file: File, source: PickSource) => void;
   readonly onShowAll: () => void;
   readonly onOpen: (scan: Scan) => void;
   readonly onRemove: (id: string) => void;
@@ -33,10 +34,11 @@ export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRe
   // 같은 문구가 연달아 떠도 타이머가 다시 시작되도록 객체로 든다 (같은 문자열은 React 가 갱신을 건너뛴다)
   const [hint, setHint] = useState<{ readonly text: string; readonly at: number } | null>(null);
   const pasteSupported = canReadClipboard();
-  const handle = (e: ChangeEvent<HTMLInputElement>) => {
+  const [dragging, setDragging] = useState(false);
+  const handle = (source: PickSource) => (e: ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     e.target.value = '';
-    if (f) onPick(f);
+    if (f) onPick(f, source);
   };
 
   // 잠깐 보였다 사라지는 안내. 기본 문구 자리에 띄워 화면을 더 가리지 않는다
@@ -52,16 +54,33 @@ export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRe
       const f = imageFromPasteEvent(e);
       if (!f) return;
       e.preventDefault();
-      onPick(f);
+      onPick(f, 'paste');
     };
     document.addEventListener('paste', onPaste);
     return () => document.removeEventListener('paste', onPaste);
   }, [onPick]);
 
+  // 데스크톱: 화면 어디에나 이미지 파일을 끌어다 놓기 (기본 동작 차단은 App 이 모든 화면에서 맡는다)
+  useEffect(() => {
+    const onOver = (e: DragEvent) => { if (hasFiles(e)) setDragging(true); };
+    const onLeave = (e: DragEvent) => { if (e.relatedTarget === null) setDragging(false); };
+    const onDrop = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      setDragging(false);
+      const f = imageFromDropEvent(e);
+      if (f) onPick(f, 'drop');
+      else setHint({ text: '이미지 파일만 넣을 수 있어요', at: Date.now() });
+    };
+    document.addEventListener('dragover', onOver);
+    document.addEventListener('dragleave', onLeave);
+    document.addEventListener('drop', onDrop);
+    return () => { document.removeEventListener('dragover', onOver); document.removeEventListener('dragleave', onLeave); document.removeEventListener('drop', onDrop); };
+  }, [onPick]);
+
   // 모바일: 버튼 탭 → 클립보드 읽기 (사용자 동작 안에서 호출해야 한다)
   const pasteFromButton = async () => {
     const r = await readImageFromClipboard();
-    if (r.ok) onPick(r.file);
+    if (r.ok) onPick(r.file, 'paste');
     else setHint({ text: HINT_BY_REASON[r.reason], at: Date.now() });
   };
 
@@ -87,13 +106,13 @@ export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRe
         <p className="muted" style={{ margin: '6px 0 0', fontSize: 14 }}>번역 · 요리 설명 · 대표 이미지까지 한 번에</p>
       </div>
 
-      <div className="corners frame" style={{ background: 'var(--paper-dark)', boxShadow: '4px 4px 0 var(--ink)', padding: 18, minHeight: 300, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', gap: 18, overflow: 'hidden' }}>
+      <div className="corners frame" style={{ background: dragging ? 'var(--paper-2)' : 'var(--paper-dark)', outline: dragging ? '3px dashed var(--vermilion)' : 'none', outlineOffset: -8, boxShadow: '4px 4px 0 var(--ink)', padding: 18, minHeight: 300, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', gap: 18, overflow: 'hidden' }}>
         <span className="c3" /><span className="c4" />
         <div aria-hidden="true" style={{ position: 'absolute', left: 44, right: 44, top: 34, height: 150, background: 'var(--wood)', opacity: .35, display: 'flex', gap: 12, padding: 14, justifyContent: 'center' }}>
           {Array.from({ length: 5 }, (_, i) => <div key={i} style={{ width: 30, background: '#EFE4C8' }} />)}
         </div>
         <div style={{ position: 'absolute', top: 96, left: 0, right: 0, display: 'flex', justifyContent: 'center' }}>
-          <div role="status" style={{ background: 'var(--paper-2)', border: '2px solid var(--ink)', padding: '8px 12px', fontSize: 13, fontWeight: 500, color: hint ? 'var(--vermilion)' : undefined, maxWidth: 'calc(100% - 48px)', textAlign: 'center' }}>{hint?.text ?? HINT_DEFAULT}</div>
+          <div role="status" style={{ background: 'var(--paper-2)', border: '2px solid var(--ink)', padding: '8px 12px', fontSize: 13, fontWeight: 500, color: hint ? 'var(--vermilion)' : undefined, maxWidth: 'calc(100% - 48px)', textAlign: 'center' }}>{dragging ? '여기에 놓으면 확인 화면으로 가요' : (hint?.text ?? HINT_DEFAULT)}</div>
         </div>
         <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 14, marginTop: 170 }}>
           <button type="button" className="btn" onClick={() => albumRef.current?.click()}>앨범에서</button>
@@ -102,8 +121,8 @@ export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRe
             ? <button type="button" className="btn" onClick={() => void pasteFromButton()}>붙여넣기</button>
             : <div style={{ width: 78 }} />}
         </div>
-        <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handle} className="sr-only" aria-label="카메라로 촬영" />
-        <input ref={albumRef} type="file" accept="image/*" onChange={handle} className="sr-only" aria-label="앨범에서 선택" />
+        <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handle('camera')} className="sr-only" aria-label="카메라로 촬영" />
+        <input ref={albumRef} type="file" accept="image/*" onChange={handle('album')} className="sr-only" aria-label="앨범에서 선택" />
       </div>
 
       {scans.length > 0 && (

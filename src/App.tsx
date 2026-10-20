@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ImageMode, Note, OcrWord, Rate, Scan, ScanKind } from './types';
+import type { ImageMode, Note, OcrWord, PickSource, Rate, Scan, ScanKind } from './types';
+import { hasFiles } from './lib/drop';
 import { analyzeImage, fetchRate } from './lib/api';
 import { prepareImage } from './lib/image';
 import { applyDetails, insertItem, newScanId, toMenuItem, toNote } from './lib/scan';
@@ -8,10 +9,11 @@ import { useInstallHint } from './lib/platform';
 import { GateScreen } from './screens/GateScreen';
 import { HomeScreen } from './screens/HomeScreen';
 import { HistoryScreen } from './screens/HistoryScreen';
+import { ConfirmScreen } from './screens/ConfirmScreen';
 import { ProcessingScreen } from './screens/ProcessingScreen';
 import { ResultScreen } from './screens/ResultScreen';
 
-type Route = 'gate' | 'home' | 'history' | 'processing' | 'result';
+type Route = 'gate' | 'home' | 'history' | 'confirm' | 'processing' | 'result';
 
 const emptyScan = (): Scan => ({
   id: newScanId(), createdAt: Date.now(), imageDataUrl: '', width: 4, height: 3, kind: 'menu', shopName: null, sheetQuad: null,
@@ -33,12 +35,22 @@ export const App = () => {
   const [route, setRoute] = useState<Route>(() => (getAccessCode() ? 'home' : 'gate'));
   const [scans, setScans] = useState<readonly Scan[]>([]);
   const [current, setCurrent] = useState<Scan | null>(null);
+  /** 확인 화면에서 기다리는 사진 */
+  const [pending, setPending] = useState<File | null>(null);
   const [rate, setRate] = useState<Rate | null>(() => loadRate());
   const [mode, setMode] = useState<ImageMode>(() => loadImageMode());
   const abortRef = useRef<AbortController | null>(null);
   const lastFile = useRef<File | null>(null);
   const lastScanId = useRef<string | null>(null);
   const installHint = useInstallHint();
+
+  // 어느 화면에서든 파일을 끌어다 놓아도 브라우저가 그 파일로 이동하지 않게 막는다 (홈 화면은 자기 리스너에서 받아 처리)
+  useEffect(() => {
+    const block = (e: DragEvent) => { if (hasFiles(e)) e.preventDefault(); };
+    document.addEventListener('dragover', block);
+    document.addEventListener('drop', block);
+    return () => { document.removeEventListener('dragover', block); document.removeEventListener('drop', block); };
+  }, []);
 
   // 기록은 IndexedDB 에서 비동기로 온다 (첫 렌더는 빈 목록)
   useEffect(() => {
@@ -115,7 +127,13 @@ export const App = () => {
     if (route === 'processing' && (current?.status === 'detailing' || current?.status === 'done')) setRoute('result');
   }, [route, current?.status]);
 
-  const goHome = () => { abortRef.current?.abort(); setCurrent(null); setRoute('home'); };
+  const goHome = () => { abortRef.current?.abort(); setCurrent(null); setPending(null); setRoute('home'); };
+  // 앨범·붙여넣기·드롭은 확인을 거친다. 촬영은 카메라 앱이 이미 「사진 사용」을 묻는다
+  const pick = (file: File, source: PickSource) => {
+    if (source === 'camera') { void startScan(file); return; }
+    setPending(file);
+    setRoute('confirm');
+  };
   const changeMode = (m: ImageMode) => { saveImageMode(m); setMode(m); };
 
   if (route === 'gate') return <GateScreen onEnter={() => setRoute('home')} />;
@@ -130,6 +148,10 @@ export const App = () => {
     void loadScanImage(s).then((imageDataUrl) => { setCurrent(upgrade({ ...s, imageDataUrl })); setRoute('result'); });
   };
   const remove = (id: string) => void removeScan(id).then(setScans);
+  if (route === 'confirm' && pending) {
+    const file = pending;
+    return <ConfirmScreen file={file} onConfirm={() => { setPending(null); void startScan(file); }} onCancel={goHome} />;
+  }
   if (route === 'history') {
     return <HistoryScreen scans={scans} installHint={installHint} onBack={() => setRoute('home')} onOpen={openScan} onRemove={remove} onClear={() => void clearScans().then(setScans)} />;
   }
@@ -137,7 +159,7 @@ export const App = () => {
     <HomeScreen
       scans={scans}
       installHint={installHint}
-      onPick={(f) => void startScan(f)}
+      onPick={pick}
       onShowAll={() => setRoute('history')}
       onOpen={openScan}
       onRemove={remove}

@@ -60,3 +60,6 @@ export type Rate = { readonly krwPerJpy: number; readonly date: string | null };
 export type Photo = { readonly url: string | null; readonly pageUrl?: string | null; readonly credit?: string };
 
 export type ImageMode = 'art' | 'photo';
+
+/** 사진이 들어온 경로. 촬영만 확인 화면을 건너뛴다 */
+export type PickSource = 'camera' | 'album' | 'paste' | 'drop';
