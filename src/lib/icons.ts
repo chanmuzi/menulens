@@ -23,9 +23,10 @@ const KEYWORDS: ReadonlyArray<readonly [RegExp, string]> = [
   [/ハイボール|サワー|チューハイ|酎ハイ|レモンサワー|カクテル|ウイスキー/, 'highball'],
   [/ビール|生中|生ビ|ビア/, 'beer'],
   [/日本酒|冷酒|熱燗|焼酎|梅酒|ワイン|酒/, 'sake'],
-  [/茶|コーヒー|珈琲|ジュース|コーラ|ソーダ|ウーロン|水|ドリンク/, 'drink'],
+  // 「茶」 한 글자는 브랜드명(茶美豚 등)에도 들어가므로 차 이름 단위로만 본다
+  [/お茶|緑茶|抹茶ラテ|煎茶|ほうじ茶|麦茶|玄米茶|烏龍茶|ウーロン|紅茶|ジャスミン茶|コーヒー|珈琲|ジュース|コーラ|ソーダ|ドリンク|お水|ミネラルウォーター/, 'drink'],
   [/アイス|ケーキ|パフェ|プリン|団子|だんご|餅|もち|デザート|甘味|抹茶/, 'dessert'],
-  [/カレー|カツカレー/, 'curry'],
+  [/(^|[^ス])カレー/, 'curry'], // エスカレーター 의 カレー 제외
   [/枝豆|えだまめ/, 'edamame'],
   [/豆腐|冷奴|湯豆腐|厚揚げ|揚げ出し/, 'tofu'],
   [/海老|えび|エビ|海老天/, 'shrimp'],
@@ -57,13 +58,20 @@ const ALIASES: Record<string, string> = {
   icecream: 'dessert', cake: 'dessert', mochi: 'dessert', fruit: 'dessert', bread: 'dish', pizza: 'cheese', fries: 'potato', croquette: 'potato',
 };
 
+/** 재료가 아닌 뭉뚱그린 아이콘. 키워드 규칙이 이 중 하나를 고르고 모델이 더 구체적인 재료를 골랐으면 모델을 따른다 */
+const GENERIC = new Set(['drink', 'dessert', 'salad', 'soup', 'rice', 'dish']);
+
 const BY_CATEGORY: Record<Category, string> = { 안주: 'dish', 식사: 'rice', 음료: 'drink', 디저트: 'dessert', 기타: 'dish' };
 
 /** 원문 키워드 → 모델 선택 → 별칭 → 카테고리 기본값 순으로 아이콘을 정한다. */
 export const resolveIcon = (nameJa: string, icon: string | undefined, category: Category): string => {
-  const hit = KEYWORDS.find(([re]) => re.test(nameJa));
-  if (hit) return hit[1];
   const key = (icon ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  const hit = KEYWORDS.find(([re]) => re.test(nameJa));
+  if (hit) {
+    // 예: 茶美豚バラ → 규칙은 drink(茶), 모델은 pork. 뭉뚱그린 규칙보다 구체적인 모델 선택을 믿는다
+    if (GENERIC.has(hit[1]) && ICON_KEYS.has(key) && !GENERIC.has(key)) return key;
+    return hit[1];
+  }
   if (ICON_KEYS.has(key)) return key;
   const alias = ALIASES[key];
   if (alias) return alias;
