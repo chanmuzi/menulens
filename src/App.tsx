@@ -3,13 +3,15 @@ import type { ImageMode, Note, OcrWord, Rate, Scan, ScanKind } from './types';
 import { analyzeImage, fetchRate } from './lib/api';
 import { prepareImage } from './lib/image';
 import { applyDetails, insertItem, newScanId, toMenuItem, toNote } from './lib/scan';
-import { getAccessCode, loadImageMode, loadRate, loadScans, removeScan, saveImageMode, saveRate, saveScan, setAccessCode } from './lib/storage';
+import { clearScans, getAccessCode, loadImageMode, loadRate, loadScanImage, loadScans, removeScan, saveImageMode, saveRate, saveScan, setAccessCode } from './lib/storage';
+import { useInstallHint } from './lib/platform';
 import { GateScreen } from './screens/GateScreen';
 import { HomeScreen } from './screens/HomeScreen';
+import { HistoryScreen } from './screens/HistoryScreen';
 import { ProcessingScreen } from './screens/ProcessingScreen';
 import { ResultScreen } from './screens/ResultScreen';
 
-type Route = 'gate' | 'home' | 'processing' | 'result';
+type Route = 'gate' | 'home' | 'history' | 'processing' | 'result';
 
 const emptyScan = (): Scan => ({
   id: newScanId(), createdAt: Date.now(), imageDataUrl: '', width: 4, height: 3, kind: 'menu', shopName: null, sheetQuad: null,
@@ -29,13 +31,21 @@ const toKind = (k: string): ScanKind => (k === 'sign' || k === 'other' ? k : 'me
 
 export const App = () => {
   const [route, setRoute] = useState<Route>(() => (getAccessCode() ? 'home' : 'gate'));
-  const [scans, setScans] = useState<readonly Scan[]>(() => loadScans().map(upgrade));
+  const [scans, setScans] = useState<readonly Scan[]>([]);
   const [current, setCurrent] = useState<Scan | null>(null);
   const [rate, setRate] = useState<Rate | null>(() => loadRate());
   const [mode, setMode] = useState<ImageMode>(() => loadImageMode());
   const abortRef = useRef<AbortController | null>(null);
   const lastFile = useRef<File | null>(null);
   const lastScanId = useRef<string | null>(null);
+  const installHint = useInstallHint();
+
+  // 기록은 IndexedDB 에서 비동기로 온다 (첫 렌더는 빈 목록)
+  useEffect(() => {
+    let alive = true;
+    loadScans().then((list) => { if (alive) setScans(list.map(upgrade)); });
+    return () => { alive = false; };
+  }, []);
 
   useEffect(() => {
     if (rate || route === 'gate') return;
@@ -89,7 +99,7 @@ export const App = () => {
         if (!s) return s;
         const ok = s.items.length > 0;
         const done: Scan = { ...s, status: ok ? 'done' : 'error', error: ok ? null : '글자를 찾지 못했어요. 더 가까이, 밝게 찍어 주세요.', timing: { ...s.timing, totalMs } };
-        if (ok) setScans(saveScan(done)); // 사진 모드가 준비되면 여기서 prefetchPhotos(done.items) 를 호출
+        if (ok) void saveScan(done).then(setScans); // 사진 모드가 준비되면 여기서 prefetchPhotos(done.items) 를 호출
         return done;
       });
     } catch (e) {
@@ -115,12 +125,22 @@ export const App = () => {
   if (route === 'result' && current) {
     return <ResultScreen scan={current} rate={rate} mode={mode} onMode={changeMode} onHome={goHome} originalFile={lastFile.current && lastScanId.current === current.id ? lastFile.current : null} />;
   }
+  // 목록에는 사진이 없다. 결과 화면으로 가기 전에 사진 한 건만 읽는다
+  const openScan = (s: Scan) => {
+    void loadScanImage(s).then((imageDataUrl) => { setCurrent(upgrade({ ...s, imageDataUrl })); setRoute('result'); });
+  };
+  const remove = (id: string) => void removeScan(id).then(setScans);
+  if (route === 'history') {
+    return <HistoryScreen scans={scans} installHint={installHint} onBack={() => setRoute('home')} onOpen={openScan} onRemove={remove} onClear={() => void clearScans().then(setScans)} />;
+  }
   return (
     <HomeScreen
       scans={scans}
+      installHint={installHint}
       onPick={(f) => void startScan(f)}
-      onOpen={(s) => { setCurrent(upgrade(s)); setRoute('result'); }}
-      onRemove={(id) => setScans(removeScan(id))}
+      onShowAll={() => setRoute('history')}
+      onOpen={openScan}
+      onRemove={remove}
     />
   );
 };
