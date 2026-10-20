@@ -7,25 +7,26 @@
 
 ```
 api/            Vercel Edge Functions (Web 표준 Request → Response)
-  analyze.ts    메뉴판 이미지 → Timely Router(claude-opus-5-5) 스트리밍 → 텍스트 델타 전달
+  analyze.ts    이미지 → Upstage OCR(단어·좌표·글자 방향) → Timely Router(claude-sonnet-5-5) 텍스트 스트리밍 (NDJSON 중계)
   auth.ts       초대 코드 확인
   rate.ts       JPY→KRW 환율 (open.er-api.com, 12시간 캐시)
   photo.ts      대표 사진 검색 (Wikimedia Commons, 7일 캐시)
-  _lib/         접근 제어, 프롬프트, 응답 헬퍼
+  _lib/         접근 제어, OCR 호출, 프롬프트, 응답 헬퍼
 src/
   App.tsx       화면 상태 머신 (gate → home → processing → result)
   screens/      Gate, Home, Processing, Result(Overlay / Cards / ItemSheet)
-  components/   PixelIcon, Segmented, ProgressBlocks, ItemImage, TopBar
-  lib/          이미지 리사이즈, 스트리밍 JSON 파서, API 클라이언트, localStorage
+  components/   PixelIcon, Segmented, ProgressBlocks, ItemImage, TopBar, MenuPhoto(회전·기울기 보정·글자 영역 확대)
+  lib/          이미지 리사이즈(EXIF 보정), 스트리밍 JSON 파서, API 클라이언트, localStorage, 새 빌드 감지
   styles/       global.css(토큰·픽셀 프레임·애니메이션), pixel-icons.css(생성 파일)
 scripts/px_icons.py   ASCII 스프라이트 → box-shadow 픽셀 아이콘 CSS 생성기
+scripts/bench/        처리 시간 벤치마크 스크립트 (결과: docs/benchmarks.md)
 vite-plugin-dev-api.ts  로컬에서 api/ 핸들러를 Vite 미들웨어로 실행 (Vercel CLI 불필요)
 ```
 
 ## 로컬 실행
 
 ```bash
-cp .env.example .env   # TIMELY_API_KEY 입력. ACCESS_CODES 는 로컬에서 비워 두면 모두 통과
+cp .env.example .env   # TIMELY_API_KEY, UPSTAGE_API_KEY 입력. ACCESS_CODES 는 로컬에서 비워 두면 모두 통과
 pnpm install
 pnpm dev               # http://localhost:5173  (같은 Wi-Fi 의 휴대폰에선 Network 주소로 접속)
 ```
@@ -37,6 +38,7 @@ pnpm dev               # http://localhost:5173  (같은 Wi-Fi 의 휴대폰에�
 ```bash
 npx vercel            # 처음 한 번 로그인·프로젝트 연결
 npx vercel env add TIMELY_API_KEY production
+npx vercel env add UPSTAGE_API_KEY production
 npx vercel env add ACCESS_CODES production   # 예: sakura-2026,kohaku-2026
 npx vercel --prod
 ```
@@ -46,13 +48,15 @@ npx vercel --prod
 
 ## 동작 흐름
 
-1. 촬영/앨범 → 클라이언트에서 긴 변 1280px JPEG 로 축소
-2. `/api/analyze` 가 Opus 5.5 에 스트리밍 요청 → 항목이 완성되는 대로 화면에 칩이 붙음
-3. 결과: 오버레이 뷰(사진 위 번역 칩) / 카드 뷰(그림·사진 토글, 기본 그림)
-4. 최근 스캔 5개는 기기(localStorage)에 저장
+1. 촬영/앨범 → 클라이언트에서 EXIF 방향을 바로잡고 긴 변 1280px JPEG 로 축소
+2. `/api/analyze` 1단계: Upstage OCR 이 단어·좌표·글자 방향을 읽음 (≈3초). 처리 화면에 단어 상자가 바로 표시됨
+3. 2단계: 단어 목록만 Sonnet 5.5 에 보내 번역·발음·설명·아이콘을 스트리밍 (첫 항목 ≈5초, 완료 ≈10~15초)
+   OCR 이 단어를 거의 못 읽으면 이미지를 직접 보는 폴백
+4. 결과: 카드 뷰(기본) / 오버레이 뷰(BETA). 좌표는 OCR 단어 상자의 합집합이라 정확하고, 돌아간 사진은 자동으로 세움
+5. 최근 스캔 5개는 기기(localStorage)에 저장. 새 빌드가 배포되면 앱이 열릴 때 스스로 새로고침
 
 ## 다음 과제
 
-- 자주 나오는 메뉴 300~500개의 사진·설명 사전 구축 (Commons 검색 품질 보완)
+- 자주 나오는 메뉴 300~500개의 사진·설명 사전 구축 (Commons 검색 품질 보완, 현재 사진 토글은 비활성)
 - 초대 코드별 일일 호출 한도 (무료 KV 필요)
 - PWA manifest / 홈 화면 추가
