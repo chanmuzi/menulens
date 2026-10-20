@@ -23,6 +23,7 @@ import { runOcr, type OcrResult, type OcrWord } from './_lib/ocr';
 import { chunkWords } from './_lib/chunk';
 import { createItemParser, parseLoose } from './_lib/itemStream';
 import { cacheGetMany, cacheSetMany } from './_lib/cache';
+import { saveDebug } from './_lib/debugStore';
 import { IMAGE_SYSTEM, IMAGE_USER_PROMPT, MODEL, STAGE1_SYSTEM, STAGE2_SYSTEM } from './_lib/prompt';
 
 export const config = { runtime: 'edge' };
@@ -88,23 +89,25 @@ const readSse = async (body: ReadableStream<Uint8Array>, onText: (t: string) => 
 };
 
 /** 1단계 한 묶음: 스트리밍하며 항목을 즉시 전송하고, 끝나면 메타와 항목 목록을 돌려준다 */
-const runStage1Chunk = async (key: string, chunkIndex: number, words: readonly OcrWord[] | null, image: string, mediaType: string, send: (o: Line) => void): Promise<{ meta: Stage1 | null; items: Keyed[] }> => {
+const runStage1Chunk = async (key: string, chunkIndex: number, words: readonly OcrWord[] | null, image: string, mediaType: string, send: (o: Line) => void): Promise<{ meta: Stage1 | null; items: Keyed[]; raw: RawItem[] }> => {
   const res = await fetch(UPSTREAM, { method: 'POST', headers: headers(key), body: JSON.stringify(stage1Body(words, image, mediaType)) });
   if (!res.ok || !res.body) throw new Error(`upstream ${res.status}: ${(await res.text().catch(() => '')).slice(0, 300)}`);
   const parser = createItemParser();
   const items: Keyed[] = [];
+  const rawItems: RawItem[] = [];
   await readSse(res.body, (d) => {
     for (const raw of parser.push(d)) {
       if (typeof raw !== 'object' || raw === null) continue;
       const it = raw as RawItem;
       const k = `${chunkIndex}:${items.length}`;
       items.push({ key: k, name_ja: typeof it.name_ja === 'string' ? it.name_ja : '', name_ko: typeof it.name_ko === 'string' ? it.name_ko : '' });
+      rawItems.push({ ...it, key: k });
       send({ t: 'item', key: k, item: it });
     }
   });
   let meta: Stage1 | null = null;
   try { meta = parseLoose(parser.text()) as Stage1; } catch { meta = null; }
-  return { meta, items };
+  return { meta, items, raw: rawItems };
 };
 
 const DETAIL_FIELDS = ['pron_ko', 'desc_ko', 'tags', 'photo_query'] as const;
@@ -173,6 +176,7 @@ export default async function handler(req: Request): Promise<Response> {
         const all = results.flatMap((r) => r.items);
         if (all.length > 0) await runStage2(timelyKey, all, send);
         send({ t: 'done' });
+        await saveDebug({ at: new Date().toISOString(), mode: ocr ? 'ocr' : 'image', width: ocr?.width ?? 0, height: ocr?.height ?? 0, rotation: ocr?.rotation ?? 0, tilt: ocr?.tilt ?? 0, words: ocr?.words ?? [], items: results.flatMap((r) => r.raw), notes, chunks: chunks.length }, image);
       } catch (e) {
         send({ t: 'error', m: e instanceof Error ? e.message : String(e) });
       } finally {
