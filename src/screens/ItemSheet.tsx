@@ -2,11 +2,12 @@ import { useEffect } from 'react';
 import type { ImageMode, MenuItem, Rate } from '../types';
 import { formatJpy, formatKrw } from '../lib/money';
 import { ItemImage } from '../components/ItemImage';
+import { QtyStepper } from '../components/QtyStepper';
 
-type Props = { readonly item: MenuItem; readonly rate: Rate | null; readonly mode: ImageMode; readonly onClose: () => void };
+type Props = { readonly item: MenuItem; readonly rate: Rate | null; readonly mode: ImageMode; readonly onClose: () => void; /** null 이면 주문 기능 없음(안내문) */ readonly qty?: number | null; readonly onQty?: (qty: number) => void };
 
 /** 메뉴 하나의 상세 바텀시트. 주문할 때 보여줄 일본어 문구와 한글 발음을 함께 보여준다. */
-export const ItemSheet = ({ item, rate, mode, onClose }: Props) => {
+export const ItemSheet = ({ item, rate, mode, onClose, qty = null, onQty }: Props) => {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
@@ -38,6 +39,12 @@ export const ItemSheet = ({ item, rate, mode, onClose }: Props) => {
           </div>
         </div>
         {item.tags.length > 0 && <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{item.tags.map((t) => <span key={t} className="chip">{t}</span>)}</div>}
+        {qty !== null && onQty && item.category !== '기타' && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>주문서에 담기</span>
+            <QtyStepper qty={qty} onChange={onQty} label={item.name_ko} />
+          </div>
+        )}
         {item.category !== '기타' && <div style={{ background: 'var(--paper-dark)', border: '2px solid var(--ink)', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
           <span className="dot small" style={{ color: 'var(--vermilion)' }}>주문할 때 보여주세요</span>
           <span className="jp" style={{ fontSize: 18 }}>{item.name_ja}を ひとつ ください。</span>
