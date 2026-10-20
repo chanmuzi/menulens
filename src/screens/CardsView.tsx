@@ -19,29 +19,18 @@ export const CardsView = ({ scan, rate, mode, onMode, onSelect }: Props) => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div className="filters" role="group" aria-label="분류">
+      {scan.kind === 'menu' && <div className="filters" role="group" aria-label="분류">
         {filters.map((f) => (
           <button key={f} type="button" className="seg__btn" aria-pressed={filter === f} onClick={() => setFilter(f)} style={f === '매운맛' && filter !== f ? { color: 'var(--vermilion)' } : undefined}>{f}</button>
         ))}
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      </div>}
+      {scan.kind === 'menu' && <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span className="muted small">대표 이미지</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span className="muted" style={{ fontSize: 10 }}>사진은 준비 중</span>
           <Segmented size="small" label="대표 이미지 종류" value={mode} onChange={onMode} options={[{ value: 'art', label: '그림' }, { value: 'photo', label: '사진', disabled: true }]} />
         </div>
-      </div>
-      {scan.notes.length > 0 && filter === '전체' && (
-        <section style={{ background: 'var(--paper-dark)', border: '2px solid var(--ink)', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <span className="dot" style={{ fontSize: 11, color: 'var(--vermilion)', letterSpacing: '0.1em' }}>메뉴판 문구</span>
-          {scan.notes.map((n, i) => (
-            <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-              <span style={{ fontSize: 13, fontWeight: 500 }}>{n.text_ko}</span>
-              <span className="jp muted" style={{ fontSize: 12, fontWeight: 500 }}>{n.text_ja}</span>
-            </div>
-          ))}
-        </section>
-      )}
+      </div>}
       {list.length === 0 && <div className="muted small" style={{ textAlign: 'center', padding: 20 }}>해당하는 메뉴가 없어요</div>}
       {list.map((it) => (
         <article key={it.id} className="frame" style={{ display: 'flex', gap: 12, padding: 12, alignItems: 'center' }}>
@@ -50,7 +39,7 @@ export const CardsView = ({ scan, rate, mode, onMode, onSelect }: Props) => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
               <span className="jp" style={{ fontSize: 17 }}>{it.name_ja}</span>
               <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0 }}>
-                <span className="dot" style={{ fontSize: 15, color: 'var(--vermilion)' }}>{formatJpy(it.price_jpy)}</span>
+                {(it.price_jpy !== null || it.category !== '기타') && <span className="dot" style={{ fontSize: 15, color: 'var(--vermilion)' }}>{formatJpy(it.price_jpy)}</span>}
                 {formatKrw(it.price_jpy, rate) && <span className="muted" style={{ fontSize: 10 }}>{formatKrw(it.price_jpy, rate)}</span>}
               </span>
             </div>

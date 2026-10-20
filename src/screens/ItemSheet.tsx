@@ -28,7 +28,7 @@ export const ItemSheet = ({ item, rate, mode, onClose }: Props) => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
               <span style={{ fontSize: 16, fontWeight: 600 }}>{item.name_ko}</span>
               <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                <span className="dot" style={{ fontSize: 18, color: 'var(--vermilion)' }}>{formatJpy(item.price_jpy)}</span>
+                {(item.price_jpy !== null || item.category !== '기타') && <span className="dot" style={{ fontSize: 18, color: 'var(--vermilion)' }}>{formatJpy(item.price_jpy)}</span>}
                 {formatKrw(item.price_jpy, rate) && <span className="muted" style={{ fontSize: 11 }}>{formatKrw(item.price_jpy, rate)}</span>}
               </span>
             </div>
@@ -38,12 +38,12 @@ export const ItemSheet = ({ item, rate, mode, onClose }: Props) => {
           </div>
         </div>
         {item.tags.length > 0 && <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{item.tags.map((t) => <span key={t} className="chip">{t}</span>)}</div>}
-        <div style={{ background: 'var(--paper-dark)', border: '2px solid var(--ink)', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {item.category !== '기타' && <div style={{ background: 'var(--paper-dark)', border: '2px solid var(--ink)', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
           <span className="dot small" style={{ color: 'var(--vermilion)' }}>주문할 때 보여주세요</span>
           <span className="jp" style={{ fontSize: 18 }}>{item.name_ja}を ひとつ ください。</span>
           <span style={{ fontSize: 13, fontWeight: 500 }}>{pron}오 히토츠 쿠다사이</span>
           <span className="muted small">「{item.name_ko} 하나 주세요」</span>
-        </div>
+        </div>}
         <button type="button" className="btn" onClick={onClose}>닫기</button>
       </div>
     </div>

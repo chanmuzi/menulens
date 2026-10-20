@@ -25,12 +25,35 @@ const badgeSizes = (items: readonly MenuItem[], ctx: MarkerCtx): Map<string, num
 };
 
 /**
+ * 원문 자리를 한글로 덮어씌우는 라벨 (파파고식). 제목·안내문구·비메뉴 사진의 문장에 쓴다.
+ * 상자 크기는 원문 bbox 그대로, 글자 크기는 상자 높이(세로쓰기는 너비)에서 정한다.
+ */
+const CoverLabel = ({ bbox, text, W, Hi, onClick }: { bbox: readonly [number, number, number, number]; text: string; W: number; Hi: number; onClick?: () => void }) => {
+  const [x0, y0, x1, y1] = bbox;
+  const wPx = ((x1 - x0) / 1000) * W, hPx = ((y1 - y0) / 1000) * Hi;
+  const vertical = hPx > wPx * 2;
+  const unit = vertical ? wPx : hPx;
+  // 원문보다 조금 커도 읽히는 쪽을 택한다: 글자 크기 최소 9px, 상자 최소 14px
+  const fontSize = Math.max(9, Math.min(unit * 0.72, 28));
+  const minSide = Math.max(14, unit);
+  return (
+    <div role={onClick ? 'button' : undefined} tabIndex={onClick ? 0 : undefined} onClick={onClick}
+      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } } : undefined}
+      style={{ position: 'absolute', left: `${x0 / 10}%`, top: `${y0 / 10}%`, width: vertical ? minSide : `${(x1 - x0) / 10}%`, height: vertical ? `${(y1 - y0) / 10}%` : minSide, boxSizing: 'border-box', padding: '0 3px',
+        background: 'rgba(251,246,236,.97)', color: 'var(--ink)', border: '1px solid rgba(42,33,27,.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
+        fontSize, lineHeight: 1.1, fontWeight: 600, overflow: 'hidden', whiteSpace: 'nowrap', writingMode: vertical ? 'vertical-rl' : 'horizontal-tb', cursor: onClick ? 'pointer' : 'default' }}>
+      {text}
+    </div>
+  );
+};
+
+/**
  * 메뉴판 사진 위에 번역을 붙인다.
  * 항목이 적으면 이름·가격 칩, 많으면 번호 배지(탭하면 상세). 배지는 이웃과의 거리에 맞춰 작아지고,
  * 사진을 두 손가락으로 확대하면 화면상 크기는 그대로라 겹침이 풀린다.
  */
 export const OverlayView = ({ scan, selectedId, onSelect }: Props) => {
-  const badges = scan.items.length > CHIP_LIMIT;
+  const badges = scan.kind === 'menu' && scan.items.length > CHIP_LIMIT;
   const [showMarks, setShowMarks] = useState(true);
   const rot = scan.rotation + scan.tilt;
   return (
@@ -43,9 +66,13 @@ export const OverlayView = ({ scan, selectedId, onSelect }: Props) => {
         <MenuPhoto src={scan.imageDataUrl} width={scan.width} height={scan.height} words={scan.words} rotation={scan.rotation} tilt={scan.tilt} maxHeight={620} zoomable>
           {(ctx) => {
             if (!showMarks) return null;
+            const covers = scan.notes.filter((n) => n.bbox).map((n, i) => <CoverLabel key={`n${i}`} bbox={n.bbox!} text={n.text_ko} W={ctx.W} Hi={ctx.Hi} />);
+            if (scan.kind !== 'menu') {
+              return [...covers, ...scan.items.filter((it) => it.bbox).map((it) => <CoverLabel key={it.id} bbox={it.bbox!} text={it.name_ko} W={ctx.W} Hi={ctx.Hi} onClick={() => onSelect(it)} />)];
+            }
             const sizes = badges ? badgeSizes(scan.items, ctx) : null;
             const ms = ctx.markerScale;
-            return scan.items.map((it, i) => {
+            const marks = scan.items.map((it, i) => {
               if (!it.bbox) return null;
               const [x0, y0, x1, y1] = it.bbox;
               const selected = it.id === selectedId;
@@ -74,10 +101,11 @@ export const OverlayView = ({ scan, selectedId, onSelect }: Props) => {
                 </button>
               );
             });
+            return [...covers, ...marks];
           }}
         </MenuPhoto>
       </div>
-      <div className="muted small" style={{ textAlign: 'center' }}>{badges ? '번호를 탭하면 상세가 열려요 · 두 손가락으로 확대, 두 번 탭하면 원래대로' : '칩을 탭하면 설명과 원화 가격이 열려요'}</div>
+      <div className="muted small" style={{ textAlign: 'center' }}>{badges ? '번호를 탭하면 상세가 열려요 · 두 손가락으로 확대, 두 번 탭하면 원래대로' : scan.kind !== 'menu' ? '번역을 탭하면 원문과 설명이 열려요 · 두 손가락으로 확대' : '칩을 탭하면 설명과 원화 가격이 열려요'}</div>
       {badges && (
         <ol style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '6px 10px' }}>
           {scan.items.map((it, i) => (

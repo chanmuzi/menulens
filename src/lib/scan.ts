@@ -40,7 +40,7 @@ export const toMenuItem = (raw: unknown, key: string, words: readonly OcrWord[])
     name_ko: str(r, 'name_ko') || name_ja,
     price_jpy: price,
     category,
-    icon: resolveIcon(name_ja, str(r, 'icon') || undefined, category),
+    icon: category === '기타' ? 'dish' : resolveIcon(name_ja, str(r, 'icon') || undefined, category),
     bbox: boxOf(r, words),
     pron_ko: str(r, 'pron_ko'),
     desc_ko: str(r, 'desc_ko'),
