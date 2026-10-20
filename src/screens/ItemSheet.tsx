@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import type { ImageMode, MenuItem, Rate } from '../types';
-import { formatJpy, formatKrw } from '../lib/money';
+import { formatKrw, formatPrice, payableJpy } from '../lib/money';
 import { ItemImage } from '../components/ItemImage';
 import { QtyStepper } from '../components/QtyStepper';
 
@@ -29,8 +29,8 @@ export const ItemSheet = ({ item, rate, mode, onClose, qty = null, onQty }: Prop
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
               <span style={{ fontSize: 16, fontWeight: 600 }}>{item.name_ko}</span>
               <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                {(item.price_jpy !== null || item.category !== '기타') && <span className="dot" style={{ fontSize: 18, color: 'var(--vermilion)' }}>{formatJpy(item.price_jpy)}</span>}
-                {formatKrw(item.price_jpy, rate) && <span className="muted" style={{ fontSize: 11 }}>{formatKrw(item.price_jpy, rate)}</span>}
+                {(payableJpy(item) !== null || item.category !== '기타') && <span className="dot" style={{ fontSize: 18, color: 'var(--vermilion)', whiteSpace: 'nowrap' }}>{formatPrice(item)}</span>}
+                {formatKrw(payableJpy(item), rate) && <span className="muted" style={{ fontSize: 11 }}>{formatKrw(payableJpy(item), rate)}{item.price_tax_jpy !== null ? ' 세금 포함' : ''}</span>}
               </span>
             </div>
             {item.desc_ko

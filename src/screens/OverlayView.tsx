@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { MenuItem, Note, Scan } from '../types';
-import { formatJpy } from '../lib/money';
+import { formatJpy, formatPriceOrBlank, payableJpy } from '../lib/money';
 import { MenuPhoto, type MarkerCtx } from '../components/MenuPhoto';
 import { loadSampler, sampleBox, type BoxColors } from '../lib/sample';
 
@@ -8,7 +8,8 @@ type Props = { readonly scan: Scan; readonly selectedId: string | null; readonly
 
 /** 메뉴가 이 수를 넘으면 칩 대신 번호 배지를 붙인다. 회전된 사진은 칩 배치가 어긋나므로 항상 배지 */
 const CHIP_LIMIT = 4;
-const BADGE_MAX = 26;
+/** 배지는 한 크기(제목급 항목만 커지면 어색하다). 붐빌 때만 BADGE_MIN 까지 줄어든다 */
+const BADGE_MAX = 20;
 const BADGE_MIN = 13;
 
 const shortName = (s: string): string => s.replace(/\s*[(（].*?[)）]\s*$/, '').trim() || s;
@@ -153,7 +154,7 @@ export const OverlayView = ({ scan, selectedId, onSelect, onNote }: Props) => {
               if (badges) {
                 const size = sizes?.get(it.id) ?? BADGE_MAX;
                 return (
-                  <button key={it.id} type="button" onClick={() => onSelect(it)} aria-pressed={selected} aria-label={`${i + 1}번 ${it.name_ko} ${formatJpy(it.price_jpy)}`}
+                  <button key={it.id} type="button" onClick={() => onSelect(it)} aria-pressed={selected} aria-label={`${i + 1}번 ${it.name_ko} ${formatPriceOrBlank(it)}`}
                     className="dot"
                     style={{ position: 'absolute', left: `${cx / 10}%`, top: `${(y0 + y1) / 2 / 10}%`, transform: `translate(-50%, -50%) rotate(${rot}deg) scale(${ms})`, width: size, height: size, padding: 0, cursor: 'pointer',
                       background: selected ? 'var(--vermilion)' : 'var(--ink)', color: 'var(--paper)', border: '2px solid var(--paper-2)', boxShadow: '2px 2px 0 rgba(42,33,27,.6)', fontSize: Math.max(9, size / 2), lineHeight: 1, zIndex: selected ? 3 : 1 }}>
@@ -165,11 +166,11 @@ export const OverlayView = ({ scan, selectedId, onSelect, onNote }: Props) => {
               const top = vertical ? Math.min(y0 + 40 + lane * 95, 900) : Math.min(y1, 960);
               const align = cx < 200 ? 'translateX(-20%)' : cx > 800 ? 'translateX(-80%)' : 'translateX(-50%)';
               return (
-                <button key={it.id} type="button" onClick={() => onSelect(it)} aria-pressed={selected} aria-label={`${it.name_ko} ${formatJpy(it.price_jpy)}`}
+                <button key={it.id} type="button" onClick={() => onSelect(it)} aria-pressed={selected} aria-label={`${it.name_ko} ${formatPriceOrBlank(it)}`}
                   style={{ position: 'absolute', left: `${cx / 10}%`, top: `${top / 10}%`, transform: `${align} rotate(${rot}deg) scale(${ms})`, transformOrigin: 'top center', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1, padding: '4px 7px', cursor: 'pointer',
                     background: selected ? 'var(--vermilion)' : 'var(--paper-2)', color: selected ? 'var(--paper-2)' : 'var(--ink)', border: '2px solid var(--ink)', boxShadow: '3px 3px 0 var(--ink)', maxWidth: vertical ? '33%' : '46%', textAlign: 'left', zIndex: selected ? 3 : 1 }}>
                   <span style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{shortName(it.name_ko)}</span>
-                  <span className="dot" style={{ fontSize: 11, lineHeight: 1 }}>{formatJpy(it.price_jpy)}</span>
+                  {payableJpy(it) !== null && <span className="dot" style={{ fontSize: 11, lineHeight: 1 }}>{formatJpy(payableJpy(it))}</span>}
                 </button>
               );
             });
@@ -207,7 +208,7 @@ export const OverlayView = ({ scan, selectedId, onSelect, onNote }: Props) => {
               <button type="button" onClick={() => onSelect(it)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 0, padding: '4px 0', cursor: 'pointer', textAlign: 'left', color: 'inherit' }}>
                 <span className="dot" style={{ width: 22, height: 22, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: it.id === selectedId ? 'var(--vermilion)' : 'var(--ink)', color: 'var(--paper)', fontSize: 12 }}>{i + 1}</span>
                 <span style={{ fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{shortName(it.name_ko)}</span>
-                <span className="dot muted" style={{ fontSize: 11, marginLeft: 'auto', flexShrink: 0 }}>{formatJpy(it.price_jpy)}</span>
+                <span className="dot muted" style={{ fontSize: 11, marginLeft: 'auto', flexShrink: 0 }}>{formatPriceOrBlank(it)}</span>
               </button>
             </li>
           ))}

@@ -1,7 +1,7 @@
 /** 주문 문구 시트: 담은 목록·합계, 직원에게 보여줄 일본어(크게), 한글 발음, 뜻. 복사·비우기. */
 import { useEffect, useState } from 'react';
 import type { Rate } from '../types';
-import { formatJpy } from '../lib/money';
+import { formatJpy, formatPrice } from '../lib/money';
 import { buildOrderText, totalCount, totalJpy, totalKrw, type OrderLine } from '../lib/order';
 import { QtyStepper } from '../components/QtyStepper';
 
@@ -49,7 +49,7 @@ export const OrderSheet = ({ lines, rate, onQty, onClear, onClose }: Props) => {
             <li key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name_ko}</div>
-                <div className="jp muted" style={{ fontSize: 12, fontWeight: 500 }}>{item.name_ja} · {formatJpy(item.price_jpy)}</div>
+                <div className="jp muted" style={{ fontSize: 12, fontWeight: 500 }}>{item.name_ja} · {formatPrice(item)}</div>
               </div>
               <QtyStepper qty={qty} onChange={(q) => onQty(item.id, q)} label={item.name_ko} size="small" />
             </li>

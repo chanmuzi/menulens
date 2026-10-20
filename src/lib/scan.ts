@@ -33,12 +33,15 @@ export const toMenuItem = (raw: unknown, key: string, words: readonly OcrWord[])
   const name_ja = str(r, 'name_ja');
   if (!name_ja) return null;
   const category = CATEGORIES.includes(r.category as Category) ? (r.category as Category) : '안주';
-  const price = typeof r.price_jpy === 'number' && Number.isFinite(r.price_jpy) ? Math.round(r.price_jpy) : null;
+  const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? Math.round(v) : null);
+  const price = num(r.price_jpy);
+  const tax = num(r.price_tax_jpy);
   return {
     id: key,
     name_ja,
     name_ko: str(r, 'name_ko') || name_ja,
     price_jpy: price,
+    price_tax_jpy: tax !== null && tax !== price ? tax : null,
     category,
     icon: category === '기타' ? 'dish' : resolveIcon(name_ja, str(r, 'icon') || undefined, category),
     bbox: boxOf(r, words),

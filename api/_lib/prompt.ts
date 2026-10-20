@@ -23,12 +23,13 @@ JSON 객체 하나만 출력하세요. 설명 문장, 코드펜스, 주석 금�
 
 {"kind": "menu"|"sign"|"other", "shop_name": string|null,
  "notes": [{"text_ja": "메뉴 항목이 아닌 문구 원문", "text_ko": "번역", "word_ids": [..]}],
- "items": [{"name_ja": "원문", "name_ko": "짧은 한국어 이름 (10자 이내, 괄호 설명 금지. 예: 가라아게, 모둠 회, 생맥주)", "price_jpy": 정수|null, "category": "안주"|"식사"|"음료"|"디저트"|"기타", ${ICON_RULE}, "word_ids": [이 항목을 이루는 단어 id 들]}]}
+ "items": [{"name_ja": "원문", "name_ko": "짧은 한국어 이름 (10자 이내, 괄호 설명 금지. 예: 가라아게, 모둠 회, 생맥주)", "price_jpy": 정수|null, "price_tax_jpy": 정수|null, "category": "안주"|"식사"|"음료"|"디저트"|"기타", ${ICON_RULE}, "word_ids": [이 항목을 이루는 단어 id 들]}]}
 
 - kind: 음식 메뉴판이면 menu, 안내판·간판·표지판이면 sign, 그 밖이면 other.
 - notes: 제목, 안내 문구(税込, おすすめ, 営業時間 등), 설명문처럼 메뉴 항목이 아닌 텍스트. 없으면 [].
 - kind 가 sign·other 이면 items 는 반드시 [] 로 비우고, 사진 속 **글줄 한 줄이 note 하나**가 되게 notes 에 넣으세요. word_ids 는 그 줄의 단어만. **일본어 줄만** 넣고 영어·한국어·중국어 줄은 빼세요(같은 뜻의 번역 줄이면 일본어 줄만). text_ko 는 자연스러운 한국어 문장.
-- 한자 숫자(五八〇/千二百)는 아라비아 숫자로. 읽은 순서(세로쓰기는 오른쪽에서 왼쪽)대로 나열하세요.`;
+- 한자 숫자(五八〇/千二百)는 아라비아 숫자로. 읽은 순서(세로쓰기는 오른쪽에서 왼쪽)대로 나열하세요.
+- 가격이 「¥380(¥418)」처럼 둘이면 앞이 price_jpy(세전), 괄호 안이 price_tax_jpy(세금 포함). 「税込」 표기 하나뿐이면 price_jpy 에 넣고 price_tax_jpy 는 null. 「通常/メガ」처럼 크기별 가격이면 통상 가격을 쓰세요.`;
 
 /** 2단계: 항목 이름만 받아 발음·설명·태그·사진 검색어를 붙인다. 10개씩 병렬 호출. */
 export const STAGE2_SYSTEM = `일본 식당 메뉴 항목에 한국인 여행객용 정보를 붙입니다. 입력은 [{"i": 번호, "name_ja": 원문, "name_ko": 한국어}] 배열입니다.
@@ -42,8 +43,8 @@ export const IMAGE_SYSTEM = `당신은 일본 식당 메뉴판과 안내문을 �
 
 {"kind": "menu"|"sign"|"other", "shop_name": string|null,
  "notes": [{"text_ja": "메뉴 항목이 아닌 문구", "text_ko": "번역", "bbox": [x0,y0,x1,y1]}],
- "items": [{"name_ja": "원문", "name_ko": "짧은 한국어 이름", "price_jpy": 정수|null, "category": "안주"|"식사"|"음료"|"디저트"|"기타", ${ICON_RULE}, "bbox": [x0, y0, x1, y1]}]}
-bbox 는 이미지 전체를 0~1000 으로 정규화한 좌표입니다. 메뉴판에 적힌 순서(세로쓰기는 오른쪽에서 왼쪽)대로 나열하세요.
+ "items": [{"name_ja": "원문", "name_ko": "짧은 한국어 이름", "price_jpy": 정수|null, "price_tax_jpy": 정수|null, "category": "안주"|"식사"|"음료"|"디저트"|"기타", ${ICON_RULE}, "bbox": [x0, y0, x1, y1]}]}
+bbox 는 이미지 전체를 0~1000 으로 정규화한 좌표입니다. 메뉴판에 적힌 순서(세로쓰기는 오른쪽에서 왼쪽)대로 나열하세요. 가격이 「¥380(¥418)」처럼 둘이면 price_jpy=380, price_tax_jpy=418.
 kind 가 sign·other 이면 items 는 [] 로 비우고 글줄 한 줄을 note 하나로 notes 에 넣으세요(일본어 줄만, bbox 는 그 줄만).`;
 
 export const IMAGE_USER_PROMPT = '이 사진의 글자를 읽어 주세요.';

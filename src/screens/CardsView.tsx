@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Category, ImageMode, MenuItem, Rate, Scan } from '../types';
-import { formatJpy, formatKrw } from '../lib/money';
+import { formatKrw, formatPrice, payableJpy } from '../lib/money';
 import { ItemImage } from '../components/ItemImage';
 import { Segmented } from '../components/Segmented';
 import { QtyStepper } from '../components/QtyStepper';
@@ -42,8 +42,8 @@ export const CardsView = ({ scan, rate, mode, onMode, onSelect, order, onQty }: 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
               <span className="jp" style={{ fontSize: 17 }}>{it.name_ja}</span>
               <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0 }}>
-                {(it.price_jpy !== null || it.category !== '기타') && <span className="dot" style={{ fontSize: 15, color: 'var(--vermilion)' }}>{formatJpy(it.price_jpy)}</span>}
-                {formatKrw(it.price_jpy, rate) && <span className="muted" style={{ fontSize: 10 }}>{formatKrw(it.price_jpy, rate)}</span>}
+                {(payableJpy(it) !== null || it.category !== '기타') && <span className="dot" style={{ fontSize: 15, color: 'var(--vermilion)', whiteSpace: 'nowrap' }}>{formatPrice(it)}</span>}
+                {formatKrw(payableJpy(it), rate) && <span className="muted" style={{ fontSize: 10 }}>{formatKrw(payableJpy(it), rate)}{it.price_tax_jpy !== null ? ' 세금 포함' : ''}</span>}
               </span>
             </div>
             <span style={{ fontSize: 14, fontWeight: 600 }}>{it.name_ko}</span>

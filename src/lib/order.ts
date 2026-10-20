@@ -1,5 +1,6 @@
 /** 주문 수량과 주문 문구. 메뉴판(kind=menu)에서만 쓴다. 수량은 스캔별로 localStorage 에 둔다(작은 값). */
 import type { MenuItem, Rate, Scan } from '../types';
+import { payableJpy } from './money';
 
 export type Order = Readonly<Record<string, number>>;
 export type OrderLine = { readonly item: MenuItem; readonly qty: number };
@@ -25,8 +26,8 @@ export const orderLines = (scan: Scan, order: Order): readonly OrderLine[] =>
 export const totalCount = (lines: readonly OrderLine[]): number => lines.reduce((n, l) => n + l.qty, 0);
 /** 가격 미표기 항목은 합계에서 뺀다. 그런 항목이 있으면 두 번째 값이 true */
 export const totalJpy = (lines: readonly OrderLine[]): readonly [number, boolean] => [
-  lines.reduce((n, l) => n + (l.item.price_jpy ?? 0) * l.qty, 0),
-  lines.some((l) => l.item.price_jpy === null),
+  lines.reduce((n, l) => n + (payableJpy(l.item) ?? 0) * l.qty, 0),
+  lines.some((l) => payableJpy(l.item) === null),
 ];
 export const totalKrw = (jpy: number, rate: Rate | null): number | null => (rate ? Math.round(jpy * rate.krwPerJpy) : null);
 
