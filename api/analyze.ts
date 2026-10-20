@@ -17,16 +17,14 @@
  *   {"t":"error","m":"..."}
  *   {"t":"done"}
  */
-import { codeFrom, isAllowed } from './_lib/access';
-import { errorJson } from './_lib/http';
-import { runOcr, type OcrResult, type OcrWord } from './_lib/ocr';
-import { chunkWords } from './_lib/chunk';
-import { createItemParser, parseLoose } from './_lib/itemStream';
-import { cacheGetMany, cacheSetMany } from './_lib/cache';
-import { saveDebug } from './_lib/debugStore';
-import { IMAGE_SYSTEM, IMAGE_USER_PROMPT, MODEL, STAGE1_SYSTEM, STAGE2_SYSTEM } from './_lib/prompt';
-
-export const config = { runtime: 'edge' };
+import { codeFrom, isAllowed } from './_lib/access.js';
+import { errorJson } from './_lib/http.js';
+import { runOcr, type OcrResult, type OcrWord } from './_lib/ocr.js';
+import { chunkWords } from './_lib/chunk.js';
+import { createItemParser, parseLoose } from './_lib/itemStream.js';
+import { cacheGetMany, cacheSetMany } from './_lib/cache.js';
+import { saveDebug } from './_lib/debugStore.js';
+import { IMAGE_SYSTEM, IMAGE_USER_PROMPT, MODEL, STAGE1_SYSTEM, STAGE2_SYSTEM } from './_lib/prompt.js';
 
 const UPSTREAM = 'https://api.timelyrouter.ai/v1/messages';
 /** 이 수보다 단어가 적으면 OCR 을 믿지 않고 이미지 폴백 */
@@ -139,7 +137,7 @@ const runStage2 = async (key: string, items: readonly Keyed[], send: (o: Line) =
   }));
 };
 
-export default async function handler(req: Request): Promise<Response> {
+const handler = async (req: Request): Promise<Response> => {
   if (req.method !== 'POST') return errorJson('method not allowed', 405);
   if (!isAllowed(codeFrom(req))) return errorJson('invalid access code', 401);
 
@@ -189,4 +187,6 @@ export default async function handler(req: Request): Promise<Response> {
     status: 200,
     headers: { 'content-type': 'application/x-ndjson; charset=utf-8', 'cache-control': 'no-store', 'x-accel-buffering': 'no' },
   });
-}
+};
+
+export default { fetch: handler };

@@ -2,9 +2,7 @@
  * GET /api/photo?q=<검색어> → { url, pageUrl, credit } | { url: null }
  * Wikimedia Commons 검색(무료, 키 불필요). 엣지 캐시 7일.
  */
-import { errorJson, json } from './_lib/http';
-
-export const config = { runtime: 'edge' };
+import { errorJson, json } from './_lib/http.js';
 
 const UA = 'MenuLens/0.1 (menu translation hobby app)';
 
@@ -32,7 +30,7 @@ const search = async (q: string): Promise<Page[]> => {
 
 const stripHtml = (s: string): string => s.replace(/<[^>]+>/g, '').trim();
 
-export default async function handler(req: Request): Promise<Response> {
+const handler = async (req: Request): Promise<Response> => {
   const q = new URL(req.url).searchParams.get('q')?.trim();
   if (!q) return errorJson('q is required', 400);
   const cache = { 'cache-control': 'public, s-maxage=604800, stale-while-revalidate=2592000' };
@@ -51,4 +49,6 @@ export default async function handler(req: Request): Promise<Response> {
   } catch (e) {
     return errorJson(String(e), 502);
   }
-}
+};
+
+export default { fetch: handler };

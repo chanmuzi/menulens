@@ -9,6 +9,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 
 type Handler = (req: Request) => Promise<Response> | Response;
+type Module = { default: Handler | { fetch: Handler } };
 
 const readBody = (req: IncomingMessage): Promise<Buffer> =>
   new Promise((resolve, reject) => {
@@ -58,8 +59,9 @@ export const devApi = (): Plugin => ({
       const file = path.resolve(process.cwd(), 'api', `${m[1]}.ts`);
       if (!existsSync(file)) { res.statusCode = 404; res.end('not found'); return; }
       try {
-        const mod = (await server.ssrLoadModule(file)) as { default: Handler };
-        const out = await mod.default(await toRequest(req));
+        const mod = (await server.ssrLoadModule(file)) as Module;
+        const fn = typeof mod.default === 'function' ? mod.default : mod.default.fetch;
+        const out = await fn(await toRequest(req));
         await writeResponse(res, out);
       } catch (e) {
         server.config.logger.error(String(e));
