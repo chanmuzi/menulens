@@ -56,7 +56,7 @@ export const CardsView = ({ scan, rate, mode, onMode, onSelect, order, onQty }: 
             )}
           </button>
           {scan.kind === 'menu' && it.category !== '기타' && (
-            <div style={{ flexShrink: 0, alignSelf: 'flex-end' }}>
+            <div style={{ flexShrink: 0, alignSelf: 'flex-end', marginLeft: -4 }}>
               <QtyStepper qty={order[it.id] ?? 0} onChange={(q) => onQty(it.id, q)} label={it.name_ko} size="small" />
             </div>
           )}
