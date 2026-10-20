@@ -6,12 +6,12 @@
 ## 구조
 
 ```
-api/            Vercel Edge Functions (Web 표준 Request → Response)
+api/            Vercel Functions, Node.js 런타임 (Web 표준 Request → Response, 도쿄 리전)
   analyze.ts    이미지 → Upstage OCR(단어·좌표·글자 방향) → Timely Router(claude-sonnet-5-5) 텍스트 스트리밍 (NDJSON 중계)
   auth.ts       초대 코드 확인
   rate.ts       JPY→KRW 환율 (open.er-api.com, 12시간 캐시)
   photo.ts      대표 사진 검색 (Wikimedia Commons, 7일 캐시)
-  _lib/         접근 제어, OCR 호출, 단어 묶음 분할, 항목 스트림 파서, 프롬프트, 응답 헬퍼
+  _lib/         접근 제어, OCR 호출, 단어 묶음 분할, 항목 스트림 파서, 프롬프트, Redis 캐시·진단 저장, 응답 헬퍼
 src/
   App.tsx       화면 상태 머신 (gate → home → processing → result)
   screens/      Gate, Home, Processing, Result(Overlay / Cards / ItemSheet)
@@ -42,6 +42,9 @@ npx vercel env add UPSTAGE_API_KEY production
 npx vercel env add ACCESS_CODES production   # 예: sakura-2026,kohaku-2026
 npx vercel --prod
 ```
+
+Storage 에서 Redis(Redis Cloud 또는 Upstash)를 연결하면 `REDIS_URL` 이 자동 등록되어 메뉴 설명 캐시가 동작한다.
+`DEBUG_STORE=1` 을 추가하면 최근 스캔 20건이 7일간 보관되어 `scripts/bench/debug_pull.py` 로 내려받을 수 있다.
 
 배포 환경에서는 `ACCESS_CODES` 에 등록된 초대 코드가 있어야만 분석 API 를 호출할 수 있다.
 비어 있으면 모든 요청을 거부하므로, 키가 유출되거나 공개돼도 비용이 발생하지 않는다.
