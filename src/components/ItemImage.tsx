@@ -3,6 +3,8 @@ import type { ImageMode, MenuItem, Photo } from '../types';
 import { getPhoto } from '../lib/photos';
 import { loadPhoto } from '../lib/storage';
 import { PixelIcon } from './PixelIcon';
+import { PLACEHOLDER_ICON } from '../lib/icons';
+import { useGeneratedIcon } from '../lib/iconStore';
 
 type Props = { readonly item: MenuItem; readonly mode: ImageMode; readonly size: number };
 
@@ -20,6 +22,8 @@ const usePhoto = (query: string, enabled: boolean): Photo | null => {
 /** 그림(픽셀 아이콘) / 사진 토글에 따라 대표 이미지를 보여준다. 사진이 없거나 로딩 중이면 그림으로 대체. */
 export const ItemImage = ({ item, mode, size }: Props) => {
   const photo = usePhoto(item.photo_query, mode === 'photo');
+  // 매칭 안 된 메뉴는 자리표시(로고)를 보여주고 생성 아이콘이 오면 바꾼다
+  const generated = useGeneratedIcon(item.name_ja, item.name_ko, item.icon === PLACEHOLDER_ICON);
   const box = { width: size, height: size, background: 'var(--paper-dark)', border: '2px solid var(--ink)', flexShrink: 0, position: 'relative' as const, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' };
   const px = Math.max(2, Math.floor((size - 16) / 16));
 
@@ -33,7 +37,7 @@ export const ItemImage = ({ item, mode, size }: Props) => {
   const caption = mode === 'photo' ? (photo === null ? '사진 찾는 중' : '사진 없음') : null;
   return (
     <div style={box}>
-      <PixelIcon icon={item.icon} size={px} label={item.name_ko} />
+      <PixelIcon icon={item.icon} grid={generated} size={px} label={item.name_ko} />
       {caption && <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, background: 'var(--ink)', color: 'var(--paper)', fontSize: 9, textAlign: 'center', padding: '2px 0' }}>{caption}</div>}
     </div>
   );
