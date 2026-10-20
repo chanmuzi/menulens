@@ -10,6 +10,8 @@ import { formatRateLine } from '../lib/money';
 import { loadOrder, orderLines, saveOrder, withQty, type Order } from '../lib/order';
 import { OrderBar } from '../components/OrderBar';
 import { OrderSheet } from './OrderSheet';
+import { NoteSheet } from './NoteSheet';
+import type { Note } from '../types';
 
 type View = 'overlay' | 'cards';
 type Props = { readonly scan: Scan; readonly rate: Rate | null; readonly mode: ImageMode; readonly onMode: (m: ImageMode) => void; readonly onHome: () => void; readonly originalFile: File | null };
@@ -25,6 +27,7 @@ export const ResultScreen = ({ scan, rate, mode, onMode, onHome, originalFile }:
   // 주문 수량(메뉴판만). 스캔별로 기기에 저장
   const [order, setOrder] = useState<Order>(() => (isMenu ? loadOrder(scan.id) : {}));
   const [orderOpen, setOrderOpen] = useState(false);
+  const [note, setNote] = useState<Note | null>(null);
   useEffect(() => { if (isMenu) saveOrder(scan.id, order); }, [isMenu, scan.id, order]);
   const setQty = (id: string, qty: number) => setOrder((o) => withQty(o, id, qty));
   const lines = isMenu ? orderLines(scan, order) : [];
@@ -70,12 +73,13 @@ export const ResultScreen = ({ scan, rate, mode, onMode, onHome, originalFile }:
       </div>
 
       {view === 'overlay' || !isMenu
-        ? <OverlayView scan={scan} selectedId={selected?.id ?? null} onSelect={setSelected} />
+        ? <OverlayView scan={scan} selectedId={selected?.id ?? null} onSelect={setSelected} onNote={setNote} />
         : <CardsView scan={scan} rate={rate} mode={mode} onMode={onMode} onSelect={setSelected} order={order} onQty={setQty} />}
 
       {lines.length > 0 && <div aria-hidden="true" style={{ height: 72 }} />}
       {isMenu && <OrderBar lines={lines} rate={rate} onOpen={() => setOrderOpen(true)} />}
       {orderOpen && <OrderSheet lines={lines} rate={rate} onQty={setQty} onClear={() => { setOrder({}); setOrderOpen(false); }} onClose={() => setOrderOpen(false)} />}
+      {note && <NoteSheet note={note} onClose={() => setNote(null)} />}
       {selected && <ItemSheet item={selected} rate={rate} mode={mode} onClose={() => setSelected(null)} qty={isMenu ? (order[selected.id] ?? 0) : null} onQty={(q) => setQty(selected.id, q)} />}
     </div>
   );
