@@ -1,6 +1,7 @@
-import { useRef, type ChangeEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import type { Scan } from '../types';
 import { PixelIcon } from '../components/PixelIcon';
+import { canReadClipboard, imageFromPasteEvent, readImageFromClipboard } from '../lib/clipboard';
 
 type Props = {
   readonly scans: readonly Scan[];
@@ -8,6 +9,14 @@ type Props = {
   readonly onOpen: (scan: Scan) => void;
   readonly onRemove: (id: string) => void;
 };
+
+const HINT_DEFAULT = '메뉴판 전체가 들어오게 찍어 주세요';
+const HINT_BY_REASON = {
+  empty: '클립보드에 이미지가 없어요',
+  denied: '붙여넣기가 허용되지 않았어요 · 앨범에서 골라 주세요',
+  unsupported: '이 브라우저는 붙여넣기를 지원하지 않아요',
+} as const;
+const HINT_MS = 3000;
 
 const whenLabel = (ts: number): string => {
   const d = new Date(ts);
@@ -22,10 +31,39 @@ const whenLabel = (ts: number): string => {
 export const HomeScreen = ({ scans, onPick, onOpen, onRemove }: Props) => {
   const cameraRef = useRef<HTMLInputElement>(null);
   const albumRef = useRef<HTMLInputElement>(null);
+  // 같은 문구가 연달아 떠도 타이머가 다시 시작되도록 객체로 든다 (같은 문자열은 React 가 갱신을 건너뛴다)
+  const [hint, setHint] = useState<{ readonly text: string; readonly at: number } | null>(null);
+  const pasteSupported = canReadClipboard();
   const handle = (e: ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     e.target.value = '';
     if (f) onPick(f);
+  };
+
+  // 잠깐 보였다 사라지는 안내. 기본 문구 자리에 띄워 화면을 더 가리지 않는다
+  useEffect(() => {
+    if (hint === null) return;
+    const t = window.setTimeout(() => setHint(null), HINT_MS);
+    return () => window.clearTimeout(t);
+  }, [hint]);
+
+  // 데스크톱: 홈 화면에서 Ctrl/Cmd+V
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const f = imageFromPasteEvent(e);
+      if (!f) return;
+      e.preventDefault();
+      onPick(f);
+    };
+    document.addEventListener('paste', onPaste);
+    return () => document.removeEventListener('paste', onPaste);
+  }, [onPick]);
+
+  // 모바일: 버튼 탭 → 클립보드 읽기 (사용자 동작 안에서 호출해야 한다)
+  const pasteFromButton = async () => {
+    const r = await readImageFromClipboard();
+    if (r.ok) onPick(r.file);
+    else setHint({ text: HINT_BY_REASON[r.reason], at: Date.now() });
   };
 
   return (
@@ -56,12 +94,14 @@ export const HomeScreen = ({ scans, onPick, onOpen, onRemove }: Props) => {
           {Array.from({ length: 5 }, (_, i) => <div key={i} style={{ width: 30, background: '#EFE4C8' }} />)}
         </div>
         <div style={{ position: 'absolute', top: 96, left: 0, right: 0, display: 'flex', justifyContent: 'center' }}>
-          <div style={{ background: 'var(--paper-2)', border: '2px solid var(--ink)', padding: '8px 12px', fontSize: 13, fontWeight: 500 }}>메뉴판 전체가 들어오게 찍어 주세요</div>
+          <div role="status" style={{ background: 'var(--paper-2)', border: '2px solid var(--ink)', padding: '8px 12px', fontSize: 13, fontWeight: 500, color: hint ? 'var(--vermilion)' : undefined, maxWidth: 'calc(100% - 48px)', textAlign: 'center' }}>{hint?.text ?? HINT_DEFAULT}</div>
         </div>
         <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 14, marginTop: 170 }}>
           <button type="button" className="btn" onClick={() => albumRef.current?.click()}>앨범에서</button>
           <button type="button" className="btn btn--primary" onClick={() => cameraRef.current?.click()} style={{ width: 78, height: 78, borderWidth: 3, boxShadow: '4px 4px 0 var(--ink)', fontSize: 18, fontWeight: 600 }}>촬영</button>
-          <div style={{ width: 78 }} />
+          {pasteSupported
+            ? <button type="button" className="btn" onClick={() => void pasteFromButton()}>붙여넣기</button>
+            : <div style={{ width: 78 }} />}
         </div>
         <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handle} className="sr-only" aria-label="카메라로 촬영" />
         <input ref={albumRef} type="file" accept="image/*" onChange={handle} className="sr-only" aria-label="앨범에서 선택" />
