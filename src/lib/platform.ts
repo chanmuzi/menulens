@@ -10,6 +10,9 @@ export const isStandalone = (): boolean => {
   return nav.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
 };
 
+/** iOS 홈 화면 앱: clipboard.read() 가 막혀 네이티브 「붙여넣기」 메뉴(길게 누르기)만 쓸 수 있다 */
+export const isIosStandalone = (): boolean => isIos() && isStandalone();
+
 /** iPhone·iPad(iPadOS 는 Mac UA 를 쓰므로 터치 포인트로 구분) */
 export const isIos = (): boolean => {
   if (typeof navigator === 'undefined') return false;
