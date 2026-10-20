@@ -6,8 +6,8 @@ import { loadSampler, sampleBox, type BoxColors } from '../lib/sample';
 
 type Props = { readonly scan: Scan; readonly selectedId: string | null; readonly onSelect: (item: MenuItem) => void };
 
-/** 메뉴가 이 수를 넘으면 칩 대신 번호 배지를 붙인다 */
-const CHIP_LIMIT = 10;
+/** 메뉴가 이 수를 넘으면 칩 대신 번호 배지를 붙인다. 회전된 사진은 칩 배치가 어긋나므로 항상 배지 */
+const CHIP_LIMIT = 4;
 const BADGE_MAX = 26;
 const BADGE_MIN = 13;
 
@@ -110,7 +110,7 @@ const useBoxColors = (imageDataUrl: string, boxes: ReadonlyArray<readonly [strin
  * 사진을 두 손가락으로 확대하면 화면상 크기는 그대로라 겹침이 풀린다.
  */
 export const OverlayView = ({ scan, selectedId, onSelect }: Props) => {
-  const badges = scan.kind === 'menu' && scan.items.length > CHIP_LIMIT;
+  const badges = scan.kind === 'menu' && (scan.items.length > CHIP_LIMIT || scan.rotation !== 0);
   const [showMarks, setShowMarks] = useState(true);
   const rot = scan.rotation + scan.tilt;
   const approxW = 350, approxHi = (approxW * scan.height) / scan.width;
