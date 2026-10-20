@@ -28,20 +28,29 @@ const badgeSizes = (items: readonly MenuItem[], ctx: MarkerCtx): Map<string, num
  * 원문 자리를 한글로 덮어씌우는 라벨 (파파고식). 제목·안내문구·비메뉴 사진의 문장에 쓴다.
  * 상자 크기는 원문 bbox 그대로, 글자 크기는 상자 높이(세로쓰기는 너비)에서 정한다.
  */
+/** 글자 폭 추정(em): CJK 1, 그 외 0.55 */
+const textEm = (t: string): number => [...t].reduce((n, ch) => n + (/[\u1100-\u11FF\u3000-\u9FFF\uAC00-\uD7AF\uF900-\uFAFF\uFF00-\uFFEF]/.test(ch) ? 1 : 0.55), 0);
+
 const CoverLabel = ({ bbox, text, W, Hi, onClick }: { bbox: readonly [number, number, number, number]; text: string; W: number; Hi: number; onClick?: () => void }) => {
   const [x0, y0, x1, y1] = bbox;
   const wPx = ((x1 - x0) / 1000) * W, hPx = ((y1 - y0) / 1000) * Hi;
   const vertical = hPx > wPx * 2;
-  const unit = vertical ? wPx : hPx;
-  // 원문보다 조금 커도 읽히는 쪽을 택한다: 글자 크기 최소 9px, 상자 최소 14px
-  const fontSize = Math.max(9, Math.min(unit * 0.72, 28));
-  const minSide = Math.max(14, unit);
+  const along = vertical ? hPx : wPx;   // 글줄 진행 방향 길이
+  const across = vertical ? wPx : hPx;  // 글줄 굵기
+  const em = Math.max(1, textEm(text));
+  // 한 줄로 넣을 때 가능한 글자 크기: 굵기 기준과 길이 기준 중 작은 쪽
+  const oneLine = Math.min(across * 0.78, (along * 0.94) / em, 28);
+  const wrap = oneLine < 9;
+  const fontSize = wrap ? Math.max(8, Math.min(across * 0.78, 12)) : oneLine;
+  const minAcross = Math.max(14, across);
   return (
     <div role={onClick ? 'button' : undefined} tabIndex={onClick ? 0 : undefined} onClick={onClick}
       onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } } : undefined}
-      style={{ position: 'absolute', left: `${x0 / 10}%`, top: `${y0 / 10}%`, width: vertical ? minSide : `${(x1 - x0) / 10}%`, height: vertical ? `${(y1 - y0) / 10}%` : minSide, boxSizing: 'border-box', padding: '0 3px',
-        background: 'rgba(251,246,236,.97)', color: 'var(--ink)', border: '1px solid rgba(42,33,27,.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
-        fontSize, lineHeight: 1.1, fontWeight: 600, overflow: 'hidden', whiteSpace: 'nowrap', writingMode: vertical ? 'vertical-rl' : 'horizontal-tb', cursor: onClick ? 'pointer' : 'default' }}>
+      style={{ position: 'absolute', left: `${x0 / 10}%`, top: `${y0 / 10}%`,
+        width: vertical ? minAcross : `${(x1 - x0) / 10}%`, height: vertical ? `${(y1 - y0) / 10}%` : (wrap ? 'auto' : minAcross), minHeight: vertical ? undefined : minAcross,
+        boxSizing: 'border-box', padding: '1px 3px', background: 'rgba(251,246,236,.97)', color: 'var(--ink)', border: '1px solid rgba(42,33,27,.35)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', fontSize, lineHeight: 1.12, fontWeight: 600,
+        overflow: 'hidden', whiteSpace: wrap ? 'normal' : 'nowrap', wordBreak: 'keep-all', writingMode: vertical ? 'vertical-rl' : 'horizontal-tb', cursor: onClick ? 'pointer' : 'default', zIndex: 2 }}>
       {text}
     </div>
   );

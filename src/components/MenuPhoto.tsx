@@ -118,7 +118,6 @@ export const MenuPhoto = ({ src, width, height, words, rotation = 0, tilt = 0, m
     if (!zoomable) return;
     const g = gesture.current;
     if (e.touches.length === 2 && g.startDist > 0) {
-      e.preventDefault();
       const [a, b] = [e.touches[0]!, e.touches[1]!];
       const ratio = dist(a, b) / g.startDist;
       const z = g.startZoom.z * ratio;
@@ -127,7 +126,6 @@ export const MenuPhoto = ({ src, width, height, words, rotation = 0, tilt = 0, m
       const k = z / g.startZoom.z;
       setZoom(clampZoom({ z, tx: mx - k * (mx - g.startZoom.tx), ty: my - k * (my - g.startZoom.ty) }));
     } else if (e.touches.length === 1 && g.last && zoom.z > 1) {
-      e.preventDefault();
       const t = e.touches[0]!;
       const [lx, ly] = g.last;
       g.last = [t.clientX, t.clientY];
@@ -145,7 +143,15 @@ export const MenuPhoto = ({ src, width, height, words, rotation = 0, tilt = 0, m
 
   return (
     <div ref={ref} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchEnd}
-      style={{ position: 'relative', width: '100%', height: fit?.boxH ?? maxHeight, overflow: 'hidden', background: 'var(--wood)', touchAction: zoomable ? 'none' : 'auto' }}>
+      style={{ position: 'relative', width: '100%', height: fit?.boxH ?? maxHeight, overflow: 'hidden', background: 'var(--wood)',
+        // 확대 전: 한 손가락은 페이지 스크롤로 통과(pan-y), 두 손가락만 받는다. 확대 후: 한 손가락이 사진을 끈다.
+        touchAction: zoomable ? (zoom.z > 1 ? 'none' : 'pan-y') : 'auto' }}>
+      {zoomable && zoom.z > 1 && (
+        <button type="button" onClick={() => setZoom({ z: 1, tx: 0, ty: 0 })}
+          style={{ position: 'absolute', left: 8, bottom: 8, zIndex: 6, height: 32, padding: '0 10px', background: 'var(--paper-2)', color: 'var(--ink)', border: '2px solid var(--ink)', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>
+          원래대로 ({zoom.z.toFixed(1)}×)
+        </button>
+      )}
       {fit && (
         <div style={{ position: 'absolute', left: 0, top: 0, width: W, height: fit.boxH, transformOrigin: '0 0', transform: `translate(${zoom.tx}px, ${zoom.ty}px) scale(${zoom.z})` }}>
           <div style={{ position: 'absolute', left: 0, top: 0, width: W, height: Hi, transformOrigin: `${W / 2}px ${Hi / 2}px`, transform: fit.transform, willChange: 'transform' }}>
