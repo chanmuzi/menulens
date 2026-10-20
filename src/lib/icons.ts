@@ -5,6 +5,7 @@ export const ICON_KEYS = new Set([
   'yakitori', 'meat', 'pork', 'chicken', 'shrimp', 'squid', 'fish', 'egg', 'tamago', 'tofu',
   'edamame', 'eggplant', 'mushroom', 'potato', 'pepper', 'corn', 'salad', 'cheese',
   'rice', 'curry', 'soup', 'dessert', 'drink', 'dish',
+  'coffee', 'juice', 'soda', 'cake', 'icecream', 'bread',
 ]);
 
 /**
@@ -16,16 +17,22 @@ const KEYWORDS: ReadonlyArray<readonly [RegExp, string]> = [
   [/うどん|饂飩|そば|蕎麦|焼きそば|焼そば|パスタ/, 'udon'],
   [/餃子|ぎょうざ|ギョーザ|焼売|シュウマイ/, 'gyoza'],
   [/唐揚|から揚|からあげ|竜田/, 'karaage'],
-  [/焼鳥|焼き鳥|やきとり|つくね|ねぎま/, 'yakitori'],
+  [/焼鳥|焼き鳥|やきとり|つくね|ねぎま|串カツ|串揚|串焼|串/, 'yakitori'],
   [/刺身|さしみ|造り/, 'sashimi'],
   [/寿司|鮨|すし|握り|巻き/, 'sushi'],
   [/だし巻|出汁巻|玉子焼|卵焼|オムレツ|オムライス/, 'tamago'],
   [/ハイボール|サワー|チューハイ|酎ハイ|レモンサワー|カクテル|ウイスキー/, 'highball'],
   [/ビール|生中|生ビ|ビア/, 'beer'],
   [/日本酒|冷酒|熱燗|焼酎|梅酒|ワイン|酒/, 'sake'],
+  [/コーヒー|珈琲|エスプレッソ|カフェラテ|ラテ|カプチーノ|カフェモカ|アメリカーノ|カフェオレ/, 'coffee'],
+  [/ジュース|オレンジ|りんご|リンゴ|グレープフルーツ|スムージー|レモネード/, 'juice'],
+  [/コーラ|ソーダ|サイダー|ラムネ|ジンジャーエール|炭酸|スプライト/, 'soda'],
   // 「茶」 한 글자는 브랜드명(茶美豚 등)에도 들어가므로 차 이름 단위로만 본다
-  [/お茶|緑茶|抹茶ラテ|煎茶|ほうじ茶|麦茶|玄米茶|烏龍茶|ウーロン|紅茶|ジャスミン茶|コーヒー|珈琲|ジュース|コーラ|ソーダ|ドリンク|お水|ミネラルウォーター/, 'drink'],
-  [/アイス|ケーキ|パフェ|プリン|団子|だんご|餅|もち|デザート|甘味|抹茶/, 'dessert'],
+  [/お茶|緑茶|煎茶|ほうじ茶|麦茶|玄米茶|烏龍茶|ウーロン|紅茶|ジャスミン茶|抹茶ラテ|ドリンク|お水|ミネラルウォーター/, 'drink'],
+  [/アイス|ソフトクリーム|ジェラート|かき氷/, 'icecream'],
+  [/ケーキ|タルト|パフェ|プリン|シュー|ティラミス|ワッフル|パンケーキ|クレープ/, 'cake'],
+  [/団子|だんご|餅|もち|大福|わらび|ぜんざい|あんみつ|デザート|甘味|抹茶/, 'dessert'],
+  [/パン|トースト|サンド|バーガー|ホットドッグ/, 'bread'],
   [/(^|[^ス])カレー/, 'curry'], // エスカレーター 의 カレー 제외
   [/枝豆|えだまめ/, 'edamame'],
   [/豆腐|冷奴|湯豆腐|厚揚げ|揚げ出し/, 'tofu'],
@@ -54,14 +61,14 @@ const ALIASES: Record<string, string> = {
   prawn: 'shrimp', octopus: 'squid', seafood: 'fish', salmon: 'fish', tuna: 'sashimi', omelette: 'tamago', omelet: 'tamago', quail: 'egg',
   vegetable: 'salad', vegetables: 'salad', pickles: 'salad', kimchi: 'salad', noodle: 'ramen', noodles: 'ramen', soba: 'udon',
   onigiri: 'rice', donburi: 'rice', bowl: 'rice', miso: 'soup', stew: 'soup', hotpot: 'soup', wine: 'sake', shochu: 'sake',
-  whisky: 'highball', cocktail: 'highball', tea: 'drink', coffee: 'drink', juice: 'drink', soda: 'drink', water: 'drink',
-  icecream: 'dessert', cake: 'dessert', mochi: 'dessert', fruit: 'dessert', bread: 'dish', pizza: 'cheese', fries: 'potato', croquette: 'potato',
+  whisky: 'highball', cocktail: 'highball', tea: 'drink', water: 'drink', latte: 'coffee', espresso: 'coffee', cola: 'soda', lemonade: 'juice', smoothie: 'juice',
+  mochi: 'dessert', dango: 'dessert', fruit: 'juice', pudding: 'cake', parfait: 'cake', toast: 'bread', sandwich: 'bread', burger: 'bread', pizza: 'cheese', fries: 'potato', croquette: 'potato',
 };
 
 /** 재료가 아닌 뭉뚱그린 아이콘. 키워드 규칙이 이 중 하나를 고르고 모델이 더 구체적인 재료를 골랐으면 모델을 따른다 */
-const GENERIC = new Set(['drink', 'dessert', 'salad', 'soup', 'rice', 'dish']);
+const GENERIC = new Set(['drink', 'dessert', 'salad', 'soup', 'rice', 'dish', 'cake']);
 
-const BY_CATEGORY: Record<Category, string> = { 안주: 'dish', 식사: 'rice', 음료: 'drink', 디저트: 'dessert', 기타: 'dish' };
+const BY_CATEGORY: Record<Category, string> = { 안주: 'dish', 식사: 'rice', 음료: 'drink', 디저트: 'cake', 기타: 'dish' };
 
 /** 원문 키워드 → 모델 선택 → 별칭 → 카테고리 기본값 순으로 아이콘을 정한다. */
 export const resolveIcon = (nameJa: string, icon: string | undefined, category: Category): string => {

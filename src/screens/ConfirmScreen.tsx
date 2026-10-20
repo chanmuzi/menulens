@@ -15,11 +15,10 @@ export const ConfirmScreen = ({ file, onConfirm, onCancel }: Props) => {
     return () => { URL.revokeObjectURL(u); };
   }, [file]);
 
-  const [cropping, setCropping] = useState(false);
   const [rect, setRect] = useState<CropRect>(FULL_RECT);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const cropped = cropping && !isFullRect(rect);
+  const cropped = !isFullRect(rect);
 
   const confirm = async () => {
     if (!cropped) { onConfirm(file); return; }
@@ -33,29 +32,20 @@ export const ConfirmScreen = ({ file, onConfirm, onCancel }: Props) => {
       <TopBar onBack={onCancel} backLabel="다시 고르기" center={
         <div style={{ textAlign: 'center' }}>
           <div className="dot" style={{ fontSize: 16 }}>이 사진으로 할까요?</div>
-          <div className="dot muted" style={{ fontSize: 11 }}>かくにん</div>
         </div>
       } />
-      <div className="corners frame" style={{ background: 'var(--wood)', boxShadow: '4px 4px 0 var(--ink)', padding: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 240, maxHeight: '60dvh', overflow: 'hidden' }}>
-        <span className="c3" /><span className="c4" />
+      <div className="frame" style={{ background: 'var(--wood)', boxShadow: '4px 4px 0 var(--ink)', padding: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 240, maxHeight: '60dvh', overflow: 'hidden' }}>
         {url && (
           // 사진과 같은 크기의 상자: CropBox 의 0~1 좌표가 곧 사진 좌표가 되도록 inline-block 으로 감싼다
           <div style={{ position: 'relative', display: 'inline-block', lineHeight: 0, userSelect: 'none' }}>
-            <img src={url} alt="고른 사진" draggable={false} style={{ maxWidth: '100%', maxHeight: 'calc(60dvh - 20px)', objectFit: 'contain' }} />
-            {cropping && <CropBox rect={rect} onChange={setRect} />}
+            <img src={url} alt="고른 사진" draggable={false} style={{ maxWidth: '100%', maxHeight: 'calc(60dvh - 28px)', objectFit: 'contain' }} />
+            <CropBox rect={rect} onChange={setRect} />
           </div>
         )}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <p className="muted" style={{ margin: 0, fontSize: 13 }}>
-          {cropping ? '모서리를 끌어 글자 부분만 남겨요' : '메뉴판 글자가 잘 보이면 분석을 시작해요'}
-        </p>
-        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-          {cropping && !isFullRect(rect) && <button type="button" className="btn btn--quiet" onClick={() => setRect(FULL_RECT)} style={{ minHeight: 36, padding: '0 8px' }}>전체로</button>}
-          <button type="button" className="btn" aria-pressed={cropping} onClick={() => { setCropping((v) => !v); setRect(FULL_RECT); }} style={{ minHeight: 36, padding: '0 10px', fontSize: 13, background: cropping ? 'var(--ink)' : undefined, color: cropping ? 'var(--paper)' : undefined }}>
-            {cropping ? '영역 지정 취소' : '영역 지정'}
-          </button>
-        </div>
+        <p className="muted" style={{ margin: 0, fontSize: 13 }}>{cropped ? '빨간 영역만 분석해요' : '모서리를 끌면 글자 부분만 남길 수 있어요'}</p>
+        {cropped && <button type="button" className="btn btn--quiet" onClick={() => setRect(FULL_RECT)} style={{ minHeight: 36, padding: '0 8px', flexShrink: 0 }}>전체로</button>}
       </div>
       {error && <div role="alert" style={{ fontSize: 13, color: 'var(--vermilion)' }}>{error}</div>}
       <div style={{ display: 'flex', gap: 10, marginTop: 'auto' }}>

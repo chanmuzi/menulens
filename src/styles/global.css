@@ -20,12 +20,15 @@ html, body { margin: 0; background: var(--paper); color: var(--ink); font-family
 body { min-height: 100dvh; overscroll-behavior-y: none; }
 /* iOS 26 홈 화면 앱은 화면 위 가장자리에 Liquid Glass blur 를 그린다. 가장자리에 단색 고정 요소가 있으면 그리지 않는다.
    상태바 스타일 메타는 두지 않는다(iOS 가 페이지 배경색을 상태바에 쓰고 콘텐츠는 그 아래에서 시작). */
-body::before { content: ''; position: fixed; left: 0; right: 0; top: 0; height: calc(var(--safe-top) + 12px); background: var(--paper); z-index: 100; pointer-events: none; }
+/* 브라우저 모드는 0, 홈 화면 앱(standalone)에서는 효과가 번지는 높이(≈40pt)까지 덮는다. 가상 요소는 판정에 안 걸릴 수 있어 index.html 의 실제 div 를 쓴다 */
+:root { --edge-top: 0px; }
+@media (display-mode: standalone) { :root { --edge-top: calc(var(--safe-top) + 44px); } }
+.edge-top { position: fixed; left: 0; right: 0; top: 0; height: var(--edge-top); background: var(--paper); z-index: 100; pointer-events: none; }
 button, input { font: inherit; color: inherit; }
 a { color: var(--vermilion); text-decoration: none; }
 img { display: block; max-width: 100%; }
 
-.app { max-width: 480px; margin: 0 auto; min-height: 100dvh; display: flex; flex-direction: column; padding: calc(16px + var(--safe-top)) 20px calc(24px + var(--safe-bottom)); gap: 16px; }
+.app { max-width: 480px; margin: 0 auto; min-height: 100dvh; display: flex; flex-direction: column; padding: calc(16px + max(var(--safe-top), var(--edge-top))) 20px calc(24px + var(--safe-bottom)); gap: 16px; }
 
 /* 픽셀 프레임: 2px 먹 테두리 + 오프셋 그림자 */
 .frame { background: var(--paper-2); border: 2px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); }

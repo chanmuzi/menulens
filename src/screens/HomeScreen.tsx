@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import type { PickSource, Scan } from '../types';
 import { hasFiles, imageFromDropEvent } from '../lib/drop';
-import { isIos } from '../lib/platform';
+import { isIos, isIosStandalone } from '../lib/platform';
 import { PixelIcon } from '../components/PixelIcon';
 import { ScanRow } from '../components/ScanRow';
 import { InstallHint } from '../components/InstallHint';
@@ -125,9 +125,15 @@ export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRe
         <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 14, marginTop: 170 }}>
           <button type="button" className="btn" onClick={() => albumRef.current?.click()}>앨범에서</button>
           <button type="button" className="btn btn--primary" onClick={() => cameraRef.current?.click()} style={{ width: 78, height: 78, borderWidth: 3, boxShadow: '4px 4px 0 var(--ink)', fontSize: 18, fontWeight: 600 }}>촬영</button>
-          {pasteSupported
-            ? <button type="button" className="btn" onClick={() => void pasteFromButton()}>붙여넣기</button>
-            : <div style={{ width: 78 }} />}
+          {isIosStandalone()
+            // 홈 화면 앱은 클립보드 API 가 막혀 있어 버튼을 길게 눌러 iOS 「붙여넣기」 메뉴로 받는다 (paste 이벤트 → document 리스너)
+            ? <div role="button" tabIndex={0} contentEditable suppressContentEditableWarning inputMode="none" className="btn" aria-label="길게 눌러 붙여넣기"
+                onInput={(e) => { e.currentTarget.textContent = '붙여넣기'; }}
+                onClick={() => setHint({ text: '버튼을 길게 눌러 「붙여넣기」를 고르세요', at: Date.now() })}
+                style={{ caretColor: 'transparent', userSelect: 'text', WebkitUserSelect: 'text' }}>붙여넣기</div>
+            : pasteSupported
+              ? <button type="button" className="btn" onClick={() => void pasteFromButton()}>붙여넣기</button>
+              : <div style={{ width: 78 }} />}
         </div>
         <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handle('camera')} className="sr-only" aria-label="카메라로 촬영" />
         <input ref={albumRef} type="file" accept="image/*" onChange={handle('album')} className="sr-only" aria-label="앨범에서 선택" />
