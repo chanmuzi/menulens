@@ -3,6 +3,8 @@
 일본 식당 메뉴판을 찍으면 한국어 번역·요리 설명·가격(원화 환산)·대표 이미지를 보여주는 모바일 웹 앱.
 도트 감성 + 일본풍(和紙) 디자인.
 
+- 작업 규약(에이전트·사람 공통): `AGENTS.md` · 위키: `docs/wiki/index.md` · 작업 로그: `docs/wiki/log/`
+
 ## 구조
 
 ```
@@ -19,7 +21,8 @@ src/
   lib/          이미지 리사이즈(EXIF 보정), 스트리밍 JSON 파서, API 클라이언트, localStorage, 새 빌드 감지
   styles/       global.css(토큰·픽셀 프레임·애니메이션), pixel-icons.css(생성 파일)
 scripts/px_icons.py   ASCII 스프라이트 → box-shadow 픽셀 아이콘 CSS 생성기
-scripts/bench/        처리 시간 벤치마크 스크립트 (결과: docs/benchmarks.md)
+scripts/bench/        처리 시간 벤치마크·진단 조회 스크립트 (결과: docs/wiki/benchmarks.md)
+docs/wiki/            위키 (라우팅 루트 index.md, 월별 로그 log/)
 vite-plugin-dev-api.ts  로컬에서 api/ 핸들러를 Vite 미들웨어로 실행 (Vercel CLI 불필요)
 ```
 
