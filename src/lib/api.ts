@@ -81,3 +81,11 @@ export const fetchPhoto = async (query: string): Promise<Photo> => {
   if (!res.ok) return { url: null };
   return (await res.json()) as Photo;
 };
+
+/** 매칭 안 된 메뉴의 도트 아이콘 생성 요청 (서버 캐시 적중이면 즉시) */
+export const fetchIcons = async (items: ReadonlyArray<{ name_ja: string; name_ko: string; hint?: string }>): Promise<{ icons: Record<string, readonly string[]>; failed: readonly string[] }> => {
+  const res = await fetch('/api/icon', { method: 'POST', headers: headers(), body: JSON.stringify({ items }) });
+  if (!res.ok) throw new Error(`icon ${res.status}`);
+  const data = (await res.json()) as { icons?: Record<string, readonly string[]>; failed?: readonly string[] };
+  return { icons: data.icons ?? {}, failed: data.failed ?? [] };
+};

@@ -68,7 +68,10 @@ const ALIASES: Record<string, string> = {
 /** 재료가 아닌 뭉뚱그린 아이콘. 키워드 규칙이 이 중 하나를 고르고 모델이 더 구체적인 재료를 골랐으면 모델을 따른다 */
 const GENERIC = new Set(['drink', 'dessert', 'salad', 'soup', 'rice', 'dish', 'cake']);
 
-const BY_CATEGORY: Record<Category, string> = { 안주: 'dish', 식사: 'rice', 음료: 'drink', 디저트: 'cake', 기타: 'dish' };
+/** 키워드도 안 걸리고 모델도 뭉뚱그린 것만 골랐을 때의 자리표시. 이 값이면 ItemImage 가 생성을 요청한다 */
+export const PLACEHOLDER_ICON = 'camera';
+
+const BY_CATEGORY: Record<Category, string> = { 안주: PLACEHOLDER_ICON, 식사: PLACEHOLDER_ICON, 음료: 'drink', 디저트: 'cake', 기타: 'dish' };
 
 /** 원문 키워드 → 모델 선택 → 별칭 → 카테고리 기본값 순으로 아이콘을 정한다. */
 export const resolveIcon = (nameJa: string, icon: string | undefined, category: Category): string => {
@@ -79,8 +82,9 @@ export const resolveIcon = (nameJa: string, icon: string | undefined, category: 
     if (GENERIC.has(hit[1]) && ICON_KEYS.has(key) && !GENERIC.has(key)) return key;
     return hit[1];
   }
-  if (ICON_KEYS.has(key)) return key;
+  // 모델이 구체적인 재료를 골랐으면 쓰고, 뭉뚱그린 것(dish·rice 등)이면 자리표시 → 생성
+  if (ICON_KEYS.has(key)) return GENERIC.has(key) && category !== '음료' && category !== '디저트' && category !== '기타' ? PLACEHOLDER_ICON : key;
   const alias = ALIASES[key];
   if (alias) return alias;
-  return BY_CATEGORY[category] ?? 'dish';
+  return BY_CATEGORY[category] ?? PLACEHOLDER_ICON;
 };
