@@ -45,8 +45,8 @@ export const App = () => {
   /** 확인 화면에서 기다리는 사진. 촬영·앨범 여러 장은 모음 화면, 앨범 한 장은 영역 지정 화면 */
   const [pending, setPending] = useState<readonly File[]>([]);
   const [confirmMode, setConfirmMode] = useState<'batch' | 'single'>('batch');
-  /** 영역 지정 화면이 모음 화면에서 왔으면 「다시 고르기」가 모음으로 돌아간다 */
-  const [cropFromBatch, setCropFromBatch] = useState(false);
+  /** 모음 화면에서 자르러 온 사진의 번호(없으면 null). 잘라서 그 자리에 넣고 모음으로 돌아간다. 미리 읽던 사진이었으면 자른 뒤 다시 미리 읽는다 */
+  const [cropAt, setCropAt] = useState<{ readonly index: number; readonly wasReading: boolean } | null>(null);
   /** 상한 때문에 뺀 장수(모음 화면 안내용) */
   const [dropped, setDropped] = useState(0);
   const [rate, setRate] = useState<Rate | null>(() => loadRate());
@@ -231,7 +231,7 @@ export const App = () => {
     setDropped(input.length - list.length);
     setPending(list);
     setConfirmMode(source === 'camera' || list.length > 1 ? 'batch' : 'single');
-    setCropFromBatch(false);
+    setCropAt(null);
     setRoute('confirm');
     if (source === 'camera') prewarm(list[0]!);
   };
@@ -261,15 +261,27 @@ export const App = () => {
     });
   };
   const remove = (id: string) => void removeScan(id).then(setScans);
+  if (route === 'confirm' && cropAt && pending[cropAt.index]) {
+    // 모음에서 한 장 자르기: 잘라서 그 자리에 바꿔 넣는다. 영역을 안 바꿨으면 원본 그대로
+    const back = () => { setCropAt(null); setConfirmMode('batch'); };
+    const applyCrop = (f: File) => {
+      const original = pending[cropAt.index];
+      setPending((list) => list.map((x, i) => (i === cropAt.index ? f : x)));
+      // 실제로 잘라서 파일이 바뀐 경우에만 원본 미리 읽기를 버리고 잘린 사진으로 다시 시작한다(그대로 쓰기·취소는 이어 간다)
+      if (cropAt.wasReading && f !== original) { if (batch[0]) abortScan(batch[0].id); prewarm(f); }
+      back();
+    };
+    return <ConfirmScreen apply file={pending[cropAt.index]!} onConfirm={applyCrop} onCancel={back} />;
+  }
   if (route === 'confirm' && confirmMode === 'single' && pending.length === 1) {
     const file = pending[0]!;
-    return <ConfirmScreen file={file} onConfirm={(f) => { setPending([]); void startScans([f]); }} onCancel={cropFromBatch ? () => setConfirmMode('batch') : goHome} />;
+    return <ConfirmScreen file={file} onConfirm={(f) => { setPending([]); void startScans([f]); }} onCancel={goHome} />;
   }
   if (route === 'confirm' && pending.length > 0) {
     // 미리 읽던 첫 장을 모음에서 빼면 그 읽기도 멈춘다
     const change = (list: readonly File[]) => { setPending(list); if (reading && !list.includes(reading)) { abortScan(batch[0]!.id); setBatch([]); setCurrentId(null); } };
-    // 영역 지정으로 가면 원본 전체를 미리 읽던 것은 쓸모없으니 멈춘다
-    const crop = () => { if (batch[0]) abortScan(batch[0].id); setBatch([]); setCurrentId(null); setCropFromBatch(true); setConfirmMode('single'); };
+    // 자르는 동안에도 미리 읽기는 계속 돈다(들어갔다 그냥 나오면 그대로 이어 받는다)
+    const crop = (index: number) => setCropAt({ index, wasReading: reading !== null && reading === pending[index] });
     return <ConfirmBatchScreen files={pending} dropped={dropped} onChange={change} reading={reading} onConfirm={(list) => { setPending([]); void startScans(list); }} onCrop={crop} onCancel={goHome} />;
   }
   if (route === 'history') {
