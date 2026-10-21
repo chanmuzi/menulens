@@ -11,7 +11,7 @@ import { HomeScreen } from './screens/HomeScreen';
 import { HistoryScreen } from './screens/HistoryScreen';
 import { ConfirmScreen } from './screens/ConfirmScreen';
 import { ConfirmBatchScreen } from './screens/ConfirmBatchScreen';
-import { BATCH_CONCURRENCY, runLimited } from './lib/batch';
+import { BATCH_CONCURRENCY, BATCH_MAX, runLimited } from './lib/batch';
 import { ProcessingScreen } from './screens/ProcessingScreen';
 import { ResultScreen } from './screens/ResultScreen';
 
@@ -42,11 +42,21 @@ export const App = () => {
   const [batch, setBatch] = useState<readonly Scan[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
   const current = batch.find((s) => s.id === currentId) ?? null;
-  /** 확인 화면에서 기다리는 사진(앨범은 여러 장) */
+  /** 확인 화면에서 기다리는 사진. 촬영·앨범 여러 장은 모음 화면, 앨범 한 장은 영역 지정 화면 */
   const [pending, setPending] = useState<readonly File[]>([]);
+  const [confirmMode, setConfirmMode] = useState<'batch' | 'single'>('batch');
+  /** 영역 지정 화면이 모음 화면에서 왔으면 「다시 고르기」가 모음으로 돌아간다 */
+  const [cropFromBatch, setCropFromBatch] = useState(false);
+  /** 상한 때문에 뺀 장수(모음 화면 안내용) */
+  const [dropped, setDropped] = useState(0);
   const [rate, setRate] = useState<Rate | null>(() => loadRate());
   const [mode, setMode] = useState<ImageMode>(() => loadImageMode());
-  const abortRef = useRef<AbortController | null>(null);
+  /** 스캔 id → 그 사진의 중단 컨트롤러. 사진마다 따로 두어 한 장을 더 붙이거나 빼도 나머지는 계속 돈다 */
+  const ctrls = useRef(new Map<string, AbortController>());
+  /** 아직 「N장 분석하기」를 누르지 않은 미리 읽기 스캔 id. 확정 전에는 기록에 저장하지 않는다 */
+  const draft = useRef(new Set<string>());
+  /** 지금 묶음이 이 세션에서 읽은 것인지(기록에서 연 묶음에는 사진을 더 붙이지 않는다) */
+  const live = useRef(false);
   /** 스캔 id → 원본 파일. 사진 저장 버튼과 다시 시도에 쓴다 */
   const files = useRef(new Map<string, File>());
   const installHint = useInstallHint();
@@ -106,7 +116,7 @@ export const App = () => {
           update((s) => {
             const next: Scan = { ...s, kind: toKind(m.kind), kindKnown: true, shopName: m.shop_name, notes, status: s.items.length > 0 ? 'detailing' : s.status, timing: { ...s.timing, listMs } };
             // 목록이 완성되면 먼저 저장해 둔다(설명이 오기 전에 홈으로 가거나 다른 사진으로 넘어가도 기록에 남게). 끝나면 다시 덮어쓴다
-            if (next.items.length > 0 || next.notes.length > 0) void saveScan(next).then(setScans);
+            if ((next.items.length > 0 || next.notes.length > 0) && !draft.current.has(id)) void saveScan(next).then(setScans);
             return next;
           });
         },
@@ -118,7 +128,7 @@ export const App = () => {
       update((s) => {
         const ok = s.items.length > 0 || s.notes.length > 0;
         const done: Scan = { ...s, status: ok ? 'done' : 'error', error: ok ? null : '글자를 찾지 못했어요. 더 가까이, 밝게 찍어 주세요.', timing: { ...s.timing, totalMs } };
-        if (ok) void saveScan(done).then(setScans); // 사진 모드가 준비되면 여기서 prefetchPhotos(done.items) 를 호출
+        if (ok && !draft.current.has(id)) void saveScan(done).then(setScans); // 사진 모드가 준비되면 여기서 prefetchPhotos(done.items) 를 호출
         return done;
       });
     } catch (e) {
@@ -129,62 +139,121 @@ export const App = () => {
     }
   }, [updateScan]);
 
-  /** 사진 묶음을 시작한다. 사진마다 독립 스트림을 동시에(최대 BATCH_CONCURRENCY) 열고 첫 장부터 보여준다 */
-  const startScans = useCallback(async (list: readonly File[]) => {
+  /** 한 장의 스캔 자리를 만들고 파일·컨트롤러를 등록한다. createdAt 은 묶음 안 순서가 기록에서도 유지되게 밀리초를 더한다 */
+  const newScan = useCallback((file: File, batchId: string | null, order: number): Scan => {
+    const s: Scan = { ...emptyScan(), batchId, createdAt: Date.now() + order };
+    files.current.set(s.id, file);
+    ctrls.current.set(s.id, new AbortController());
+    return s;
+  }, []);
+  const abortScan = useCallback((id: string) => { ctrls.current.get(id)?.abort(); ctrls.current.delete(id); draft.current.delete(id); }, []);
+  const abortAll = useCallback(() => { ctrls.current.forEach((c) => c.abort()); ctrls.current.clear(); draft.current.clear(); }, []);
+  const start = useCallback((s: Scan) => runScan(s.id, files.current.get(s.id)!, ctrls.current.get(s.id)!), [runScan]);
+
+  /** 사진 묶음을 시작한다. 모음 화면에서 미리 읽기 시작한 사진(batch 에 이미 있는 것)은 그대로 이어 가고(실패한 것은 새로), 빠진 사진은 중단한다.
+   *  나머지는 사진마다 독립 스트림을 동시에(최대 BATCH_CONCURRENCY) 열고 첫 장부터 보여준다 */
+  const startScans = useCallback(async (input: readonly File[]) => {
+    const list = input.slice(0, BATCH_MAX);
     if (list.length === 0) return;
-    abortRef.current?.abort();
-    const ac = new AbortController();
-    abortRef.current = ac;
+    live.current = true;
     const batchId = list.length > 1 ? newScanId() : null;
-    const scans = list.map((): Scan => ({ ...emptyScan(), batchId }));
-    scans.forEach((s, i) => files.current.set(s.id, list[i]!));
-    setBatch(scans);
-    setCurrentId(scans[0]!.id);
+    const reuse = new Map<File, string>();
+    for (const s of batch) { const f = files.current.get(s.id); if (f && list.includes(f) && s.status !== 'error') reuse.set(f, s.id); else abortScan(s.id); }
+    const fresh: Scan[] = [];
+    const plan = list.map((f, i) => {
+      const keptId = reuse.get(f);
+      if (keptId) { draft.current.delete(keptId); return { id: keptId, order: i, scan: null }; }
+      const s = newScan(f, batchId, i);
+      fresh.push(s);
+      return { id: s.id, order: i, scan: s };
+    });
+    const at = Date.now();
+    // 함수형 갱신: 미리 읽던 스캔의 스트림 갱신이 그 사이 큐에 있어도 잃지 않는다
+    setBatch((b) => plan.map(({ id, order, scan }) => {
+      const kept = scan ?? b.find((x) => x.id === id);
+      const next: Scan = { ...(kept ?? emptyScan()), id, batchId, createdAt: at + order };
+      // 확정 전에 이미 다 읽은 스캔은 저장을 미뤄 두었으니 지금 묶음 id 와 순서로 저장한다
+      if (!scan && (next.status === 'done' || next.status === 'detailing')) void saveScan(next).then(setScans);
+      return next;
+    }));
+    setCurrentId(plan[0]!.id);
     setRoute('processing');
-    await runLimited(scans.map((s, i) => () => runScan(s.id, list[i]!, ac)), BATCH_CONCURRENCY);
-  }, [runScan]);
+    await runLimited(fresh.map((s) => () => start(s)), BATCH_CONCURRENCY);
+  }, [batch, abortScan, newScan, start]);
+
+  /** 모음 화면에 있는 동안 첫 장을 뒤에서 미리 읽기 시작한다(화면은 그대로). 「N장 분석하기」가 이 스캔을 이어받는다 */
+  const prewarm = useCallback((file: File) => {
+    const s = newScan(file, null, 0);
+    draft.current.add(s.id);
+    live.current = true;
+    setBatch([s]);
+    setCurrentId(s.id);
+    void start(s);
+  }, [newScan, start]);
+
+  /** 결과·처리 중 화면에서 사진을 더 붙인다. 묶음 id 가 없던 한 장짜리는 묶음으로 승격해 저장한다 */
+  const addScans = useCallback((input: readonly File[]) => {
+    const list = input.slice(0, Math.max(0, BATCH_MAX - batch.length));
+    if (list.length === 0 || batch.length === 0) return;
+    const batchId = batch[0]!.batchId ?? newScanId();
+    const last = batch[batch.length - 1]!.createdAt;
+    const fresh = list.map((f, i): Scan => ({ ...newScan(f, batchId, 0), createdAt: last + 1 + i }));
+    setBatch((b) => {
+      const promoted = b.map((s) => (s.batchId === batchId ? s : { ...s, batchId }));
+      promoted.forEach((s, i) => { if (s !== b[i] && (s.status === 'done' || s.status === 'detailing')) void saveScan(s).then(setScans); });
+      return [...promoted, ...fresh];
+    });
+    void runLimited(fresh.map((s) => () => start(s)), BATCH_CONCURRENCY);
+  }, [batch, newScan, start]);
 
   /** 묶음 안에서 다른 사진으로. 기록에서 연 묶음은 openScan 이 사진을 전부 읽어 두므로 여기서 더 읽을 것은 없다 */
   const switchTo = useCallback((id: string) => setCurrentId(id), []);
 
-  /** 실패한 사진 한 장만 다시 읽는다. 묶음의 다른 사진은 그대로 돌게 둔다(묶음이 이미 끝났으면 새 묶음으로) */
+  /** 실패한 사진 한 장만 다시 읽는다. 묶음의 다른 사진은 그대로 돌게 둔다 */
   const retryOne = useCallback((id: string) => {
     const f = files.current.get(id);
-    const ac = abortRef.current;
     if (!f) return;
-    if (!ac || ac.signal.aborted) { void startScans([f]); return; }
+    abortScan(id);
+    ctrls.current.set(id, new AbortController());
     updateScan(id, (s) => ({ ...emptyScan(), id: s.id, batchId: s.batchId, createdAt: s.createdAt }));
-    void runScan(id, f, ac);
-  }, [runScan, startScans, updateScan]);
+    void runScan(id, f, ctrls.current.get(id)!);
+  }, [abortScan, runScan, updateScan]);
 
   // 목록이 완성되면(상세는 아직이어도) 결과 화면으로 넘어간다
   useEffect(() => {
     if (route === 'processing' && (current?.status === 'detailing' || current?.status === 'done')) setRoute('result');
   }, [route, current?.status]);
 
-  const goHome = () => { abortRef.current?.abort(); setBatch([]); setCurrentId(null); setPending([]); setRoute('home'); };
-  // 앨범·붙여넣기·드롭은 확인을 거친다. 촬영은 카메라 앱이 이미 「사진 사용」을 묻는다
-  const pick = (list: readonly File[], source: PickSource) => {
-    if (source === 'camera') { void startScans(list); return; }
+  const goHome = () => { abortAll(); setBatch([]); setCurrentId(null); setPending([]); setRoute('home'); };
+  // 촬영은 모음 화면으로 가서 더 찍을 수 있게 하고, 그동안 첫 장을 미리 읽는다. 앨범 여러 장도 모음 화면. 앨범·붙여넣기·드롭 한 장은 영역 지정 화면
+  const pick = (input: readonly File[], source: PickSource) => {
+    const list = input.slice(0, BATCH_MAX);
+    setDropped(input.length - list.length);
     setPending(list);
+    setConfirmMode(source === 'camera' || list.length > 1 ? 'batch' : 'single');
+    setCropFromBatch(false);
     setRoute('confirm');
+    if (source === 'camera') prewarm(list[0]!);
   };
+  /** 미리 읽는 중인 첫 장 파일(모음 화면 표시용) */
+  const reading = batch.length === 1 && route === 'confirm' ? (files.current.get(batch[0]!.id) ?? null) : null;
   const changeMode = (m: ImageMode) => { saveImageMode(m); setMode(m); };
 
   if (route === 'gate') return <GateScreen onEnter={() => setRoute('home')} />;
   // 결과 화면에서 띠로 실패·대기 중 사진을 고르면 처리 화면(오류·다시 시도·진행 표시)을 보여준다. route 는 그대로 두어 완료된 사진으로 돌아오면 결과가 보인다
   const showProcessing = current !== null && (route === 'processing' || (route === 'result' && (current.status === 'error' || current.status === 'preparing' || current.status === 'reading')));
   if (showProcessing && current) {
-    return <ProcessingScreen scan={current} batch={batch} onSwitch={switchTo} onCancel={goHome} onPeek={() => setRoute('result')} onRetry={() => retryOne(current.id)} />;
+    return <ProcessingScreen scan={current} batch={batch} onSwitch={switchTo} onAdd={live.current ? addScans : undefined} onCancel={goHome} onPeek={() => setRoute('result')} onRetry={() => retryOne(current.id)} />;
   }
   if (route === 'result' && current) {
     // key 로 스캔마다 다시 마운트해 보기 방식·선택·주문서 상태가 사진 사이에 새지 않게 한다
-    return <ResultScreen key={current.id} scan={current} batch={batch} onSwitch={switchTo} rate={rate} mode={mode} onMode={changeMode} onHome={goHome} originalFile={files.current.get(current.id) ?? null} />;
+    return <ResultScreen key={current.id} scan={current} batch={batch} onSwitch={switchTo} onAdd={live.current ? addScans : undefined} rate={rate} mode={mode} onMode={changeMode} onHome={goHome} originalFile={files.current.get(current.id) ?? null} />;
   }
   // 목록에는 사진이 없다. 결과 화면으로 가기 전에 사진 한 건만 읽는다
-  // 묶음으로 읽은 스캔은 같은 묶음 전부를 띠에 올린다(사진은 띠 썸네일용으로 모두 읽음, 묶음은 최대 BATCH_MAX 장)
+  // 묶음으로 읽은 스캔은 같은 묶음 전부를 찍은 순서로 띠에 올린다(사진은 띠 썸네일용으로 모두 읽음, 묶음은 최대 BATCH_MAX 장)
   const openScan = (s: Scan) => {
-    const siblings = s.batchId ? scans.filter((x) => x.batchId === s.batchId) : [s];
+    live.current = false;
+    const siblings = s.batchId ? scans.filter((x) => x.batchId === s.batchId).sort((a, b) => a.createdAt - b.createdAt) : [s];
     void Promise.all(siblings.map(async (x) => upgrade({ ...x, imageDataUrl: await loadScanImage(x) }))).then((list) => {
       setBatch(list);
       setCurrentId(s.id);
@@ -192,12 +261,16 @@ export const App = () => {
     });
   };
   const remove = (id: string) => void removeScan(id).then(setScans);
-  if (route === 'confirm' && pending.length === 1) {
+  if (route === 'confirm' && confirmMode === 'single' && pending.length === 1) {
     const file = pending[0]!;
-    return <ConfirmScreen file={file} onConfirm={(f) => { setPending([]); void startScans([f]); }} onCancel={goHome} />;
+    return <ConfirmScreen file={file} onConfirm={(f) => { setPending([]); void startScans([f]); }} onCancel={cropFromBatch ? () => setConfirmMode('batch') : goHome} />;
   }
-  if (route === 'confirm' && pending.length > 1) {
-    return <ConfirmBatchScreen files={pending} onConfirm={(list) => { setPending([]); void startScans(list); }} onCancel={goHome} />;
+  if (route === 'confirm' && pending.length > 0) {
+    // 미리 읽던 첫 장을 모음에서 빼면 그 읽기도 멈춘다
+    const change = (list: readonly File[]) => { setPending(list); if (reading && !list.includes(reading)) { abortScan(batch[0]!.id); setBatch([]); setCurrentId(null); } };
+    // 영역 지정으로 가면 원본 전체를 미리 읽던 것은 쓸모없으니 멈춘다
+    const crop = () => { if (batch[0]) abortScan(batch[0].id); setBatch([]); setCurrentId(null); setCropFromBatch(true); setConfirmMode('single'); };
+    return <ConfirmBatchScreen files={pending} dropped={dropped} onChange={change} reading={reading} onConfirm={(list) => { setPending([]); void startScans(list); }} onCrop={crop} onCancel={goHome} />;
   }
   if (route === 'history') {
     return <HistoryScreen scans={scans} installHint={installHint} onBack={() => setRoute('home')} onOpen={openScan} onRemove={remove} onClear={() => void clearScans().then(setScans)} />;

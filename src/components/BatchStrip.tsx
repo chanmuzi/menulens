@@ -1,7 +1,10 @@
-/** 여러 장 묶음의 썸네일 띠. 현재 사진은 주홍 테두리, 상태(읽는 중·완료·실패)를 모서리에 표시. 처리 중·결과 화면 공용 */
+/** 여러 장 묶음의 썸네일 띠. 현재 사진은 주홍 테두리, 상태(읽는 중·완료·실패)를 모서리에 표시. 처리 중·결과 화면 공용.
+ *  onAdd 가 있으면 띠 끝에 「더 찍기」 칸을 두어 결과를 보면서 사진을 더 붙일 수 있다(한 장짜리도 띠를 보여 진입점이 되게) */
+import { useRef, type ChangeEvent } from 'react';
 import type { Scan } from '../types';
+import { BATCH_MAX } from '../lib/batch';
 
-type Props = { readonly scans: readonly Scan[]; readonly currentId: string | null; readonly onSwitch: (id: string) => void };
+type Props = { readonly scans: readonly Scan[]; readonly currentId: string | null; readonly onSwitch: (id: string) => void; readonly onAdd?: (files: readonly File[]) => void };
 
 const statusMark = (s: Scan): { readonly text: string; readonly color: string } => {
   if (s.status === 'error') return { text: '✕', color: 'var(--vermilion)' };
@@ -9,12 +12,19 @@ const statusMark = (s: Scan): { readonly text: string; readonly color: string } 
   return { text: '…', color: 'var(--muted)' };
 };
 
-export const BatchStrip = ({ scans, currentId, onSwitch }: Props) => {
-  if (scans.length < 2) return null;
+export const BatchStrip = ({ scans, currentId, onSwitch, onAdd }: Props) => {
+  const cameraRef = useRef<HTMLInputElement>(null);
+  if (scans.length < 2 && !onAdd) return null;
   const idx = Math.max(0, scans.findIndex((s) => s.id === currentId));
+  const room = BATCH_MAX - scans.length;
+  const add = (e: ChangeEvent<HTMLInputElement>) => {
+    const picked = Array.from(e.target.files ?? []).slice(0, Math.max(0, room));
+    e.target.value = '';
+    if (picked.length > 0) onAdd?.(picked);
+  };
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <span className="dot muted" style={{ fontSize: 11, flexShrink: 0 }}>사진 {idx + 1}/{scans.length}</span>
+      {scans.length > 1 && <span className="dot muted" aria-live="polite" style={{ fontSize: 11, flexShrink: 0 }}>사진 {idx + 1}/{scans.length}</span>}
       <div role="group" aria-label="묶음 사진" style={{ display: 'flex', gap: 8, overflowX: 'auto', scrollbarWidth: 'none', padding: '3px 3px 3px 0' }}>
         {scans.map((s, i) => {
           const mark = statusMark(s);
@@ -27,6 +37,15 @@ export const BatchStrip = ({ scans, currentId, onSwitch }: Props) => {
             </button>
           );
         })}
+        {onAdd && room > 0 && (
+          <>
+            <button type="button" aria-label="사진 더 찍기" onClick={() => cameraRef.current?.click()} className="dot"
+              style={{ width: 48, height: 48, padding: 0, flexShrink: 0, border: '2px dashed var(--ink)', background: 'var(--paper-2)', cursor: 'pointer', fontSize: 10, lineHeight: 1.2, color: 'var(--vermilion)' }}>
+              <span style={{ fontSize: 16, display: 'block', lineHeight: 1 }}>+</span>더 찍기
+            </button>
+            <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={add} className="sr-only" tabIndex={-1} aria-hidden="true" aria-label="카메라로 더 찍기" />
+          </>
+        )}
       </div>
     </div>
   );
