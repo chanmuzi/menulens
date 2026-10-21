@@ -17,6 +17,8 @@ export type MetaEvent = { kind: string; shop_name: string | null; notes: readonl
 export type AnalyzeHandlers = {
   readonly onOcr: (r: OcrEvent) => void;
   readonly onMode: (mode: 'ocr' | 'image') => void;
+  /** 1단계 출력에서 종류(menu/sign/other)가 보이는 즉시. 항목보다 먼저 온다 */
+  readonly onKind: (kind: string) => void;
   readonly onItem: (key: string, raw: unknown) => void;
   readonly onMeta: (m: MetaEvent) => void;
   readonly onDetails: (items: readonly unknown[]) => void;
@@ -26,6 +28,7 @@ export type AnalyzeHandlers = {
 type Event =
   | ({ t: 'ocr' } & OcrEvent)
   | { t: 'mode'; mode: 'ocr' | 'image'; chunks?: number }
+  | { t: 'kind'; kind: string }
   | { t: 'item'; key: string; item: unknown }
   | ({ t: 'meta' } & MetaEvent)
   | { t: 'details'; items: unknown[] }
@@ -52,6 +55,7 @@ export const analyzeImage = async (base64: string, mediaType: string, h: Analyze
     switch (ev.t) {
       case 'ocr': h.onOcr({ words: ev.words, width: ev.width, height: ev.height, rotation: ev.rotation ?? 0, tilt: ev.tilt ?? 0, ms: ev.ms, used: ev.used }); break;
       case 'mode': h.onMode(ev.mode); break;
+      case 'kind': h.onKind(ev.kind); break;
       case 'item': h.onItem(ev.key, ev.item); break;
       case 'meta': h.onMeta({ kind: ev.kind, shop_name: ev.shop_name, notes: ev.notes ?? [] }); break;
       case 'details': h.onDetails(ev.items ?? []); break;

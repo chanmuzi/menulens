@@ -14,4 +14,20 @@ export const TIPS: readonly string[] = [
   '「辛口(카라쿠치)」는 매운맛 또는 드라이한 술, 「甘口(아마쿠치)」는 순한맛이에요.',
 ];
 
-export const pickTip = (seed: number): string => TIPS[Math.abs(seed) % TIPS.length] ?? TIPS[0]!;
+/** 안내문·표지판을 읽는 동안 보여주는 거리·가게 표기 상식. 메뉴 상식은 이때 어울리지 않는다 */
+export const SIGN_TIPS: readonly string[] = [
+  '「営業中(에이교츄)」는 영업 중, 「準備中(준비츄)」는 아직 문을 안 열었다는 뜻이에요. 「本日休業」은 오늘 쉰다는 안내예요.',
+  '「お手洗い(오테아라이)」와 「化粧室(케쇼시츠)」 모두 화장실이에요. 역이나 상가에선 「トイレ」 표기도 흔해요.',
+  '「立入禁止(타치이리킨시)」는 출입 금지, 「関係者以外立入禁止」는 관계자 외 출입 금지예요.',
+  '「禁煙(킨엔)」은 금연, 「喫煙所(키츠엔조)」는 흡연 구역이에요. 길에서 피우면 과태료를 내는 구역도 있어요.',
+  '문의 「押(오스)」는 미세요, 「引(히쿠)」는 당기세요. 가게 문 앞에서 가장 자주 보는 한 글자예요.',
+  '「税込(제이코미)」는 세금 포함, 「税抜(제이누키)」는 세금 별도 가격이에요. 계산할 때 10% 차이가 나요.',
+  '「ご自由にお取りください」는 자유롭게 가져가라는 뜻, 「ご遠慮ください」는 삼가 달라는 정중한 금지 표현이에요.',
+  '「改札(카이사츠)」는 개찰구, 「乗り換え(노리카에)」는 환승, 「出口(데구치)」는 출구예요.',
+  '「売切(우리키레)」는 품절, 「本日限り(혼지츠카기리)」는 오늘만이라는 뜻이에요.',
+  '「お一人様1点限り」는 1인당 1개 한정, 「先着順(센차쿠준)」은 선착순이에요.',
+];
+
+const pickFrom = (list: readonly string[], seed: number): string => list[Math.abs(seed) % list.length] ?? list[0]!;
+export const pickTip = (seed: number): string => pickFrom(TIPS, seed);
+export const pickSignTip = (seed: number): string => pickFrom(SIGN_TIPS, seed);
