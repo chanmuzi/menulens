@@ -1,6 +1,6 @@
 # MenuLens — 에이전트 라우터
 
-> **Version**: 1.2.0 · **Updated**: 2026-10-21
+> **Version**: 1.3.0 · **Updated**: 2026-10-21
 > **이 파일이 규약의 단일 진입점(SSoT)이다.** 아래 판정표로 작업 유형을 정하고 그 행의 경로만 로드한다.
 > 전체 grep 은 라우팅으로 못 찾을 때의 최후 수단이다. 위키 루트는 `docs/wiki/index.md`.
 
@@ -39,7 +39,7 @@ Vercel Node.js 함수 4개, Upstage OCR → Claude Sonnet(Timely Router) 2단 �
 2. 로컬 서버 `pnpm dev` 는 `api/` 핸들러를 같은 프로세스에서 실행한다(Vercel CLI 불필요). `.env` 가 있어야 한다.
 3. 브라우저 확인은 헤드리스 Chrome(playwright-core, 390×844)으로 흐름을 돌려 캡처를 보고 판단한다 — 절차는 [[architecture]] §검증.
    Safari 실기기 전용 동작(공유 시트, 핀치, 카메라)은 재현 불가 → 사용자 확인을 요청하고 그 사실을 보고에 적는다.
-4. 배포 후에는 API 를 직접 호출해 스모크 확인한다(auth 401/200, rate, analyze 스트림). 프리뷰·프로덕션 모두.
+4. 배포 후에는 프로덕션 API 를 직접 호출해 스모크 확인한다(auth 401/200, rate, analyze 스트림).
 5. 측정한 시간은 [[benchmarks]] 에 표로 남긴다. 체감 기준은 「목록 완성」 시점이다.
 
 ## 기록 의무 (모든 작업 공통)
@@ -55,8 +55,9 @@ Vercel Node.js 함수 4개, Upstage OCR → Claude Sonnet(Timely Router) 2단 �
    병렬 세션이 있을 수 있으면 워크트리를 쓴다: `git worktree add -b <타입>/<슬러그> ../menulens-<슬러그> origin/main`
    (형제 경로 고정, 레포 안 `.claude/worktrees/` 금지, EnterWorktree 도구 사용 금지). 작업 중 fetch·pull 금지 — 분기 시점 스냅샷을 유지한다(push 시점의 rebase 는 4항의 예외).
 2. **반영 경로는 PR 이 기본** — 규약·문서 신설, 동작 변경, 설정 변경 전부. 사용자가 "푸시해" 라고 명시한 작은 수정만 main 직접 푸시(검증 절차는 그대로).
-3. **merge 는 사용자 승인 후 에이전트가 직접** `gh pr merge --merge --delete-branch` 로 한다 (merge commit, **squash 금지**).
-   승인 전에는 "merge 가능" 상태로 멈춰 보고한다. 애매하면 묻는다.
+3. **merge 는 에이전트가 직접** `gh pr merge --merge --delete-branch` 로 한다 (merge commit, **squash 금지**).
+   검증 절차와 로컬 리뷰를 통과한 PR 은 승인을 기다리지 않고 merge 해 프로덕션에 올린 뒤 보고한다 — 사용자는 코드가 아니라 **프로덕션 실기기 동작**으로 확인한다.
+   예외(merge 전에 묻는다): 저장 데이터 형식·환경변수·외부 서비스·비용에 영향이 있는 변경, 되돌리기 어려운 변경, 사용자가 "merge 전에 보자" 고 한 작업.
 4. push 거부·main 선행 시 `git fetch` → `git rebase origin/main` → 재시도. PR 브랜치는 `--force-with-lease`. rebase 외 히스토리 재작성은 사용자 확인.
 5. push 전 `git status --porcelain` 에 비밀 파일이 없는지 본다(절대 규칙 1).
 
@@ -68,16 +69,16 @@ Vercel Node.js 함수 4개, Upstage OCR → Claude Sonnet(Timely Router) 2단 �
    문서·규약만 바꾸는 변경은 에이전트를 띄우지 않는 단일 패스 리뷰(`-q` 또는 직접 검토)로 갈음할 수 있으며, 그 사실을 보고에 적는다.
 4. **리뷰 반영** — 지적을 고치고 2 를 다시 통과. 받아들이지 않은 지적은 이유와 함께 보고에 적는다.
 5. **커밋·PR** — `git-claw:commit` / `git-claw:pr`. PR 본문에 "로컬 리뷰 N건 반영(미반영 M건: 사유)" 한 줄.
-6. **프리뷰 배포** — 보고 전에 반드시 작업 브랜치를 프리뷰로 배포한다(`npx vercel deploy --yes`, `--prod` 금지). 프로덕션은 merge(main 푸시)로만 올라간다.
-   Vercel Preview 환경에 비밀 변수(`ACCESS_CODES`·`UPSTAGE_API_KEY`·`TIMELY_API_KEY`)가 없으면 로컬 `.env` 값을 `-e KEY="$KEY"` 로 **그 배포에만** 붙인다(대시보드 설정은 사용자 확인 없이 바꾸지 않는다, 값은 출력·기록하지 않는다).
-   배포 후 프리뷰 API 스모크(auth 401/200, rate)를 돌린다. 프리뷰에 Vercel 배포 보호가 켜져 있으면 302(sso-api)로 막힌다 → 그 사실을 보고에 적고, 해제·우회 토큰은 사용자 결정([[deploy-and-env]]).
-7. **보고** — 프리뷰 URL 과 **사용자가 실기기에서 확인할 항목**을 짧게 적어 보고하고 승인을 기다린다. 사용자가 실제 동작을 확인하기 전에는 merge 하지 않는다. 승인되면 merge → 마무리 세트.
+6. **merge → 프로덕션 배포** — 보고 전에 PR 을 merge 한다(Git 절차 3, 예외도 거기). main 푸시로 Vercel 이 자동 배포하므로 `npx vercel` 로 직접 배포하지 않는다.
+   Vercel 프로덕션 Ready 를 확인하고 프로덕션 API 스모크(auth 401/200, rate)를 돌린 뒤 마무리 세트까지 끝낸다.
+   프리뷰 배포는 쓰지 않는다 — Preview 환경에 비밀 변수가 없고 배포 보호(Vercel Authentication)로 302 되어 실기기 확인이 안 된다([[deploy-and-env]]).
+7. **보고** — 배포가 끝난 상태에서 **사용자가 프로덕션 실기기에서 확인할 항목**을 짧게 적어 보고한다. 문제가 나오면 `fix/…` 브랜치로 후속 PR.
 
 PR 게시 리뷰(`code-review <PR#>` + `review-reply`)는 사용자 명시 지시·타인 PR·별도 세션 크로스 체크에만 쓴다.
 
 ## 마무리 세트 (한 번에 끝까지)
 
-merge 후: 로컬 브랜치 삭제 → 원격 브랜치 삭제 확인 → 메인 체크아웃 `git pull --ff-only` + `git fetch --prune` → 워크트리를 썼으면 `git worktree remove`(미커밋 변경이 거부되면 `--force` 대신 내용 확인) →
+merge 직후 같은 턴에서: 로컬 브랜치 삭제 → 원격 브랜치 삭제 확인 → 메인 체크아웃 `git pull --ff-only` + `git fetch --prune` → 워크트리를 썼으면 `git worktree remove`(미커밋 변경이 거부되면 `--force` 대신 내용 확인) →
 Vercel 자동 배포 Ready 확인 → `main HEAD`·`git worktree list`·잔여 브랜치·개발 서버 종료 여부를 보고에 포함. 로그 엔트리(기록 의무 2)는 같은 PR 에 들어 있어야 한다.
 
 ## 피드백 세션의 커밋 단위
