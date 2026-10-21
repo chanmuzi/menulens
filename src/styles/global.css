@@ -87,4 +87,6 @@ img { display: block; max-width: 100%; }
   .scanline, .blink, .steam, .block--next, .pop { animation: none; }
 }
 
+/* hidden 속성이 인라인 display 보다 우선하게 */
+[hidden] { display: none !important; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

@@ -29,6 +29,25 @@ PALETTE = {
 }
 
 SPRITES = {
+# UI 전용(메뉴 매칭에 쓰지 않음): 챗 버튼
+'bubble': """
+................
+..kkkkkkkkkkkk..
+.kwwwwwwwwwwwwk.
+.kwwwwrrrrwwwwk.
+.kwwwrrwwrrwwwk.
+.kwwwwwwwrrwwwk.
+.kwwwwwwrrwwwwk.
+.kwwwwwrrwwwwwk.
+.kwwwwwrrwwwwwk.
+.kwwwwwwwwwwwwk.
+.kwwwwwrrwwwwwk.
+.kwwwwwrrwwwwwk.
+.kkkkkkwwwwkkkk.
+....kwwwwwk.....
+....kwwwkk......
+....kkkk........
+""",
 'coffee': """
 ................
 ................
