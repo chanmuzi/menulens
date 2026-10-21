@@ -4,9 +4,15 @@ import { TopBar } from '../components/TopBar';
 import { CropBox } from '../components/CropBox';
 import { cropFile, FULL_RECT, isFullRect, type CropRect } from '../lib/crop';
 
-type Props = { readonly file: File; readonly onConfirm: (file: File) => void; readonly onCancel: () => void };
+type Props = {
+  readonly file: File;
+  readonly onConfirm: (file: File) => void;
+  readonly onCancel: () => void;
+  /** 모음 화면에서 한 장만 자르러 왔으면 분석하지 않고 잘라서 돌려준다 */
+  readonly apply?: boolean;
+};
 
-export const ConfirmScreen = ({ file, onConfirm, onCancel }: Props) => {
+export const ConfirmScreen = ({ file, onConfirm, onCancel, apply = false }: Props) => {
   // object URL 은 효과 안에서 만들고 같은 효과의 정리에서 지운다 (StrictMode 의 이중 실행에도 깨지지 않도록)
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
@@ -29,9 +35,9 @@ export const ConfirmScreen = ({ file, onConfirm, onCancel }: Props) => {
 
   return (
     <div className="app">
-      <TopBar onBack={onCancel} backLabel="다시 고르기" center={
+      <TopBar onBack={busy ? undefined : onCancel} backLabel={apply ? '모음으로' : '다시 고르기'} center={
         <div style={{ textAlign: 'center' }}>
-          <div className="dot" style={{ fontSize: 16 }}>이 사진으로 할까요?</div>
+          <div className="dot" style={{ fontSize: 16 }}>{apply ? '영역을 잘라요' : '이 사진으로 할까요?'}</div>
         </div>
       } />
       <div className="frame" style={{ background: 'var(--wood)', boxShadow: '4px 4px 0 var(--ink)', padding: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 240, maxHeight: '60dvh', overflow: 'hidden' }}>
@@ -49,8 +55,8 @@ export const ConfirmScreen = ({ file, onConfirm, onCancel }: Props) => {
       </div>
       {error && <div role="alert" style={{ fontSize: 13, color: 'var(--vermilion)' }}>{error}</div>}
       <div style={{ display: 'flex', gap: 10, marginTop: 'auto' }}>
-        <button type="button" className="btn" onClick={onCancel} style={{ flex: 1 }}>다시 고르기</button>
-        <button type="button" className="btn btn--primary" onClick={() => void confirm()} disabled={busy} style={{ flex: 2, fontWeight: 600 }}>{busy ? '잘라내는 중…' : cropped ? '이 영역만 분석하기' : '분석하기'}</button>
+        <button type="button" className="btn" onClick={onCancel} disabled={busy} style={{ flex: 1 }}>{apply ? '취소' : '다시 고르기'}</button>
+        <button type="button" className="btn btn--primary" onClick={() => void confirm()} disabled={busy} style={{ flex: 2, fontWeight: 600 }}>{busy ? '잘라내는 중…' : apply ? (cropped ? '이 영역만 쓰기' : '그대로 쓰기') : cropped ? '이 영역만 분석하기' : '분석하기'}</button>
       </div>
     </div>
   );
