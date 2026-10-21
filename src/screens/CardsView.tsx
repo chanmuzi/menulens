@@ -13,6 +13,10 @@ type Props = { readonly scan: Scan; readonly rate: Rate | null; readonly mode: I
 
 const matches = (it: MenuItem, f: Filter): boolean => f === '전체' || (f === '매운맛' ? it.tags.includes('매움') : it.category === f);
 
+/** 카드에 보여줄 배지는 고르는 데 도움이 되는 것만 최대 2개(사용자 결정 2026-10-21). 음료·튀김·채식 같은 분류성 태그는 상세 시트에만 */
+const BADGE_PRIORITY = ['매움', '날것', '선택 필요', '인기'] as const;
+const cardBadges = (tags: readonly string[]): readonly string[] => BADGE_PRIORITY.filter((t) => tags.includes(t)).slice(0, 2);
+
 export const CardsView = ({ scan, rate, mode, onMode, onSelect, order, onQty }: Props) => {
   const [filter, setFilter] = useState<Filter>('전체');
   const present = new Set(scan.items.map((i) => i.category));
@@ -36,8 +40,14 @@ export const CardsView = ({ scan, rate, mode, onMode, onSelect, order, onQty }: 
       {list.length === 0 && <div className="muted small" style={{ textAlign: 'center', padding: 20 }}>해당하는 메뉴가 없어요</div>}
       {list.map((it) => (
         <article key={it.id} className="frame" style={{ display: 'flex', gap: 12, padding: 12, alignItems: 'flex-start' }}>
-          <ItemImage item={it} mode={mode} size={76} />
-          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {/* 왼쪽 열: 그림 + 작은 배지(그림 폭 안). 본문 아래 빈 줄 대신 여기서 세로 공간을 쓴다 */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'stretch', width: 76, flexShrink: 0 }}>
+            <ItemImage item={it} mode={mode} size={76} />
+            {cardBadges(it.tags).map((t) => (
+              <span key={t} className={`chip chip--mini${t === '매움' ? ' chip--accent' : ''}`}>{t}</span>
+            ))}
+          </div>
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6, alignSelf: 'stretch' }}>
           <button type="button" onClick={() => onSelect(it)} style={{ display: 'flex', flexDirection: 'column', gap: 4, background: 'none', border: 0, padding: 0, textAlign: 'left', cursor: 'pointer' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
               <span className="jp" style={{ fontSize: 17 }}>{it.name_ja}</span>
@@ -50,15 +60,10 @@ export const CardsView = ({ scan, rate, mode, onMode, onSelect, order, onQty }: 
             {it.desc_ko
               ? <span style={{ fontSize: 12, color: 'var(--body)', lineHeight: 1.45 }}>{it.desc_ko}</span>
               : !it.detailed && scan.status !== 'done' && <span className="muted" style={{ fontSize: 12 }}>설명 쓰는 중<span className="blink">▌</span></span>}
-            {it.tags.length > 0 && (
-              <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {it.tags.map((t) => <span key={t} className={`chip${t === '매움' ? ' chip--accent' : ''}`}>{t}</span>)}
-              </span>
-            )}
           </button>
           {scan.kind === 'menu' && it.category !== '기타' && (
-            // 본문 아래 줄, 오른쪽 정렬: 이름·가격·설명이 카드 폭을 다 쓴다
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            // 카드 오른쪽 아래. 태그 줄이 사라져 이 줄이 본문 바로 아래에 붙는다
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'auto' }}>
               <QtyStepper qty={order[it.id] ?? 0} onChange={(q) => onQty(it.id, q)} label={it.name_ko} size="small" />
             </div>
           )}
