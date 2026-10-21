@@ -23,10 +23,11 @@ description: MenuLens 도트 아이콘(16×16 box-shadow 스프라이트)을 추
 ## 추가 절차
 
 1. `SPRITES` 에 `'name': """…"""` 추가(16줄 × 16자 확인).
-2. `src/lib/icons.ts` 의 `ICON_KEYS` 와 `KEYWORDS`/`ALIASES`, `api/_lib/prompt.ts` 의 `ICON_KEYS` 와 `ICON_RULE` 힌트에 같은 이름을 넣는다.
+2. `src/lib/icons.ts` 의 `ICON_KEYS`, 키워드 규칙(음료면 `DRINK_RULES`, 음식이면 `FOOD_RULES`), `ALIASES` 에 넣는다. 음료 아이콘이면 `DRINK_ICONS` 에도(이 집합이 음료·음식 판정 경로를 가른다), 뭉뚱그린 그림이면 `GENERIC` 에도 넣는다. `api/_lib/prompt.ts` 의 `ICON_KEYS` 와 `ICON_RULE` 힌트에도 같은 이름을 넣는다.
 3. `pnpm icons && pnpm build`.
 4. 검증: 세션 scratchpad 에 모든 `.px-*` 를 64px 로 그리는 HTML 을 만들어 헤드리스 Chrome 으로 캡처해 눈으로 본다(아래 스니펫). 캡처는 저장소에 넣지 않는다.
 5. `docs/wiki/icons.md` 를 `python3 scripts/icons_wiki.py > docs/wiki/icons.md` 로 재생성한다.
+6. 진단 저장소 스캔이 있으면 `node --experimental-strip-types scripts/bench/icon_audit.mjs <debug_scans>` 를 전후로 돌려 바뀐 항목만 diff 로 본다(서버·클라이언트 `ICON_KEYS` 불일치도 이 스크립트가 경고한다).
 
 ```python
 # scratchpad/icons.html 생성 예 (저장소 밖)
