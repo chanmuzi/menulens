@@ -4,7 +4,7 @@ import { formatJpy, formatPriceOrBlank, payableJpy } from '../lib/money';
 import { MenuPhoto, type MarkerCtx } from '../components/MenuPhoto';
 import { loadSampler, patchBox, sampleBox, type BoxColors, type BoxPatch } from '../lib/sample';
 
-type Props = { readonly scan: Scan; readonly selectedId: string | null; readonly onSelect: (item: MenuItem) => void; /** 안내문 줄을 탭했을 때 */ readonly onNote?: (note: Note) => void };
+type Props = { readonly scan: Scan; readonly selectedId: string | null; readonly onSelect: (item: MenuItem) => void; /** 안내문 줄을 탭했을 때 */ readonly onNote?: (note: Note) => void; /** 번역 표시(배지·덮개) 켜짐. 토글 버튼은 결과 화면 제목 줄에 있다 */ readonly showMarks: boolean };
 
 /** 메뉴가 이 수를 넘으면 칩 대신 번호 배지를 붙인다. 회전된 사진은 칩 배치가 어긋나므로 항상 배지 */
 const CHIP_LIMIT = 4;
@@ -136,9 +136,8 @@ const useBoxLooks = (imageDataUrl: string, boxes: ReadonlyArray<readonly [string
  * 항목이 적으면 이름·가격 칩, 많으면 번호 배지(탭하면 상세). 배지는 이웃과의 거리에 맞춰 작아지고,
  * 사진을 두 손가락으로 확대하면 화면상 크기는 그대로라 겹침이 풀린다.
  */
-export const OverlayView = ({ scan, selectedId, onSelect, onNote }: Props) => {
+export const OverlayView = ({ scan, selectedId, onSelect, onNote, showMarks }: Props) => {
   const badges = scan.kind === 'menu' && (scan.items.length > CHIP_LIMIT || scan.rotation !== 0);
-  const [showMarks, setShowMarks] = useState(true);
   const rot = scan.rotation + scan.tilt;
   const approxW = 350, approxHi = (approxW * scan.height) / scan.width;
   const isMenu = scan.kind === 'menu';
@@ -152,12 +151,6 @@ export const OverlayView = ({ scan, selectedId, onSelect, onNote }: Props) => {
   ]);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button type="button" onClick={() => setShowMarks((v) => !v)} aria-pressed={showMarks}
-          style={{ height: 32, padding: '0 10px', background: showMarks ? 'var(--ink)' : 'var(--paper-2)', color: showMarks ? 'var(--paper)' : 'var(--ink)', border: '2px solid var(--ink)', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>
-          {showMarks ? '표시 끄기' : '표시 켜기'}
-        </button>
-      </div>
       <div className="frame" style={{ boxShadow: '4px 4px 0 var(--ink)', overflow: 'hidden', position: 'relative' }}>
         <MenuPhoto src={scan.imageDataUrl} width={scan.width} height={scan.height} words={scan.words} rotation={scan.rotation} tilt={scan.tilt} maxHeight={620} zoomable>
           {(ctx) => {
@@ -228,7 +221,6 @@ export const OverlayView = ({ scan, selectedId, onSelect, onNote }: Props) => {
           ))}
         </ol>
       )}
-      <div className="muted small" style={{ textAlign: 'center' }}>{badges ? '번호를 탭하면 상세가 열려요 · 두 손가락으로 확대, 두 번 탭하면 원래대로' : scan.kind !== 'menu' ? '번역을 탭하면 원문이 크게 열려요 · 두 손가락으로 확대' : '칩을 탭하면 설명과 원화 가격이 열려요'}</div>
       {badges && (
         <ol style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '6px 10px' }}>
           {scan.items.map((it, i) => (
