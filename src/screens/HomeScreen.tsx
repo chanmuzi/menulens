@@ -20,7 +20,6 @@ type Props = {
   readonly onRemove: (group: ScanGroup) => void;
 };
 
-const HINT_DEFAULT = '글자가 전부 들어오게 찍어 주세요';
 const HINT_BY_REASON = {
   empty: '클립보드에 이미지가 없어요',
   denied: '붙여넣기가 허용되지 않았어요 · 앨범에서 골라 주세요',
@@ -102,28 +101,24 @@ export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRe
           <div style={{ width: 40, height: 40, background: 'var(--vermilion)', border: '2px solid var(--ink)', boxShadow: '3px 3px 0 var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <PixelIcon icon="camera" size={2} />
           </div>
-          <div>
-            <div className="dot" style={{ fontSize: 20, lineHeight: 1 }}>MENULENS</div>
-            <div className="dot muted" style={{ fontSize: 11, lineHeight: 1, marginTop: 3 }}>めにゅーれんず</div>
-          </div>
+          <div className="dot" style={{ fontSize: 20, lineHeight: 1 }}>MENULENS</div>
         </div>
         <div className="dot" style={{ height: 40, padding: '0 10px', border: '2px solid var(--ink)', background: 'var(--paper-2)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
           日本語 <span style={{ color: 'var(--vermilion)' }}>→</span> 한국어
         </div>
       </header>
 
-      <div>
-        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 600, lineHeight: 1.3 }}>메뉴판이나 안내문을 찍으면<br />바로 읽어드려요</h1>
-        <p className="muted" style={{ margin: '6px 0 0', fontSize: 14 }}>메뉴판은 요리 설명·주문서까지, 안내문은 줄마다 번역</p>
-      </div>
+      <h1 style={{ margin: 0, fontSize: 24, fontWeight: 600, lineHeight: 1.3 }}>메뉴판이나 안내문을 찍으면<br />바로 읽어드려요</h1>
 
+      {/* 뷰파인더: 사진이 여기 찍혀 번역된다는 걸 그림으로. 설명 문구 대신 메뉴판 모형 + 스캔 라인 + 번역 칩. 안내·오류 문구는 필요할 때만 그 위에 */}
       <div className="corners frame" style={{ background: dragging ? 'var(--paper-2)' : 'var(--paper-dark)', outline: dragging ? '3px dashed var(--vermilion)' : 'none', outlineOffset: -8, boxShadow: '4px 4px 0 var(--ink)', padding: 18, minHeight: 300, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', gap: 18, overflow: 'hidden' }}>
         <span className="c3" /><span className="c4" />
-        <div aria-hidden="true" style={{ position: 'absolute', left: 44, right: 44, top: 34, height: 150, background: 'var(--wood)', opacity: .35, display: 'flex', gap: 12, padding: 14, justifyContent: 'center' }}>
-          {Array.from({ length: 5 }, (_, i) => <div key={i} style={{ width: 30, background: '#EFE4C8' }} />)}
-        </div>
-        <div style={{ position: 'absolute', top: 96, left: 0, right: 0, display: 'flex', justifyContent: 'center' }}>
-          <div role="status" style={{ background: 'var(--paper-2)', border: '2px solid var(--ink)', padding: '8px 12px', fontSize: 13, fontWeight: 500, color: hint ? 'var(--vermilion)' : undefined, maxWidth: 'calc(100% - 48px)', textAlign: 'center' }}>{dragging ? '여기에 놓으면 확인 화면으로 가요' : (hint?.text ?? HINT_DEFAULT)}</div>
+        <MenuMock />
+        {/* 라이브 영역은 늘 두고 문구만 넣었다 뺀다(영역과 문구가 같이 생기면 낭독기가 읽지 않을 수 있다) */}
+        <div role="status" style={{ position: 'absolute', top: 96, left: 0, right: 0, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
+          {(dragging || hint) && (
+            <div style={{ background: 'var(--paper-2)', border: '2px solid var(--ink)', padding: '8px 12px', fontSize: 13, fontWeight: 500, color: hint ? 'var(--vermilion)' : undefined, maxWidth: 'calc(100% - 48px)', textAlign: 'center' }}>{dragging ? '여기에 놓으면 확인 화면으로 가요' : hint?.text}</div>
+          )}
         </div>
         <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 14, marginTop: 170 }}>
           <button type="button" className="btn" onClick={() => albumRef.current?.click()}>앨범에서</button>
@@ -145,7 +140,7 @@ export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRe
       {scans.length > 0 && (
         <section style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div className="dot" style={{ fontSize: 14 }}>最近 · 최근 스캔</div>
+            <div className="dot" style={{ fontSize: 14 }}>최근 스캔</div>
             {groups.length > HOME_RECENT && (
               <button type="button" className="btn btn--quiet" onClick={onShowAll} style={{ minHeight: 32, padding: '0 6px' }}>전체 보기 ({groups.length}) ›</button>
             )}
@@ -170,3 +165,22 @@ export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRe
     </div>
   );
 };
+
+/** 메뉴판 모형: 나무판 위 종이 한 장에 글줄(막대)과 그림, 그 위를 지나는 스캔 라인, 한 줄이 번역 칩으로 뜬 모습 */
+const MenuMock = () => (
+  <div aria-hidden="true" style={{ position: 'absolute', left: 44, right: 44, top: 30, height: 160, background: 'var(--wood)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ position: 'relative', width: 150, height: 128, background: '#F7EFDD', border: '2px solid var(--ink)', padding: '12px 12px', display: 'flex', flexDirection: 'column', gap: 9 }}>
+      {[[0.75, true], [0.55, false], [0.65, false], [0.45, false], [0.6, false]].map(([w, head], i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ width: `${(w as number) * 100}%`, height: head ? 8 : 6, background: head ? 'var(--ink)' : '#B8AC9B', opacity: i === 1 ? 0.25 : 1 }} />
+          {i !== 1 && <div style={{ width: 14, height: 6, background: 'var(--vermilion)', opacity: .8, marginLeft: 'auto' }} />}
+        </div>
+      ))}
+      {/* 두 번째 줄이 번역돼 떠오른 칩 */}
+      <div className="pop" style={{ position: 'absolute', left: 10, top: 29, display: 'flex', alignItems: 'center', gap: 5, background: 'var(--paper-2)', border: '2px solid var(--ink)', boxShadow: '2px 2px 0 var(--ink)', padding: '2px 6px', fontSize: 11, fontWeight: 600, lineHeight: 1.2 }}>
+        <PixelIcon icon="ramen" size={1} />라멘 <span className="dot" style={{ color: 'var(--vermilion)' }}>¥900</span>
+      </div>
+      <div className="scanline" style={{ left: 0, right: 0 }} />
+    </div>
+  </div>
+);
