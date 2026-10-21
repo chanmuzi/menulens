@@ -12,7 +12,8 @@ import { canReadClipboard, imageFromPasteEvent, readImageFromClipboard } from '.
 type Props = {
   readonly scans: readonly Scan[];
   readonly installHint: Hint;
-  readonly onPick: (file: File, source: PickSource) => void;
+  /** 앨범은 여러 장, 촬영·붙여넣기·드롭은 한 장 */
+  readonly onPick: (files: readonly File[], source: PickSource) => void;
   readonly onShowAll: () => void;
   readonly onOpen: (scan: Scan) => void;
   readonly onRemove: (id: string) => void;
@@ -40,9 +41,9 @@ export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRe
   const [pasteBox, setPasteBox] = useState(false);
   const pasteBoxRef = useRef<HTMLDivElement>(null);
   const handle = (source: PickSource) => (e: ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
+    const list = Array.from(e.target.files ?? []);
     e.target.value = '';
-    if (f) onPick(f, source);
+    if (list.length > 0) onPick(list, source);
   };
 
   // 잠깐 보였다 사라지는 안내. 기본 문구 자리에 띄워 화면을 더 가리지 않는다
@@ -58,7 +59,7 @@ export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRe
       const f = imageFromPasteEvent(e);
       if (!f) return;
       e.preventDefault();
-      onPick(f, 'paste');
+      onPick([f], 'paste');
     };
     document.addEventListener('paste', onPaste);
     return () => document.removeEventListener('paste', onPaste);
@@ -75,7 +76,7 @@ export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRe
       if (!hasFiles(e)) return;
       setDragging(false);
       const f = imageFromDropEvent(e);
-      if (f) onPick(f, 'drop');
+      if (f) onPick([f], 'drop');
       else setHint({ text: '이미지 파일만 넣을 수 있어요', at: Date.now() });
     };
     document.addEventListener('dragover', onOver);
@@ -87,7 +88,7 @@ export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRe
   // 모바일: 버튼 탭 → 클립보드 읽기 (사용자 동작 안에서 호출해야 한다)
   const pasteFromButton = async () => {
     const r = await readImageFromClipboard();
-    if (r.ok) { onPick(r.file, 'paste'); return; }
+    if (r.ok) { onPick([r.file], 'paste'); return; }
     if (isIos()) { setPasteBox(true); return; } // 상자를 길게 눌러 네이티브 「붙여넣기」 → paste 이벤트
     setHint({ text: HINT_BY_REASON[r.reason], at: Date.now() });
   };
@@ -136,7 +137,7 @@ export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRe
               : <div style={{ width: 78 }} />}
         </div>
         <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handle('camera')} className="sr-only" aria-label="카메라로 촬영" />
-        <input ref={albumRef} type="file" accept="image/*" onChange={handle('album')} className="sr-only" aria-label="앨범에서 선택" />
+        <input ref={albumRef} type="file" accept="image/*" multiple onChange={handle('album')} className="sr-only" aria-label="앨범에서 선택" />
       </div>
 
       {scans.length > 0 && (

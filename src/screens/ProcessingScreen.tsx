@@ -4,10 +4,11 @@ import { TopBar } from '../components/TopBar';
 import { ProgressBlocks } from '../components/ProgressBlocks';
 import { PixelIcon } from '../components/PixelIcon';
 import { MenuPhoto } from '../components/MenuPhoto';
+import { BatchStrip } from '../components/BatchStrip';
 import { pickSignTip, pickTip } from '../data/tips';
 import { KIND_SUB } from '../lib/kind';
 
-type Props = { readonly scan: Scan; readonly onCancel: () => void; readonly onPeek: () => void; readonly onRetry: () => void };
+type Props = { readonly scan: Scan; readonly batch: readonly Scan[]; readonly onSwitch: (id: string) => void; readonly onCancel: () => void; readonly onPeek: () => void; readonly onRetry: () => void };
 
 const EXPECTED_BLOCKS = 8;
 
@@ -27,7 +28,7 @@ const translateStep = (kind: ScanKind | 'unknown', found: number, lines: number,
   return '무슨 글인지 보고 묶는 중';
 };
 
-export const ProcessingScreen = ({ scan, onCancel, onPeek, onRetry }: Props) => {
+export const ProcessingScreen = ({ scan, batch, onSwitch, onCancel, onPeek, onRetry }: Props) => {
   const kind: ScanKind | 'unknown' = scan.kindKnown ? scan.kind : 'unknown';
   // 판정 전(unknown)에도 팁·진행 블록은 메뉴판 기준으로 보여준다(대부분 메뉴판). 아이콘만은 확정된 메뉴판에서만 라멘
   const assumeMenu = kind === 'menu' || kind === 'unknown';
@@ -50,6 +51,7 @@ export const ProcessingScreen = ({ scan, onCancel, onPeek, onRetry }: Props) => 
           <div className="dot muted" style={{ fontSize: 10 }}>{failed ? 'えらー' : title.jp}</div>
         </div>
       } />
+      <BatchStrip scans={batch} currentId={scan.id} onSwitch={onSwitch} />
 
       <div className="frame" style={{ boxShadow: '4px 4px 0 var(--ink)', overflow: 'hidden' }}>
         {scan.imageDataUrl ? (

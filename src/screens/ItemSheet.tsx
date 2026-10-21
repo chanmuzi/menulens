@@ -4,10 +4,10 @@ import { formatKrw, formatPrice, payableJpy } from '../lib/money';
 import { ItemImage } from '../components/ItemImage';
 import { QtyStepper } from '../components/QtyStepper';
 
-type Props = { readonly item: MenuItem; readonly rate: Rate | null; readonly mode: ImageMode; readonly onClose: () => void; /** null 이면 주문 기능 없음(안내문) */ readonly qty?: number | null; readonly onQty?: (qty: number) => void };
+type Props = { readonly item: MenuItem; readonly rate: Rate | null; readonly mode: ImageMode; readonly onClose: () => void; /** null 이면 주문 기능 없음(안내문) */ readonly qty?: number | null; readonly onQty?: (qty: number) => void; /** 설명이 아직 올 수 있는가(스캔 진행 중). 기록에서 연 미완 스캔은 false 라 깜빡이지 않는다 */ readonly pending?: boolean };
 
 /** 메뉴 하나의 상세 바텀시트. 주문할 때 보여줄 일본어 문구와 한글 발음을 함께 보여준다. */
-export const ItemSheet = ({ item, rate, mode, onClose, qty = null, onQty }: Props) => {
+export const ItemSheet = ({ item, rate, mode, onClose, qty = null, onQty, pending = false }: Props) => {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
@@ -35,7 +35,7 @@ export const ItemSheet = ({ item, rate, mode, onClose, qty = null, onQty }: Prop
             </div>
             {item.desc_ko
               ? <p style={{ margin: 0, fontSize: 13, color: 'var(--body)', lineHeight: 1.5 }}>{item.desc_ko}</p>
-              : !item.detailed && <p className="muted" style={{ margin: 0, fontSize: 13 }}>설명 쓰는 중<span className="blink">▌</span></p>}
+              : pending && !item.detailed && <p className="muted" style={{ margin: 0, fontSize: 13 }}>설명 쓰는 중<span className="blink">▌</span></p>}
           </div>
         </div>
         {item.tags.length > 0 && <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{item.tags.map((t) => <span key={t} className="chip">{t}</span>)}</div>}

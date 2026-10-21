@@ -58,9 +58,15 @@ export const loadScans = async (): Promise<readonly Scan[]> => {
   return mergedList();
 };
 
-export const saveScan = async (scan: Scan): Promise<readonly Scan[]> => {
-  try { await dbPutScan(scan); } catch { legacySave(scan); }
-  return mergedList();
+/** 저장은 순서대로 한다. 여러 장을 동시에 읽으면 완료가 겹치는데, 병렬로 저장하면 먼저 읽은 목록이 나중에 도착해 한 건이 빠져 보인다 */
+let saveQueue: Promise<unknown> = Promise.resolve();
+export const saveScan = (scan: Scan): Promise<readonly Scan[]> => {
+  const next = saveQueue.then(async () => {
+    try { await dbPutScan(scan); } catch { legacySave(scan); }
+    return mergedList();
+  });
+  saveQueue = next.catch(() => undefined);
+  return next;
 };
 
 export const removeScan = async (id: string): Promise<readonly Scan[]> => {

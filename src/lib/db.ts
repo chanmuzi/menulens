@@ -1,7 +1,7 @@
 /**
  * 스캔 기록용 IndexedDB 래퍼. localStorage(≈5MB) 와 달리 디스크 기준 쿼터라 사진이 든 기록을 수백 건 보관할 수 있다.
  * 객체 저장소 둘: `scans`(목록·결과, 사진 제외) 와 `images`(id → 사진 data URL). 목록을 읽을 때 수백 KB 짜리 사진을
- * 전부 메모리에 올리지 않기 위해 나눴다. 사진은 결과 화면을 열 때 `dbLoadImage` 로 한 건만 읽는다.
+ * 전부 메모리에 올리지 않기 위해 나눴다. 사진은 결과 화면을 열 때만 `dbLoadImage` 로 읽는다(여러 장 묶음이면 그 묶음 전부, 최대 BATCH_MAX 장).
  * 모든 함수는 실패 시 reject 한다. 폴백(localStorage)은 storage.ts 가 맡는다.
  */
 import type { Scan } from '../types';
