@@ -11,6 +11,11 @@ const CATEGORY_ALIAS: Record<string, Category> = {
   おつまみ: '안주', 前菜: '안주', 小菜: '안주', 一品: '안주', side: '안주',
   その他: '기타', 其他: '기타', 其它: '기타', other: '기타',
 };
+/** 묶음 이름 정리: 공백 정리, 「~메뉴」「~류」 꼬리 제거, 12자 제한. 빈 값은 null */
+export const normalizeGroup = (v: string): string | null => {
+  const t = v.replace(/\s+/g, ' ').trim().replace(/(메뉴|류)$/, '').trim().slice(0, 12);
+  return t.length > 0 ? t : null;
+};
 const normalizeCategory = (v: unknown): Category => {
   if (typeof v !== 'string') return '안주';
   const t = v.trim();
@@ -57,6 +62,7 @@ export const toMenuItem = (raw: unknown, key: string, words: readonly OcrWord[])
     price_jpy: price,
     price_tax_jpy: tax !== null && tax !== price ? tax : null,
     category,
+    group: normalizeGroup(str(r, 'group')),
     icon: category === '기타' ? 'dish' : resolveIcon(name_ja, str(r, 'icon') || undefined, category),
     bbox: boxOf(r, words),
     pron_ko: str(r, 'pron_ko'),

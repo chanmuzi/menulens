@@ -3,7 +3,7 @@ import type { ImageMode, Note, OcrWord, PickSource, Rate, Scan, ScanKind } from 
 import { hasFiles } from './lib/drop';
 import { analyzeImage, fetchRate } from './lib/api';
 import { prepareImage } from './lib/image';
-import { applyDetails, insertItem, newScanId, toMenuItem, toNote } from './lib/scan';
+import { applyDetails, insertItem, newScanId, normalizeGroup, toMenuItem, toNote } from './lib/scan';
 import { clearScans, getAccessCode, loadImageMode, loadRate, loadScanImage, loadScans, removeScan, saveImageMode, saveRate, saveScan, setAccessCode } from './lib/storage';
 import { useInstallHint } from './lib/platform';
 import { GateScreen } from './screens/GateScreen';
@@ -17,15 +17,15 @@ type Route = 'gate' | 'home' | 'history' | 'confirm' | 'processing' | 'result';
 
 const emptyScan = (): Scan => ({
   id: newScanId(), createdAt: Date.now(), imageDataUrl: '', width: 4, height: 3, kind: 'menu', kindKnown: false, shopName: null, sheetQuad: null,
-  words: [], rotation: 0, tilt: 0, notes: [], items: [], status: 'preparing', error: null,
+  words: [], rotation: 0, tilt: 0, notes: [], groups: null, items: [], status: 'preparing', error: null,
   timing: { ocrMs: null, firstItemMs: null, listMs: null, totalMs: null },
 });
 
 /** 이전 버전에 저장된 스캔도 열리도록 빠진 필드를 채운다 */
 const upgrade = (s: Scan): Scan => ({
   ...emptyScan(), ...s,
-  words: s.words ?? [], rotation: s.rotation ?? 0, tilt: s.tilt ?? 0, kind: s.kind ?? 'menu', kindKnown: true, sheetQuad: s.sheetQuad ?? null, notes: s.notes ?? [],
-  items: (s.items ?? []).map((it) => ({ ...it, price_tax_jpy: it.price_tax_jpy ?? null, pron_ko: it.pron_ko ?? '', desc_ko: it.desc_ko ?? '', tags: it.tags ?? [], photo_query: it.photo_query ?? it.name_ja, detailed: it.detailed ?? true })),
+  words: s.words ?? [], rotation: s.rotation ?? 0, tilt: s.tilt ?? 0, kind: s.kind ?? 'menu', kindKnown: true, sheetQuad: s.sheetQuad ?? null, notes: s.notes ?? [], groups: s.groups ?? null,
+  items: (s.items ?? []).map((it) => ({ ...it, price_tax_jpy: it.price_tax_jpy ?? null, group: it.group ?? null, pron_ko: it.pron_ko ?? '', desc_ko: it.desc_ko ?? '', tags: it.tags ?? [], photo_query: it.photo_query ?? it.name_ja, detailed: it.detailed ?? true })),
   timing: { ...emptyScan().timing, ...(s.timing ?? {}) },
 });
 
@@ -105,6 +105,7 @@ export const App = () => {
           update((s) => ({ ...s, kind: toKind(m.kind), kindKnown: true, shopName: m.shop_name, notes, status: s.items.length > 0 ? 'detailing' : s.status, timing: { ...s.timing, listMs } }));
         },
         onDetails: (details) => update((s) => ({ ...s, items: applyDetails(s.items, details) })),
+        onGroups: (groups) => update((s) => ({ ...s, groups: groups.flatMap((g) => { const name = normalizeGroup(g.name); return name ? [{ ...g, name }] : []; }) })),
       });
       if (ac.signal.aborted) return;
       const totalMs = Date.now() - t0;
