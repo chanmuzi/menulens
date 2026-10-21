@@ -16,17 +16,19 @@
    - `done` / `error`
 3. **클라이언트** `src/App.tsx` — 촬영·앨범 여러 장은 모음 화면(`ConfirmBatchScreen`, 더 찍기·순서)을 거친다. 촬영은 모음 화면에 있는 동안 첫 장을 미리 읽기 시작하고(`prewarm`), 「N장 분석하기」가 그 스캔을 이어받는다(`startScans` 가 batch 에 있는 스캔을 재사용, 빠진 것은 중단). 스캔마다 `AbortController` 를 따로 두어 결과 화면에서 사진을 더 붙여도(`addScans`) 나머지는 계속 돈다. 사진 묶음(`batch: Scan[]`, 한 장이면 하나)을 들고 `currentId` 의 스캔을 보여준다. 여러 장은 `runLimited`(`src/lib/batch.ts`, 동시 3)로 사진마다 `/api/analyze` 스트림을 따로 연다. `kind` 로 `scan.kind`·`kindKnown` 을 먼저 채우고, 항목을 읽기 순서로 끼워 넣고(`insertItem`), `meta` 가 오면 결과 화면으로 전환(`detailing`), `details` 로 카드를 채우고 `groups` 로 카드 묶음을 바꾼다. 완료 스캔은 IndexedDB(`src/lib/db.ts`, 목록 `scans` + 사진 `images` 두 저장소, 사진은 결과 화면을 열 때만 읽음)에 건수 제한 없이 저장하고, 홈에는 최근 5건·전체는 `HistoryScreen` 에서 본다. IndexedDB 를 못 쓰는 환경만 localStorage 5건 폴백.
 
+4. **`POST /api/chat`** (`api/chat.ts`, `api/_lib/chatPrompt.ts`) — 결과 화면 챗. 입력은 항목·문구 축약 JSON(`src/lib/chat.ts` `chatContext`) + 맥락 항목 + 질문 + 최근 대화 6턴 + (필요 시) 사진. NDJSON `delta`/`done{refs,sawImage}`/`need_image`/`error`. 모델이 `[사진 필요]` 만 내면 서버가 `need_image` 로 끝내고 클라이언트(`ChatPopup`)가 사진을 붙여 다시 묻는다. 답 끝 「참조: k,k」 줄은 서버가 떼어 `done.text`·`refs` 로 보내고, 스트리밍 중에는 클라이언트 `stripRefs` 가 임시로 뗀다.
+
 모델은 `api/_lib/prompt.ts` 의 `MODEL`(현재 `claude-sonnet-5-5`, Timely Router `/v1/messages`). 프롬프트 3종: `STAGE1_SYSTEM`(짧은 구조화), `STAGE2_SYSTEM`(설명), `IMAGE_SYSTEM`(폴백).
 
 ## 파일 지도
 
 ```
 api/            Vercel Functions (Node.js, Web 표준 fetch 핸들러, ESM — 상대 import 에 .js 확장자 필수)
-  analyze.ts    파이프라인 본체        auth.ts 초대 코드     rate.ts 환율     photo.ts Commons 사진(현재 미사용)
+  analyze.ts    파이프라인 본체        auth.ts 초대 코드     rate.ts 환율     chat.ts 메뉴판 챗     photo.ts Commons 사진(현재 미사용)
   _lib/         access(초대 코드) ocr chunk itemStream prompt kv(Redis) cache(설명 캐시) debugStore http
 src/
   App.tsx       화면 상태 머신 gate → home → processing → result
-  screens/      Gate Home Processing Result(Overlay / Cards / ItemSheet)
+  screens/      Gate Home ConfirmBatch Processing Result(Overlay / Cards / ItemSheet / ChatPopup)
   components/   MenuPhoto(회전·기울기·확대·핀치 줌) PixelIcon Segmented ProgressBlocks ItemImage TopBar
   lib/          image api scan(정규화·unionBox·applyDetails) icons(키워드 우선) kind(종류별 문구) sample(덮개 색·배경 조각) money storage photos savePhoto version
   styles/       global.css(토큰·픽셀 프레임·애니메이션) pixel-icons.css(생성: scripts/px_icons.py)
