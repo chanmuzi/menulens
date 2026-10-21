@@ -16,7 +16,7 @@
    - `done` / `error`
 3. **클라이언트** `src/App.tsx` — 촬영·앨범 여러 장은 모음 화면(`ConfirmBatchScreen`, 더 찍기·순서)을 거친다. 촬영은 모음 화면에 있는 동안 첫 장을 미리 읽기 시작하고(`prewarm`), 「N장 분석하기」가 그 스캔을 이어받는다(`startScans` 가 batch 에 있는 스캔을 재사용, 빠진 것은 중단). 스캔마다 `AbortController` 를 따로 두어 결과 화면에서 사진을 더 붙여도(`addScans`) 나머지는 계속 돈다. 사진 묶음(`batch: Scan[]`, 한 장이면 하나)을 들고 `currentId` 의 스캔을 보여준다. 여러 장은 `runLimited`(`src/lib/batch.ts`, 동시 3)로 사진마다 `/api/analyze` 스트림을 따로 연다. `kind` 로 `scan.kind`·`kindKnown` 을 먼저 채우고, 항목을 읽기 순서로 끼워 넣고(`insertItem`), `meta` 가 오면 결과 화면으로 전환(`detailing`), `details` 로 카드를 채우고 `groups` 로 카드 묶음을 바꾼다. 완료 스캔은 IndexedDB(`src/lib/db.ts`, 목록 `scans` + 사진 `images` 두 저장소, 사진은 결과 화면을 열 때만 읽음)에 건수 제한 없이 저장하고, 홈에는 최근 5건·전체는 `HistoryScreen` 에서 본다. IndexedDB 를 못 쓰는 환경만 localStorage 5건 폴백.
 
-4. **`POST /api/chat`** (`api/chat.ts`, `api/_lib/chatPrompt.ts`) — 결과 화면 챗. 입력은 항목·문구 축약 JSON(`src/lib/chat.ts` `chatContext`) + 맥락 항목 + 질문 + 최근 대화 6턴 + (필요 시) 사진. NDJSON `delta`/`done{refs,sawImage}`/`need_image`/`error`. 모델이 `[사진 필요]` 만 내면 서버가 `need_image` 로 끝내고 클라이언트(`ChatPopup`)가 사진을 붙여 다시 묻는다. 답 끝 「참조: k,k」 줄은 서버가 떼어 `done.text`·`refs` 로 보내고, 스트리밍 중에는 클라이언트 `stripRefs` 가 임시로 뗀다.
+4. **`POST /api/chat`** (`api/chat.ts`, `api/_lib/chatPrompt.ts` 의 종류별 `chatSystem(kind)`) — 결과 화면 챗. 입력은 항목·문구 축약 JSON(`src/lib/chat.ts` `chatContext`) + 맥락 항목 + 질문 + 최근 대화 6턴 + (필요 시) 사진. NDJSON `delta`/`done{refs,sawImage}`/`need_image`/`error`. 모델이 `[사진 필요]` 만 내면 서버가 `need_image` 로 끝내고 클라이언트(`ChatPopup`)가 사진을 붙여 다시 묻는다. 답 끝 「참조: k,k」 줄은 서버가 떼어 `done.text`·`refs` 로 보내고, 스트리밍 중에는 클라이언트 `stripRefs` 가 임시로 뗀다.
 
 모델은 `api/_lib/prompt.ts` 의 `MODEL`(현재 `claude-sonnet-5-5`, Timely Router `/v1/messages`). 프롬프트 3종: `STAGE1_SYSTEM`(짧은 구조화), `STAGE2_SYSTEM`(설명), `IMAGE_SYSTEM`(폴백).
 
@@ -30,7 +30,7 @@ src/
   App.tsx       화면 상태 머신 gate → home → processing → result
   screens/      Gate Home ConfirmBatch Processing Result(Overlay / Cards / ItemSheet / ChatPopup)
   components/   MenuPhoto(회전·기울기·확대·핀치 줌) PixelIcon Segmented ProgressBlocks ItemImage TopBar
-  lib/          image api scan(정규화·unionBox·applyDetails) icons(키워드 우선) kind(종류별 문구) history(기록 목록 묶음·제목·요약) sample(덮개 배경·글자색) money storage photos savePhoto(묶음 전부 공유) version
+  lib/          image api scan(정규화·unionBox·applyDetails) icons(키워드 우선) kind(종류별 문구) history(기록 목록 묶음·제목·요약) chatChips(챗 칩 문구 정책) sample(덮개 배경·글자색) money storage photos savePhoto(묶음 전부 공유) version
   styles/       global.css(토큰·픽셀 프레임·애니메이션) pixel-icons.css(생성: scripts/px_icons.py)
 scripts/bench/  벤치·진단 스크립트        docs/wiki/   이 위키        vite-plugin-dev-api.ts  로컬에서 api/ 실행
 ```
