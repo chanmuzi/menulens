@@ -16,6 +16,7 @@ import { KIND_LABEL } from '../lib/kind';
 import { BatchStrip } from '../components/BatchStrip';
 import { ChatFab } from '../components/ChatFab';
 import { ChatPopup } from './ChatPopup';
+import { chatTitle } from '../lib/chatChips';
 
 type View = 'overlay' | 'cards';
 type Props = { readonly scan: Scan; readonly batch: readonly Scan[]; readonly onSwitch: (id: string) => void; readonly onAdd: ((files: readonly File[]) => void) | undefined; readonly rate: Rate | null; readonly mode: ImageMode; readonly onMode: (m: ImageMode) => void; readonly onHome: () => void; /** 묶음 순서대로의 원본 파일(없으면 null → 화면용 사진으로 저장) */ readonly originalFiles: readonly (File | null)[] };
@@ -106,7 +107,7 @@ export const ResultScreen = ({ scan, batch, onSwitch, onAdd, rate, mode, onMode,
       {isMenu && <OrderBar lines={lines} rate={rate} onOpen={() => setOrderOpen(true)} />}
       {orderOpen && <OrderSheet lines={lines} rate={rate} onQty={setQty} onClear={() => { setOrder({}); setOrderOpen(false); }} onClose={() => setOrderOpen(false)} />}
       {note && <NoteSheet note={note} onClose={() => setNote(null)} />}
-      {!orderOpen && !note && !selected && <ChatFab buttonRef={fabRef} open={chatOpen} unread={unread} aboveBar={lines.length > 0} onClick={() => (chatOpen ? closeChat() : openChat())} />}
+      {!orderOpen && !note && !selected && <ChatFab title={chatTitle(scan.kind)} buttonRef={fabRef} open={chatOpen} unread={unread} aboveBar={lines.length > 0} onClick={() => (chatOpen ? closeChat() : openChat())} />}
       {chatMounted && <ChatPopup scan={scan} open={chatOpen} aboveBar={lines.length > 0} focus={chatFocus} onClearFocus={() => setChatFocus(null)} onOpenItem={(id) => { const it = scan.items.find((x) => x.id === id); if (it) { setChatOpen(false); setSelected(it); } }} onClose={closeChat} onAnswered={() => { if (!chatOpenRef.current) setUnread((n) => n + 1); }} />}
       {selected && <ItemSheet item={selected} rate={rate} mode={mode} onClose={() => setSelected(null)} qty={isMenu ? (order[selected.id] ?? 0) : null} onQty={(q) => setQty(selected.id, q)} pending={scan.status !== 'done' && scan.status !== 'error'} onAsk={openChat} />}
     </div>
