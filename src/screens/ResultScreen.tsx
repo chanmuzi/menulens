@@ -12,11 +12,10 @@ import { OrderBar } from '../components/OrderBar';
 import { OrderSheet } from './OrderSheet';
 import { NoteSheet } from './NoteSheet';
 import type { Note } from '../types';
+import { KIND_LABEL, KIND_SUB } from '../lib/kind';
 
 type View = 'overlay' | 'cards';
 type Props = { readonly scan: Scan; readonly rate: Rate | null; readonly mode: ImageMode; readonly onMode: (m: ImageMode) => void; readonly onHome: () => void; readonly originalFile: File | null };
-
-const KIND_LABEL = { menu: '메뉴판', sign: '안내문', other: '사진 속 글자' } as const;
 
 export const ResultScreen = ({ scan, rate, mode, onMode, onHome, originalFile }: Props) => {
   const isMenu = scan.kind === 'menu';
@@ -48,7 +47,7 @@ export const ResultScreen = ({ scan, rate, mode, onMode, onHome, originalFile }:
         ) : (
           <div style={{ textAlign: 'center' }}>
             <div className="dot" style={{ fontSize: 16 }}>{KIND_LABEL[scan.kind]}</div>
-            <div className="dot muted" style={{ fontSize: 11 }}>あんない</div>
+            <div className="dot muted" style={{ fontSize: 11 }}>{KIND_SUB[scan.kind]}</div>
           </div>
         )
       } right={

@@ -1,17 +1,37 @@
 import { useMemo } from 'react';
-import type { Scan } from '../types';
+import type { Scan, ScanKind } from '../types';
 import { TopBar } from '../components/TopBar';
 import { ProgressBlocks } from '../components/ProgressBlocks';
 import { PixelIcon } from '../components/PixelIcon';
 import { MenuPhoto } from '../components/MenuPhoto';
-import { pickTip } from '../data/tips';
+import { pickSignTip, pickTip } from '../data/tips';
+import { KIND_SUB } from '../lib/kind';
 
 type Props = { readonly scan: Scan; readonly onCancel: () => void; readonly onPeek: () => void; readonly onRetry: () => void };
 
 const EXPECTED_BLOCKS = 8;
 
+/** 종류 판정 전(null)·후의 상단 제목. 판정 전에는 메뉴판·안내문 어느 쪽도 전제하지 않는다 */
+const TITLE: Readonly<Record<ScanKind | 'unknown', { readonly ko: string; readonly jp: string }>> = {
+  unknown: { ko: '읽는 중', jp: 'よみこみちゅう' },
+  menu: { ko: '메뉴판 읽는 중', jp: KIND_SUB.menu },
+  sign: { ko: '안내문 읽는 중', jp: KIND_SUB.sign },
+  other: { ko: '글자 읽는 중', jp: KIND_SUB.other },
+};
+
+/** 3단계(묶어 번역) 문구. 메뉴판은 찾은 개수를, 안내문은 줄 단위 번역임을 알린다 */
+const translateStep = (kind: ScanKind | 'unknown', found: number, lines: number, done: boolean): string => {
+  if (kind === 'menu') return found === 0 ? '메뉴로 묶어 번역하는 중' : `메뉴 ${found}개 찾았어요`;
+  if (kind === 'sign') return done ? `안내문 ${lines}줄 번역했어요` : '안내문이에요 · 줄마다 번역하는 중';
+  if (kind === 'other') return done ? `${lines}줄 번역했어요` : '사진 속 글자예요 · 번역하는 중';
+  return '무슨 글인지 보고 묶는 중';
+};
+
 export const ProcessingScreen = ({ scan, onCancel, onPeek, onRetry }: Props) => {
-  const tip = useMemo(() => pickTip(scan.createdAt), [scan.createdAt]);
+  const kind: ScanKind | 'unknown' = scan.kindKnown ? scan.kind : 'unknown';
+  const isMenu = kind === 'menu' || kind === 'unknown';
+  // 안내문을 읽는 동안 이자카야 상식은 어울리지 않으니 표기 상식으로 바꾼다
+  const tip = useMemo(() => (isMenu ? pickTip(scan.createdAt) : pickSignTip(scan.createdAt)), [scan.createdAt, isMenu]);
   const found = scan.items.length;
   const reading = scan.status === 'reading';
   const streaming = scan.status === 'streaming';
@@ -19,13 +39,14 @@ export const ProcessingScreen = ({ scan, onCancel, onPeek, onRetry }: Props) => 
   const failed = scan.status === 'error';
   const recent = scan.items.slice(-4);
   const wordsRead = scan.words.length;
+  const title = TITLE[kind];
 
   return (
     <div className="app">
       <TopBar onBack={onCancel} backLabel="취소하고 홈으로" center={
         <div style={{ textAlign: 'center' }}>
-          <div className="dot" style={{ fontSize: 16 }}>{failed ? '읽지 못했어요' : '읽는 중'}</div>
-          <div className="dot muted" style={{ fontSize: 10 }}>{failed ? 'えらー' : 'よみこみちゅう'}</div>
+          <div className="dot" style={{ fontSize: 16 }}>{failed ? '읽지 못했어요' : title.ko}</div>
+          <div className="dot muted" style={{ fontSize: 10 }}>{failed ? 'えらー' : title.jp}</div>
         </div>
       } />
 
@@ -53,12 +74,13 @@ export const ProcessingScreen = ({ scan, onCancel, onPeek, onRetry }: Props) => 
         )}
       </div>
 
-      <ProgressBlocks filled={found} total={EXPECTED_BLOCKS} active={busy} />
+      {/* 안내문은 항목이 흐르지 않고 끝에 줄 목록이 한 번에 오므로 개수 대신 진행 중임만 보여준다 */}
+      <ProgressBlocks filled={isMenu ? found : 0} total={EXPECTED_BLOCKS} active={busy} label={isMenu ? `메뉴 ${found}개 찾음` : '번역하는 중'} />
 
       <div className="frame frame--double" style={{ display: 'flex', gap: 14, padding: '16px 16px 16px 14px' }}>
         <div style={{ position: 'relative', width: 64, height: 64, flexShrink: 0 }} aria-hidden="true">
-          <PixelIcon icon="ramen" size={4} />
-          {!failed && <>
+          <PixelIcon icon={isMenu ? 'ramen' : 'camera'} size={4} />
+          {!failed && isMenu && <>
             <div className="steam" style={{ left: 22, top: -2 }} />
             <div className="steam" style={{ left: 32, top: -6, animationDelay: '.5s' }} />
             <div className="steam" style={{ left: 42, top: -2, animationDelay: '1s' }} />
@@ -75,7 +97,7 @@ export const ProcessingScreen = ({ scan, onCancel, onPeek, onRetry }: Props) => 
                 {reading && <span className="blink">▌</span>}
               </Step>
               <Step active={streaming} done={scan.status === 'done'} todo={!streaming && scan.status !== 'done'}>
-                {found === 0 ? '메뉴로 묶어 번역하는 중' : `메뉴 ${found}개 찾았어요`}
+                {translateStep(kind, found, scan.notes.length, scan.status === 'done')}
                 {streaming && <span className="blink">▌</span>}
               </Step>
             </>

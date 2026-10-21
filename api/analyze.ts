@@ -11,6 +11,7 @@
  * 응답은 줄 단위 JSON (NDJSON):
  *   {"t":"ocr","width","height","words":[{id,t,box}],"rotation","tilt","ms","used"}
  *   {"t":"mode","mode":"ocr"|"image","chunks":N}
+ *   {"t":"kind","kind":"menu"|"sign"|"other"}               1단계 출력의 첫 키(kind)가 보이는 즉시 (한 번만)
  *   {"t":"item","key":"<묶음>:<순번>","item":{...}}         1단계 항목 하나 완성마다
  *   {"t":"meta","kind","shop_name","notes":[...]}            1단계 모든 묶음 완료 후
  *   {"t":"details","items":[{key,pron_ko,desc_ko,tags,photo_query}],"cached"?}  캐시 적중분 먼저, 이후 2단계 묶음마다
@@ -87,14 +88,23 @@ const readSse = async (body: ReadableStream<Uint8Array>, onText: (t: string) => 
 };
 
 /** 1단계 한 묶음: 스트리밍하며 항목을 즉시 전송하고, 끝나면 메타와 항목 목록을 돌려준다 */
-const runStage1Chunk = async (key: string, chunkIndex: number, words: readonly OcrWord[] | null, image: string, mediaType: string, send: (o: Line) => void): Promise<{ meta: Stage1 | null; items: Keyed[]; raw: RawItem[] }> => {
+const KIND_RE = /"kind"\s*:\s*"(menu|sign|other)"/;
+
+const runStage1Chunk = async (key: string, chunkIndex: number, words: readonly OcrWord[] | null, image: string, mediaType: string, send: (o: Line) => void, onKind: (k: string) => void): Promise<{ meta: Stage1 | null; items: Keyed[]; raw: RawItem[] }> => {
   const res = await fetch(UPSTREAM, { method: 'POST', headers: headers(key), body: JSON.stringify(stage1Body(words, image, mediaType)) });
   if (!res.ok || !res.body) throw new Error(`upstream ${res.status}: ${(await res.text().catch(() => '')).slice(0, 300)}`);
   const parser = createItemParser();
   const items: Keyed[] = [];
   const rawItems: RawItem[] = [];
+  let kindSeen = false;
   await readSse(res.body, (d) => {
-    for (const raw of parser.push(d)) {
+    const found = parser.push(d);
+    // kind 는 출력의 첫 키라 항목보다 먼저 온다. 보이는 즉시 알려 처리 중 화면이 종류에 맞는 문구를 쓰게 한다
+    if (!kindSeen) {
+      const m = KIND_RE.exec(parser.text());
+      if (m) { kindSeen = true; onKind(m[1]!); }
+    }
+    for (const raw of found) {
       if (typeof raw !== 'object' || raw === null) continue;
       const it = raw as RawItem;
       const k = `${chunkIndex}:${items.length}`;
@@ -167,7 +177,9 @@ const handler = async (req: Request): Promise<Response> => {
         const chunks: Array<readonly OcrWord[] | null> = ocr ? chunkWords(ocr.words) : [null];
         send({ t: 'mode', mode: ocr ? 'ocr' : 'image', chunks: chunks.length });
 
-        const results = await Promise.all(chunks.map((c, i) => runStage1Chunk(timelyKey, i, c, image, mediaType, send)));
+        // meta.kind 는 앞 묶음의 판정을 쓰므로 처리 중 kind 도 0번 묶음의 것만 보낸다 (묶음은 동시에 시작하니 늦어지지 않는다)
+        const onKind = (k: string) => send({ t: 'kind', kind: k });
+        const results = await Promise.all(chunks.map((c, i) => runStage1Chunk(timelyKey, i, c, image, mediaType, send, i === 0 ? onKind : () => {})));
         const first = results.find((r) => r.meta)?.meta ?? null;
         const notes = results.flatMap((r) => (Array.isArray(r.meta?.notes) ? r.meta!.notes! : []));
         send({ t: 'meta', kind: first?.kind ?? 'menu', shop_name: first?.shop_name ?? null, notes });

@@ -18,7 +18,7 @@ type Props = {
   readonly onRemove: (id: string) => void;
 };
 
-const HINT_DEFAULT = '메뉴판 전체가 들어오게 찍어 주세요';
+const HINT_DEFAULT = '글자가 전부 들어오게 찍어 주세요';
 const HINT_BY_REASON = {
   empty: '클립보드에 이미지가 없어요',
   denied: '붙여넣기가 허용되지 않았어요 · 앨범에서 골라 주세요',
@@ -110,8 +110,8 @@ export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRe
       </header>
 
       <div>
-        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 600, lineHeight: 1.3 }}>메뉴판을 찍으면<br />바로 읽어드려요</h1>
-        <p className="muted" style={{ margin: '6px 0 0', fontSize: 14 }}>번역 · 요리 설명 · 대표 이미지까지 한 번에</p>
+        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 600, lineHeight: 1.3 }}>메뉴판이나 안내문을 찍으면<br />바로 읽어드려요</h1>
+        <p className="muted" style={{ margin: '6px 0 0', fontSize: 14 }}>메뉴판은 요리 설명·주문서까지, 안내문은 줄마다 번역</p>
       </div>
 
       <div className="corners frame" style={{ background: dragging ? 'var(--paper-2)' : 'var(--paper-dark)', outline: dragging ? '3px dashed var(--vermilion)' : 'none', outlineOffset: -8, boxShadow: '4px 4px 0 var(--ink)', padding: 18, minHeight: 300, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', gap: 18, overflow: 'hidden' }}>
