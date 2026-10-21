@@ -71,11 +71,13 @@ export const saveScan = (scan: Scan): Promise<readonly Scan[]> => {
 
 /** 스캔에 딸린 localStorage 키(주문·대화)를 함께 지운다 */
 const removeAttached = (id: string): void => { remove(`menulens.order.${id}`); remove(`ml.chat.${id}`); };
-export const removeScan = async (id: string): Promise<readonly Scan[]> => {
-  removeAttached(id);
-  await dbDeleteScan(id).catch(() => { /* 아래 localStorage 쪽도 지운다 */ });
+/** 한 건이든 묶음이든 여기로. 여러 건을 지우고 목록은 한 번만 다시 읽는다 */
+export const removeScans = async (ids: readonly string[]): Promise<readonly Scan[]> => {
+  ids.forEach(removeAttached);
+  await Promise.all(ids.map((id) => dbDeleteScan(id).catch(() => { /* 아래 localStorage 쪽도 지운다 */ })));
+  const drop = new Set(ids);
   const legacy = legacyLoad();
-  if (legacy.some((s) => s.id === id)) write(KEY.scans, legacy.filter((s) => s.id !== id));
+  if (legacy.some((s) => drop.has(s.id))) write(KEY.scans, legacy.filter((s) => !drop.has(s.id)));
   return mergedList();
 };
 
