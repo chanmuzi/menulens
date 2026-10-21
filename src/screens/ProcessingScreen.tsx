@@ -6,19 +6,13 @@ import { PixelIcon } from '../components/PixelIcon';
 import { MenuPhoto } from '../components/MenuPhoto';
 import { BatchStrip } from '../components/BatchStrip';
 import { pickSignTip, pickTip } from '../data/tips';
-import { KIND_SUB } from '../lib/kind';
 
 type Props = { readonly scan: Scan; readonly batch: readonly Scan[]; readonly onSwitch: (id: string) => void; readonly onAdd: ((files: readonly File[]) => void) | undefined; readonly onCancel: () => void; readonly onPeek: () => void; readonly onRetry: () => void };
 
 const EXPECTED_BLOCKS = 8;
 
-/** 종류 판정 전(null)·후의 상단 제목. 판정 전에는 메뉴판·안내문 어느 쪽도 전제하지 않는다 */
-const TITLE: Readonly<Record<ScanKind | 'unknown', { readonly ko: string; readonly jp: string }>> = {
-  unknown: { ko: '읽는 중', jp: 'よみこみちゅう' },
-  menu: { ko: '메뉴판 읽는 중', jp: KIND_SUB.menu },
-  sign: { ko: '안내문 읽는 중', jp: KIND_SUB.sign },
-  other: { ko: '글자 읽는 중', jp: KIND_SUB.other },
-};
+/** 종류 판정 전(unknown)·후의 상단 제목. 판정 전에는 메뉴판·안내문 어느 쪽도 전제하지 않는다 */
+const TITLE: Readonly<Record<ScanKind | 'unknown', string>> = { unknown: '읽는 중', menu: '메뉴판 읽는 중', sign: '안내문 읽는 중', other: '글자 읽는 중' };
 
 /** 3단계(묶어 번역) 문구. 메뉴판은 찾은 개수를, 안내문은 줄 단위 번역임을 알린다 */
 const translateStep = (kind: ScanKind | 'unknown', found: number, lines: number, done: boolean): string => {
@@ -46,10 +40,7 @@ export const ProcessingScreen = ({ scan, batch, onSwitch, onAdd, onCancel, onPee
   return (
     <div className="app">
       <TopBar onBack={onCancel} backLabel="취소하고 홈으로" center={
-        <div style={{ textAlign: 'center' }}>
-          <div className="dot" style={{ fontSize: 16 }}>{failed ? '읽지 못했어요' : title.ko}</div>
-          <div className="dot muted" style={{ fontSize: 10 }}>{failed ? 'えらー' : title.jp}</div>
-        </div>
+        <div className="dot" style={{ fontSize: 16 }}>{failed ? '읽지 못했어요' : title}</div>
       } />
       <BatchStrip scans={batch} currentId={scan.id} onSwitch={onSwitch} onAdd={onAdd} />
 
@@ -110,10 +101,7 @@ export const ProcessingScreen = ({ scan, batch, onSwitch, onAdd, onCancel, onPee
       </div>
 
       <div style={{ background: 'var(--paper-dark)', border: '2px solid var(--ink)', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <span className="dot" style={{ fontSize: 12, color: 'var(--vermilion)' }}>豆知識</span>
-          <span style={{ fontSize: 12, fontWeight: 600 }}>기다리는 동안 한 가지</span>
-        </div>
+        <div className="dot" style={{ fontSize: 12, color: 'var(--vermilion)' }}>기다리는 동안 한 가지</div>
         <p style={{ margin: 0, fontSize: 13, lineHeight: 1.55, color: '#3E352D' }}>{tip}</p>
       </div>
 

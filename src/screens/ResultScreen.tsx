@@ -12,7 +12,7 @@ import { OrderBar } from '../components/OrderBar';
 import { OrderSheet } from './OrderSheet';
 import { NoteSheet } from './NoteSheet';
 import type { Note } from '../types';
-import { KIND_LABEL, KIND_SUB } from '../lib/kind';
+import { KIND_LABEL } from '../lib/kind';
 import { BatchStrip } from '../components/BatchStrip';
 import { ChatFab } from '../components/ChatFab';
 import { ChatPopup } from './ChatPopup';
@@ -62,10 +62,7 @@ export const ResultScreen = ({ scan, batch, onSwitch, onAdd, rate, mode, onMode,
             <span aria-hidden="true" className="dot" style={{ position: 'absolute', top: -9, right: -10, fontSize: 8, padding: '1px 4px', background: 'var(--vermilion)', color: 'var(--paper-2)', border: '1px solid var(--ink)', lineHeight: 1.2, letterSpacing: '0.1em' }}>BETA</span>
           </div>
         ) : (
-          <div style={{ textAlign: 'center' }}>
-            <div className="dot" style={{ fontSize: 16 }}>{KIND_LABEL[scan.kind]}</div>
-            <div className="dot muted" style={{ fontSize: 11 }}>{KIND_SUB[scan.kind]}</div>
-          </div>
+          <div className="dot" style={{ fontSize: 16 }}>{KIND_LABEL[scan.kind]}</div>
         )
       } right={
         <button type="button" className="btn btn--icon" aria-label={batch.length > 1 ? `사진 ${batch.length}장을 기기에 저장` : '사진을 기기에 저장'} title="사진 저장" onClick={() => {

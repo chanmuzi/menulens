@@ -29,7 +29,6 @@ export const GateScreen = ({ onEnter }: Props) => {
           <PixelIcon icon="camera" size={3} />
         </div>
         <div className="dot" style={{ fontSize: 22 }}>MENULENS</div>
-        <div className="dot muted" style={{ fontSize: 12 }}>めにゅーれんず</div>
       </div>
       <form onSubmit={submit} className="frame frame--double" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
         <label htmlFor="code" style={{ fontSize: 14, fontWeight: 600 }}>초대 코드</label>
