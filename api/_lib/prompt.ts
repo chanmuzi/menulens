@@ -4,12 +4,13 @@ export const ICON_KEYS = [
   'edamame', 'eggplant', 'mushroom', 'potato', 'pepper', 'corn', 'salad', 'cheese',
   'rice', 'curry', 'soup', 'dessert', 'drink', 'dish',
   'coffee', 'juice', 'soda', 'cake', 'icecream', 'bread',
+  'wine', 'cup', 'mug', 'sandwich', 'hotdog',
 ] as const;
 
 /** 1단계(구조화·번역)와 2단계(설명) 모두 Sonnet. 벤치마크: docs/wiki/benchmarks.md */
 export const MODEL = 'claude-sonnet-5-5';
 
-const ICON_RULE = `"icon": ${JSON.stringify(ICON_KEYS)} 중 하나. 반드시 이 목록의 단어만. 주재료 기준 (돼지→pork, 닭→chicken, 소·소혀·곱창→meat, 새우→shrimp, 오징어·문어→squid, 생선·조개→fish, 가지→eggplant, 버섯→mushroom, 메추리알→egg, 치즈→cheese, 채소→salad, 커피류→coffee, 차→drink, 과일 주스→juice, 탄산→soda, 케이크·푸딩·파르페→cake, 아이스크림→icecream, 경단·떡→dessert, 빵·샌드위치→bread, 꼬치구이·꼬치튀김→yakitori, 음식이 아니면→dish)`;
+const ICON_RULE = `"icon": ${JSON.stringify(ICON_KEYS)} 중 하나. 반드시 이 목록의 단어만. 주재료 기준 (돼지→pork, 닭→chicken, 소·소혀·곱창→meat, 새우→shrimp, 오징어·문어→squid, 생선·조개→fish, 가지→eggplant, 버섯→mushroom, 메추리알→egg, 치즈→cheese, 채소→salad, 커피·라테→coffee, 차·말차라테→drink, 와인·스파클링·상그리아→wine, 사케·소주·매실주·막걸리→sake, 타피오카·밀크티·스무디·프라페→cup, 코코아·우유→mug, 과일 주스→juice, 탄산→soda, 케이크·푸딩·파르페→cake, 아이스크림→icecream, 경단·떡→dessert, 샌드위치→sandwich, 핫도그→hotdog, 빵·토스트·버거→bread, 꼬치구이·꼬치튀김→yakitori, 음식이 아니면→dish)`;
 
 /**
  * 1단계: OCR 단어 목록만 받아 항목으로 묶고 이름·가격만 번역한다. 출력을 짧게 유지해 속도를 낸다.
@@ -26,6 +27,7 @@ JSON 객체 하나만 출력하세요. 설명 문장, 코드펜스, 주석 금�
  "items": [{"name_ja": "원문", "name_ko": "짧은 한국어 이름 (10자 이내, 괄호 설명 금지. 예: 가라아게, 모둠 회, 생맥주)", "price_jpy": 정수|null, "price_tax_jpy": 정수|null, "category": "안주"|"식사"|"음료"|"디저트"|"기타", ${ICON_RULE}, "word_ids": [이 항목을 이루는 단어 id 들]}]}
 
 - kind: 음식 메뉴판이면 menu, 안내판·간판·표지판이면 sign, 그 밖이면 other.
+- category 는 반드시 한국어 다섯 값(안주·식사·음료·디저트·기타) 중 하나. 메뉴판이 중국어·영어여도 원문 분류명을 그대로 쓰지 마세요.
 - notes: 제목, 안내 문구(税込, おすすめ, 営業時間 등), 설명문처럼 메뉴 항목이 아닌 텍스트. 없으면 [].
 - kind 가 sign·other 이면 items 는 반드시 [] 로 비우고, 사진 속 **글줄 한 줄이 note 하나**가 되게 notes 에 넣으세요. word_ids 는 그 줄의 단어만. **일본어 줄만** 넣고 영어·한국어·중국어 줄은 빼세요(같은 뜻의 번역 줄이면 일본어 줄만). text_ko 는 자연스러운 한국어 문장.
 - 한자 숫자(五八〇/千二百)는 아라비아 숫자로. 읽은 순서(세로쓰기는 오른쪽에서 왼쪽)대로 나열하세요.

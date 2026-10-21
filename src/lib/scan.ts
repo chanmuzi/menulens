@@ -3,6 +3,20 @@ import type { Box, Category, MenuItem, Note, OcrWord, Point, Quad } from '../typ
 import { resolveIcon } from './icons';
 
 const CATEGORIES: readonly Category[] = ['안주', '식사', '음료', '디저트', '기타'];
+/** 모델이 중국어·일본어 메뉴에서 「飲料」「食事」처럼 원문 표기를 그대로 내는 경우가 있어 한국어 다섯 값으로 되돌린다 */
+const CATEGORY_ALIAS: Record<string, Category> = {
+  飲料: '음료', 飲み物: '음료', ドリンク: '음료', 饮料: '음료', 酒水: '음료', drink: '음료', drinks: '음료',
+  食事: '식사', 主食: '식사', 主菜: '식사', ご飯: '식사', 面食: '식사', meal: '식사', food: '식사',
+  デザート: '디저트', 甜点: '디저트', 甜品: '디저트', dessert: '디저트',
+  おつまみ: '안주', 前菜: '안주', 小菜: '안주', 一品: '안주', side: '안주',
+  その他: '기타', 其他: '기타', 其它: '기타', other: '기타',
+};
+const normalizeCategory = (v: unknown): Category => {
+  if (typeof v !== 'string') return '안주';
+  const t = v.trim();
+  if (CATEGORIES.includes(t as Category)) return t as Category;
+  return CATEGORY_ALIAS[t] ?? CATEGORY_ALIAS[t.toLowerCase()] ?? '안주';
+};
 
 const clamp = (n: unknown): number => Math.max(0, Math.min(1000, Number.isFinite(Number(n)) ? Number(n) : 0));
 
@@ -32,7 +46,7 @@ export const toMenuItem = (raw: unknown, key: string, words: readonly OcrWord[])
   const r = raw as Record<string, unknown>;
   const name_ja = str(r, 'name_ja');
   if (!name_ja) return null;
-  const category = CATEGORIES.includes(r.category as Category) ? (r.category as Category) : '안주';
+  const category = normalizeCategory(r.category);
   const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? Math.round(v) : null);
   const price = num(r.price_jpy);
   const tax = num(r.price_tax_jpy);
