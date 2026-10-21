@@ -13,6 +13,7 @@ def rules_of(block: str):
         out.setdefault(icon, []).append(pat.replace('|', ' · '))
     return out
 
+UI_ONLY = {'bubble'}  # 메뉴 매칭에 쓰지 않는 화면용 아이콘
 drink = rules_of('DRINK_RULES')
 food = rules_of('FOOD_RULES')
 drink_icons = re.search(r"const DRINK_ICONS = new Set\(\[(.*?)\]\)", ts, re.S).group(1)
@@ -20,7 +21,7 @@ drink_set = set(re.findall(r"'([a-z]+)'", drink_icons))
 generic = set(re.findall(r"'([a-z]+)'", re.search(r"const GENERIC = new Set\(\[(.*?)\]\)", ts, re.S).group(1)))
 
 print('# 도트 아이콘 목록 (자동 생성: `python3 scripts/icons_wiki.py > docs/wiki/icons.md`)\n')
-print(f'보유 {len(SPRITES)}종. 격자는 `scripts/px_icons.py`, 규칙은 `src/lib/icons.ts`, 제작 규칙은 `.claude/skills/pixel-icon/SKILL.md`.\n')
+print(f'보유 {len(SPRITES)}종(화면 전용 {len(UI_ONLY)}종 포함: ' + ', '.join(sorted(UI_ONLY)) + '). 격자는 `scripts/px_icons.py`, 규칙은 `src/lib/icons.ts`, 제작 규칙은 `.claude/skills/pixel-icon/SKILL.md`.\n')
 print('## 음료 규칙 (`DRINK_RULES`, 앞 규칙 우선)\n')
 print('음료 칸이거나 모델이 음료 아이콘(`DRINK_ICONS`)을 골랐을 때만 본다. 음식 규칙은 보지 않는다.\n')
 print('| 이름 | 키워드 |\n|---|---|')
@@ -30,7 +31,7 @@ for name in SPRITES:
 print('\n## 음식 규칙 (`FOOD_RULES`, 앞 규칙 우선)\n')
 print('| 이름 | 키워드 |\n|---|---|')
 for name in SPRITES:
-    if name not in drink_set:
+    if name not in drink_set and name not in UI_ONLY:
         print(f"| `{name}` | {' / '.join(food.get(name, [])) or '(모델 선택·별칭·자리표시 전용)'} |")
 print('\n## 매칭 순서\n')
 print('0. 음료 판정: 카테고리가 음료이거나 모델이 `DRINK_ICONS`(' + ', '.join(sorted(drink_set)) + ') 중 하나를 골랐으면 `DRINK_RULES` 만, 아니면 `FOOD_RULES` 만 본다.')
