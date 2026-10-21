@@ -86,11 +86,12 @@ export const ResultScreen = ({ scan, batch, onSwitch, onAdd, rate, mode, onMode,
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div className="jp" style={{ fontSize: 20, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{scan.shopName ?? (isMenu ? KIND_LABEL[scan.kind] : (scan.notes[0]?.text_ko ?? KIND_LABEL[scan.kind]))}</div>
-          <div className="muted small">
-            {isMenu ? <>{scan.items.length}개{summary && ` · ${summary}`}{formatRateLine(rate) && ` · ${formatRateLine(rate)}`}</> : <>{scan.notes.length}줄 번역 · 일본어만</>}
-            {streaming && <span className="blink"> ▌</span>}
-            {detailing && <span> · 설명 쓰는 중<span className="blink">▌</span></span>}
-          </div>
+          {/* 안내문·기타는 「N줄 번역 · 일본어만」 같은 부제를 두지 않는다(불필요하다는 피드백) */}
+          {(isMenu || streaming || detailing) && <div className="muted small">
+            {isMenu && <>{scan.items.length}개{summary && ` · ${summary}`}{formatRateLine(rate) && ` · ${formatRateLine(rate)}`}</>}
+            {streaming && <span className="blink">{isMenu ? ' ' : ''}▌</span>}
+            {detailing && <span>{isMenu ? ' · ' : ''}설명 쓰는 중<span className="blink">▌</span></span>}
+          </div>}
         </div>
         {overlayShown && (
           <div className="seg" style={{ flexShrink: 0 }}>
