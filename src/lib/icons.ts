@@ -6,34 +6,54 @@ export const ICON_KEYS = new Set([
   'edamame', 'eggplant', 'mushroom', 'potato', 'pepper', 'corn', 'salad', 'cheese',
   'rice', 'curry', 'soup', 'dessert', 'drink', 'dish',
   'coffee', 'juice', 'soda', 'cake', 'icecream', 'bread',
+  'wine', 'cup', 'mug', 'sandwich', 'hotdog',
 ]);
 
+/** 음료 아이콘. 음료 칸이거나 모델이 이 중 하나를 골랐으면 음료 규칙으로만 판정한다 (アイス = 차가운, 추가 재료는 무시) */
+const DRINK_ICONS = new Set(['beer', 'highball', 'sake', 'wine', 'coffee', 'drink', 'juice', 'soda', 'cup', 'mug']);
+
+type Rule = readonly [RegExp, string];
+
 /**
- * 원문 키워드 → 아이콘. 모델의 선택보다 우선한다 (같은 재료는 항상 같은 그림이 나오도록).
- * 앞에 있는 규칙이 이긴다: 구체적인 요리명을 재료명보다 먼저 둔다.
+ * 음료 이름 → 아이콘. 앞 규칙이 이긴다.
+ * 원칙: 술 종류 → 차 라테 → 커피 → 타피오카·스무디(컵) → 코코아·우유(머그) → 주스 → 탄산 → 차.
  */
-const KEYWORDS: ReadonlyArray<readonly [RegExp, string]> = [
+const DRINK_RULES: ReadonlyArray<Rule> = [
+  [/ビール|生中|生ビ|黒ビール|クラフトビア|ドラフト/, 'beer'],
+  [/ハイボール|サワー|チューハイ|酎ハイ|カクテル|ウイスキー|ウィスキー|バーボン|ブランデー|コニャック|ジン(?!ジャー)|ウォッカ|テキーラ/, 'highball'],
+  [/ワイン|スパークリング|スプマンテ|シャンパン|シャンパーニュ|サングリア|ロゼ|ブラン|ルージュ|ロッソ|ビアンコ|プロセッコ|カヴァ|\(赤\)|\(白\)|赤[・·]白/, 'wine'],
+  [/日本酒|冷酒|熱燗|焼酎|梅酒|マッコリ|泡盛|にごり|水割|お湯割|ソーダ割|ウーロン割|ロック\)|\(ロック|(?<!甘)酒/, 'sake'], // 甘酒 는 술이 아니라 머그
+  [/抹茶|ほうじ茶|チャイ/, 'drink'], // 抹茶ラテ 는 커피가 아니라 차
+  [/コーヒー|珈琲|エスプレッソ|カフェ|カプチーノ|モカ|アメリカーノ|オレ(?!ンジ)|ブレンド|ラテ/, 'coffee'], // オレンジ 의 オレ 제외
+  [/タピオカ|奶茶|ミルクティー|フラッペ|フローズン|フリージー|スムージー|シェイク|フロート/, 'cup'],
+  [/ココア|ホットチョコ|チョコラテ|ミルク|牛乳|甘酒|ゆず茶|しょうが湯|生姜湯/, 'mug'],
+  [/コーラ|ソーダ|サイダー|ラムネ|ジンジャーエール|炭酸|スプライト|カルピス|ペプシ|トニック/, 'soda'],
+  [/ジュース|オレンジ|りんご|リンゴ|林檎|グレープ|蜜柑|みかん|レモネード|マンゴー|バナナ|いちご|イチゴ|苺|メロン|ピーチ|ぶどう|ブドウ|果汁|搾り|トマト/, 'juice'],
+  [/アイスクリーム|ソフトクリーム|かき氷/, 'icecream'],
+  [/茶|ティー|ウーロン|ジャスミン|ルイボス|ハーブ|お水|ミネラルウォーター|^水$/, 'drink'],
+];
+
+/**
+ * 음식 이름 → 아이콘. 앞 규칙이 이긴다: 요리명(꼬치·면·샐러드·국) → 주재료 → 채소 → 뭉뚱그린 것.
+ */
+const FOOD_RULES: ReadonlyArray<Rule> = [
   [/ラーメン|らーめん|拉麺|つけ麺|中華そば/, 'ramen'],
-  [/うどん|饂飩|そば|蕎麦|焼きそば|焼そば|パスタ/, 'udon'],
+  [/うどん|饂飩|そば|蕎麦|焼きそば|焼そば|パスタ|にゅうめん|素麺|そうめん/, 'udon'],
   [/餃子|ぎょうざ|ギョーザ|焼売|シュウマイ/, 'gyoza'],
-  [/唐揚|から揚|からあげ|竜田/, 'karaage'],
+  [/唐揚|から揚|からあげ|カラアゲ|竜田/, 'karaage'],
   [/焼鳥|焼き鳥|やきとり|つくね|ねぎま|串カツ|串揚|串焼|串/, 'yakitori'],
   [/刺身|さしみ|造り/, 'sashimi'],
   [/寿司|鮨|すし|握り|巻き/, 'sushi'],
   [/だし巻|出汁巻|玉子焼|卵焼|オムレツ|オムライス/, 'tamago'],
-  [/ハイボール|サワー|チューハイ|酎ハイ|レモンサワー|カクテル|ウイスキー/, 'highball'],
-  [/ビール|生中|生ビ|ビア/, 'beer'],
-  [/日本酒|冷酒|熱燗|焼酎|梅酒|ワイン|酒/, 'sake'],
-  [/コーヒー|珈琲|エスプレッソ|カフェラテ|ラテ|カプチーノ|カフェモカ|アメリカーノ|カフェオレ/, 'coffee'],
-  [/ジュース|オレンジ|りんご|リンゴ|グレープフルーツ|スムージー|レモネード/, 'juice'],
-  [/コーラ|ソーダ|サイダー|ラムネ|ジンジャーエール|炭酸|スプライト/, 'soda'],
-  // 「茶」 한 글자는 브랜드명(茶美豚 등)에도 들어가므로 차 이름 단위로만 본다
-  [/お茶|緑茶|煎茶|ほうじ茶|麦茶|玄米茶|烏龍茶|ウーロン|紅茶|ジャスミン茶|抹茶ラテ|ドリンク|お水|ミネラルウォーター/, 'drink'],
-  [/アイス|ソフトクリーム|ジェラート|かき氷/, 'icecream'],
-  [/ケーキ|タルト|パフェ|プリン|シュー|ティラミス|ワッフル|パンケーキ|クレープ/, 'cake'],
-  [/団子|だんご|餅|もち|大福|わらび|ぜんざい|あんみつ|デザート|甘味|抹茶/, 'dessert'],
-  [/パン|トースト|サンド|バーガー|ホットドッグ/, 'bread'],
+  [/サンド/, 'sandwich'],
+  [/ドッグ/, 'hotdog'],
+  [/パン|トースト|バーガー|ベーグル|クロワッサン|マフィン/, 'bread'],
+  [/サラダ/, 'salad'],
+  [/味噌汁|みそ汁|スープ|鍋|おでん|雑炊|お吸い物|豚汁/, 'soup'],
   [/(^|[^ス])カレー/, 'curry'], // エスカレーター 의 カレー 제외
+  [/アイス|ソフトクリーム|ジェラート|かき氷/, 'icecream'],
+  [/ケーキ|タルト|パフェ|プリン|シュー|ティラミス|ワッフル|クレープ/, 'cake'],
+  [/団子|だんご|餅|もち|大福|わらび|ぜんざい|あんみつ|デザート|甘味|抹茶/, 'dessert'],
   [/枝豆|えだまめ/, 'edamame'],
   [/豆腐|冷奴|湯豆腐|厚揚げ|揚げ出し/, 'tofu'],
   [/海老|えび|エビ|海老天/, 'shrimp'],
@@ -42,16 +62,17 @@ const KEYWORDS: ReadonlyArray<readonly [RegExp, string]> = [
   [/牛|ビーフ|ステーキ|ハラミ|カルビ|タン|ホルモン|もつ|レバー/, 'meat'],
   [/ロース|バラ|カツ/, 'pork'],
   [/鶏|とり|チキン|もも|手羽|ささみ|軟骨|砂肝/, 'chicken'],
+  // ブリ 는 ブリュット(와인)·ブリオッシュ 안에도 들어가므로 뒤 글자를 본다
+  [/魚|鮭|サーモン|鯖|さば|サバ|さんま|秋刀魚|鯛|あじ|アジ|ぶり|ブリ(?![ュオッ])|まぐろ|マグロ|貝|牡蠣|カキ|ホタテ|あさり|しじみ|にしん|ツナ/, 'fish'],
   [/うずら|卵|玉子|たまご|エッグ/, 'egg'],
-  [/チーズ|ピザ|グラタン/, 'cheese'],
+  [/チーズ|ピザ|ビザ|グラタン|カルツォーネ/, 'cheese'],
   [/茄子|なす|ナス/, 'eggplant'],
   [/椎茸|しいたけ|きのこ|キノコ|エリンギ|舞茸|しめじ/, 'mushroom'],
   [/じゃが|ジャガ|ポテト|芋|いも|コロッケ|フライドポテト/, 'potato'],
   [/ししとう|唐辛子|ピーマン|パプリカ/, 'pepper'],
   [/とうもろこし|コーン/, 'corn'],
-  [/魚|鮭|サーモン|鯖|さば|サバ|さんま|秋刀魚|鯛|あじ|アジ|ぶり|ブリ|まぐろ|マグロ|貝|牡蠣|カキ|ホタテ|あさり|しじみ/, 'fish'],
-  [/サラダ|野菜|キャベツ|漬物|お新香|キムチ|きゅうり|トマト|アスパラ|玉ねぎ|ねぎ|もやし|ほうれん|生姜|しょうが|海藻|わかめ/, 'salad'],
-  [/味噌汁|みそ汁|スープ|鍋|おでん|汁|雑炊/, 'soup'],
+  [/野菜|キャベツ|漬物|つけもの|つけ物|お新香|キムチ|きゅうり|キュウリ|レタス|オクラ|トマト|アスパラ|玉ねぎ|ねぎ|もやし|ほうれん|生姜|しょうが|海藻|わかめ/, 'salad'],
+  [/汁/, 'soup'],
   [/丼|ご飯|ごはん|ライス|おにぎり|お握り|チャーハン|炒飯|定食|弁当/, 'rice'],
 ];
 
@@ -60,31 +81,44 @@ const ALIASES: Record<string, string> = {
   beef: 'meat', steak: 'meat', lamb: 'meat', yakiniku: 'meat', offal: 'meat', bacon: 'pork', ham: 'pork', sausage: 'pork',
   prawn: 'shrimp', octopus: 'squid', seafood: 'fish', salmon: 'fish', tuna: 'sashimi', omelette: 'tamago', omelet: 'tamago', quail: 'egg',
   vegetable: 'salad', vegetables: 'salad', pickles: 'salad', kimchi: 'salad', noodle: 'ramen', noodles: 'ramen', soba: 'udon',
-  onigiri: 'rice', donburi: 'rice', bowl: 'rice', miso: 'soup', stew: 'soup', hotpot: 'soup', wine: 'sake', shochu: 'sake',
-  whisky: 'highball', cocktail: 'highball', tea: 'drink', water: 'drink', latte: 'coffee', espresso: 'coffee', cola: 'soda', lemonade: 'juice', smoothie: 'juice',
-  mochi: 'dessert', dango: 'dessert', fruit: 'juice', pudding: 'cake', parfait: 'cake', toast: 'bread', sandwich: 'bread', burger: 'bread', pizza: 'cheese', fries: 'potato', croquette: 'potato',
+  onigiri: 'rice', donburi: 'rice', bowl: 'rice', miso: 'soup', stew: 'soup', hotpot: 'soup', shochu: 'sake', makgeolli: 'sake',
+  whisky: 'highball', whiskey: 'highball', cocktail: 'highball', champagne: 'wine', sparkling: 'wine', sangria: 'wine',
+  tea: 'drink', water: 'drink', latte: 'coffee', espresso: 'coffee', cola: 'soda', lemonade: 'juice', smoothie: 'cup', boba: 'cup', bubble_tea: 'cup', milk_tea: 'cup', frappe: 'cup',
+  milk: 'mug', cocoa: 'mug', hot_chocolate: 'mug',
+  mochi: 'dessert', dango: 'dessert', fruit: 'juice', pudding: 'cake', parfait: 'cake', toast: 'bread', burger: 'bread', pizza: 'cheese', fries: 'potato', croquette: 'potato',
 };
 
 /** 재료가 아닌 뭉뚱그린 아이콘. 키워드 규칙이 이 중 하나를 고르고 모델이 더 구체적인 재료를 골랐으면 모델을 따른다 */
-const GENERIC = new Set(['drink', 'dessert', 'salad', 'soup', 'rice', 'dish', 'cake']);
+const GENERIC = new Set(['drink', 'dessert', 'salad', 'soup', 'rice', 'dish', 'cake', 'cup']);
 
 /** 키워드도 안 걸리고 모델도 뭉뚱그린 것만 골랐을 때의 자리표시. 이 값이면 ItemImage 가 생성을 요청한다 */
 export const PLACEHOLDER_ICON = 'camera';
 
-const BY_CATEGORY: Record<Category, string> = { 안주: PLACEHOLDER_ICON, 식사: PLACEHOLDER_ICON, 음료: 'drink', 디저트: 'cake', 기타: 'dish' };
+const BY_CATEGORY: Record<Category, string> = { 안주: PLACEHOLDER_ICON, 식사: PLACEHOLDER_ICON, 음료: 'cup', 디저트: 'cake', 기타: 'dish' };
 
-/** 원문 키워드 → 모델 선택 → 별칭 → 카테고리 기본값 순으로 아이콘을 정한다. */
+const normalizeKey = (icon: string | undefined): string => (icon ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+
+/** 음료 판정: 음료 칸이거나, 모델이 음료 아이콘을 골랐으면 음료 규칙만 쓴다 */
+const isDrink = (key: string, category: Category): boolean => category === '음료' || DRINK_ICONS.has(key);
+
+/**
+ * 원문 키워드 → 모델 선택 → 별칭 → 카테고리 기본값 순으로 아이콘을 정한다.
+ * 음료는 음료 규칙으로만 판정해 「アイス(차가운)」「ソーダ割(소다로 탄 소주)」가 음식 규칙에 걸리지 않게 한다.
+ */
 export const resolveIcon = (nameJa: string, icon: string | undefined, category: Category): string => {
-  const key = (icon ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_');
-  const hit = KEYWORDS.find(([re]) => re.test(nameJa));
+  const key = normalizeKey(icon);
+  const modelKey = ICON_KEYS.has(key) ? key : (ALIASES[key] ?? null);
+  const drink = isDrink(modelKey ?? key, category);
+  const hit = (drink ? DRINK_RULES : FOOD_RULES).find(([re]) => re.test(nameJa));
   if (hit) {
     // 예: 茶美豚バラ → 규칙은 drink(茶), 모델은 pork. 뭉뚱그린 규칙보다 구체적인 모델 선택을 믿는다
-    if (GENERIC.has(hit[1]) && ICON_KEYS.has(key) && !GENERIC.has(key)) return key;
+    if (GENERIC.has(hit[1]) && modelKey !== null && !GENERIC.has(modelKey)) return modelKey;
     return hit[1];
   }
-  // 모델이 구체적인 재료를 골랐으면 쓰고, 뭉뚱그린 것(dish·rice 등)이면 자리표시 → 생성
-  if (ICON_KEYS.has(key)) return GENERIC.has(key) && category !== '음료' && category !== '디저트' && category !== '기타' ? PLACEHOLDER_ICON : key;
-  const alias = ALIASES[key];
-  if (alias) return alias;
+  if (modelKey !== null) {
+    if (drink) return GENERIC.has(modelKey) ? 'cup' : modelKey;
+    // 모델이 구체적인 재료를 골랐으면 쓰고, 뭉뚱그린 것(dish·rice 등)이면 자리표시 → 생성
+    return GENERIC.has(modelKey) && category !== '디저트' && category !== '기타' ? PLACEHOLDER_ICON : modelKey;
+  }
   return BY_CATEGORY[category] ?? PLACEHOLDER_ICON;
 };
