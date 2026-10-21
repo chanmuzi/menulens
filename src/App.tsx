@@ -4,7 +4,7 @@ import { hasFiles } from './lib/drop';
 import { analyzeImage, fetchRate } from './lib/api';
 import { prepareImage } from './lib/image';
 import { applyDetails, insertItem, newScanId, normalizeGroup, toMenuItem, toNote } from './lib/scan';
-import { clearScans, getAccessCode, loadImageMode, loadRate, loadScanImage, loadScans, removeScan, saveImageMode, saveRate, saveScan, setAccessCode } from './lib/storage';
+import { clearScans, getAccessCode, loadImageMode, loadRate, loadScanImage, loadScans, removeScans, saveImageMode, saveRate, saveScan, setAccessCode } from './lib/storage';
 import { useInstallHint } from './lib/platform';
 import { GateScreen } from './screens/GateScreen';
 import { HomeScreen } from './screens/HomeScreen';
@@ -12,6 +12,7 @@ import { HistoryScreen } from './screens/HistoryScreen';
 import { ConfirmScreen } from './screens/ConfirmScreen';
 import { ConfirmBatchScreen } from './screens/ConfirmBatchScreen';
 import { BATCH_CONCURRENCY, BATCH_MAX, runLimited } from './lib/batch';
+import type { ScanGroup } from './lib/history';
 import { ProcessingScreen } from './screens/ProcessingScreen';
 import { ResultScreen } from './screens/ResultScreen';
 
@@ -247,20 +248,20 @@ export const App = () => {
   }
   if (route === 'result' && current) {
     // key 로 스캔마다 다시 마운트해 보기 방식·선택·주문서 상태가 사진 사이에 새지 않게 한다
-    return <ResultScreen key={current.id} scan={current} batch={batch} onSwitch={switchTo} onAdd={live.current ? addScans : undefined} rate={rate} mode={mode} onMode={changeMode} onHome={goHome} originalFile={files.current.get(current.id) ?? null} />;
+    return <ResultScreen key={current.id} scan={current} batch={batch} onSwitch={switchTo} onAdd={live.current ? addScans : undefined} rate={rate} mode={mode} onMode={changeMode} onHome={goHome} originalFiles={batch.map((s) => files.current.get(s.id) ?? null)} />;
   }
   // 목록에는 사진이 없다. 결과 화면으로 가기 전에 사진 한 건만 읽는다
   // 묶음으로 읽은 스캔은 같은 묶음 전부를 찍은 순서로 띠에 올린다(사진은 띠 썸네일용으로 모두 읽음, 묶음은 최대 BATCH_MAX 장)
-  const openScan = (s: Scan) => {
+  const openScan = (g: ScanGroup) => {
     live.current = false;
-    const siblings = s.batchId ? scans.filter((x) => x.batchId === s.batchId).sort((a, b) => a.createdAt - b.createdAt) : [s];
-    void Promise.all(siblings.map(async (x) => upgrade({ ...x, imageDataUrl: await loadScanImage(x) }))).then((list) => {
+    void Promise.all(g.scans.map(async (x) => upgrade({ ...x, imageDataUrl: await loadScanImage(x) }))).then((list) => {
       setBatch(list);
-      setCurrentId(s.id);
+      setCurrentId(g.scans[0]!.id);
       setRoute('result');
     });
   };
-  const remove = (id: string) => void removeScan(id).then(setScans);
+  /** 묶음이면 그 안의 사진 전부를 지운다 */
+  const remove = (g: ScanGroup) => void removeScans(g.scans.map((s) => s.id)).then(setScans);
   if (route === 'confirm' && cropAt && pending[cropAt.index]) {
     // 모음에서 한 장 자르기: 잘라서 그 자리에 바꿔 넣는다. 영역을 안 바꿨으면 원본 그대로
     const back = () => { setCropAt(null); setConfirmMode('batch'); };

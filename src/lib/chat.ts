@@ -78,7 +78,7 @@ export const askMenu = async (
 /** 스트리밍 중 화면에 보이는 본문에서 끝의 「참조: …」 줄을 뗀다. 완료본은 서버가 정리해 보낸다 */
 export const stripRefs = (text: string): string => text.trimEnd().replace(/(^|\n)\s*참조[:：][^\n]*$/, '').trimEnd();
 
-/** storage.ts 의 removeScan/clearScans 가 같은 접두어로 지운다 */
+/** storage.ts 의 removeScans/clearScans 가 같은 접두어로 지운다 */
 const KEY = (scanId: string): string => `ml.chat.${scanId}`;
 const MAX_SAVED = 20;
 export const loadChat = (scanId: string): readonly ChatMsg[] => {

@@ -4,6 +4,7 @@ import { hasFiles, imageFromDropEvent } from '../lib/drop';
 import { isIos, isIosStandalone } from '../lib/platform';
 import { PixelIcon } from '../components/PixelIcon';
 import { ScanRow } from '../components/ScanRow';
+import { groupScans, type ScanGroup } from '../lib/history';
 import { InstallHint } from '../components/InstallHint';
 import type { InstallHint as Hint } from '../lib/platform';
 import { whenLabel } from '../lib/when';
@@ -15,8 +16,8 @@ type Props = {
   /** 앨범은 여러 장, 촬영·붙여넣기·드롭은 한 장 */
   readonly onPick: (files: readonly File[], source: PickSource) => void;
   readonly onShowAll: () => void;
-  readonly onOpen: (scan: Scan) => void;
-  readonly onRemove: (id: string) => void;
+  readonly onOpen: (group: ScanGroup) => void;
+  readonly onRemove: (group: ScanGroup) => void;
 };
 
 const HINT_DEFAULT = '글자가 전부 들어오게 찍어 주세요';
@@ -27,7 +28,7 @@ const HINT_BY_REASON = {
 } as const;
 const HINT_MS = 3000;
 
-/** 홈에는 최근 몇 건만. 나머지는 「전체 보기」 */
+/** 홈에는 최근 몇 묶음만. 나머지는 「전체 보기」 */
 const HOME_RECENT = 5;
 
 export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRemove }: Props) => {
@@ -40,6 +41,7 @@ export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRe
   /** iOS 홈 화면 앱 등에서 clipboard.read 가 막혔을 때 띄우는 붙여넣기 상자 */
   const [pasteBox, setPasteBox] = useState(false);
   const pasteBoxRef = useRef<HTMLDivElement>(null);
+  const groups = groupScans(scans);
   const handle = (source: PickSource) => (e: ChangeEvent<HTMLInputElement>) => {
     const list = Array.from(e.target.files ?? []);
     e.target.value = '';
@@ -144,11 +146,11 @@ export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRe
         <section style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div className="dot" style={{ fontSize: 14 }}>最近 · 최근 스캔</div>
-            {scans.length > HOME_RECENT && (
-              <button type="button" className="btn btn--quiet" onClick={onShowAll} style={{ minHeight: 32, padding: '0 6px' }}>전체 보기 ({scans.length}) ›</button>
+            {groups.length > HOME_RECENT && (
+              <button type="button" className="btn btn--quiet" onClick={onShowAll} style={{ minHeight: 32, padding: '0 6px' }}>전체 보기 ({groups.length}) ›</button>
             )}
           </div>
-          {scans.slice(0, HOME_RECENT).map((s) => <ScanRow key={s.id} scan={s} when={whenLabel(s.createdAt)} onOpen={onOpen} onRemove={onRemove} />)}
+          {groups.slice(0, HOME_RECENT).map((g) => <ScanRow key={g.key} group={g} when={whenLabel(g.at)} onOpen={onOpen} onRemove={onRemove} />)}
         </section>
       )}
 

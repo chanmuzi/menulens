@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { savePhoto } from '../lib/savePhoto';
+import { savePhotos } from '../lib/savePhoto';
 import type { ImageMode, MenuItem, Rate, Scan } from '../types';
 import { TopBar } from '../components/TopBar';
 import { Segmented } from '../components/Segmented';
@@ -18,9 +18,9 @@ import { ChatFab } from '../components/ChatFab';
 import { ChatPopup } from './ChatPopup';
 
 type View = 'overlay' | 'cards';
-type Props = { readonly scan: Scan; readonly batch: readonly Scan[]; readonly onSwitch: (id: string) => void; readonly onAdd: ((files: readonly File[]) => void) | undefined; readonly rate: Rate | null; readonly mode: ImageMode; readonly onMode: (m: ImageMode) => void; readonly onHome: () => void; readonly originalFile: File | null };
+type Props = { readonly scan: Scan; readonly batch: readonly Scan[]; readonly onSwitch: (id: string) => void; readonly onAdd: ((files: readonly File[]) => void) | undefined; readonly rate: Rate | null; readonly mode: ImageMode; readonly onMode: (m: ImageMode) => void; readonly onHome: () => void; /** 묶음 순서대로의 원본 파일(없으면 null → 화면용 사진으로 저장) */ readonly originalFiles: readonly (File | null)[] };
 
-export const ResultScreen = ({ scan, batch, onSwitch, onAdd, rate, mode, onMode, onHome, originalFile }: Props) => {
+export const ResultScreen = ({ scan, batch, onSwitch, onAdd, rate, mode, onMode, onHome, originalFiles }: Props) => {
   const isMenu = scan.kind === 'menu';
   // 안내문·기타는 카드가 의미 없으니 오버레이만 보여준다
   const [view, setView] = useState<View>(isMenu ? 'cards' : 'overlay');
@@ -68,9 +68,12 @@ export const ResultScreen = ({ scan, batch, onSwitch, onAdd, rate, mode, onMode,
           </div>
         )
       } right={
-        <button type="button" className="btn btn--icon" aria-label="사진을 기기에 저장" title="사진 저장" onClick={() => {
-          void savePhoto(originalFile, scan.imageDataUrl).then((r) => {
-            setSaveMsg(r === 'shared' ? '공유 시트에서 「이미지 저장」을 누르면 사진 앱에 들어가요' : r === 'opened' ? '새 탭의 사진을 길게 눌러 저장하세요' : r === 'unsupported' ? '이 브라우저에선 저장을 지원하지 않아요' : null);
+        <button type="button" className="btn btn--icon" aria-label={batch.length > 1 ? `사진 ${batch.length}장을 기기에 저장` : '사진을 기기에 저장'} title="사진 저장" onClick={() => {
+          // 묶음이면 전부 한 번에 공유 시트로
+          void savePhotos(batch.map((s, i) => ({ file: originalFiles[i] ?? null, dataUrl: s.imageDataUrl }))).then((r) => {
+            setSaveMsg(r.kind === 'shared' ? `공유 시트에서 「이미지 저장」을 누르면 ${r.count > 1 ? `${r.count}장이 ` : ''}사진 앱에 들어가요`
+              : r.kind === 'opened' ? `새 탭의 사진을 길게 눌러 저장하세요${r.total > 1 ? ` (첫 장만 열었어요. 나머지는 사진을 옮겨 가며 저장)` : ''}`
+              : r.kind === 'unsupported' ? '이 브라우저에선 저장을 지원하지 않아요' : null);
             setTimeout(() => setSaveMsg(null), 4000);
           });
         }}>
