@@ -1,14 +1,9 @@
-/** 메뉴판 챗: 서버에 보낼 맥락 만들기, NDJSON 답 스트림 읽기, 스캔별 대화 저장(localStorage). */
+/** 사진 챗: 서버에 보낼 맥락 만들기, NDJSON 답 스트림 읽기, 스캔별 대화 저장(localStorage). 칩 문구 정책은 chatChips.ts */
 import type { Scan, ScanKind } from '../types';
 import { getAccessCode } from './storage';
 
 export type ChatMsg = { readonly role: 'me' | 'bot'; readonly text: string; readonly refs: readonly string[]; readonly sawImage: boolean; readonly at: number };
 
-/** 종류별 첫 칩. 지금 보는 항목이 있을 때만 「이 메뉴 뭐야?」, 없으면 대표 메뉴를 묻는다. 「놓친 정보」는 처음부터 사진을 붙여 묻는다 */
-export const quickQuestions = (kind: ScanKind, hasFocus: boolean): readonly string[] => {
-  if (kind !== 'menu') return ['이게 무슨 뜻이야?', '내가 놓친 정보 있어?'];
-  return [hasFocus ? '이 메뉴 뭐야?' : '대표 메뉴가 뭐야?', '내가 놓친 정보 있어?', '둘이서 뭐 시켜?'];
-};
 /** 이런 말이 들어간 질문은 처음부터 사진을 붙인다(서버가 [사진 필요] 로 되묻는 왕복을 줄인다) */
 const IMAGE_HINT = /놓친|놓침|빠진|빠뜨|사진|그림|작은 글|작게|어디|위치|색|몇 번째|안 보|못 본/;
 export const wantsImage = (q: string): boolean => IMAGE_HINT.test(q);

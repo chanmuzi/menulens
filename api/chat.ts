@@ -1,12 +1,12 @@
 /**
  * POST /api/chat → NDJSON 스트림 { t:'delta', text } … { t:'done', refs: string[], sawImage } | { t:'need_image' } | { t:'error', m }
- * 메뉴판 결과(항목·문구 JSON)와 질문으로 Sonnet 에 한 번 묻는다. 사진은 클라이언트가 필요하다고 판단했을 때만 붙여 보낸다.
+ * 사진 결과(항목·글줄 JSON, 종류)와 질문으로 Sonnet 에 한 번 묻는다. 사진은 클라이언트가 필요하다고 판단했을 때만 붙여 보낸다.
  * 사진 없이 답할 수 없으면 모델이 [사진 필요] 만 내고, 그러면 need_image 이벤트로 끝낸다(클라이언트가 사진을 붙여 다시 묻는다).
  */
 import { codeFrom, isAllowed } from './_lib/access.js';
 import { errorJson } from './_lib/http.js';
 import { MODEL } from './_lib/prompt.js';
-import { CHAT_SYSTEM, NEED_IMAGE_MARK } from './_lib/chatPrompt.js';
+import { chatSystem, KIND_KO, NEED_IMAGE_MARK, type ChatKind } from './_lib/chatPrompt.js';
 
 const UPSTREAM = 'https://api.timelyrouter.ai/v1/messages';
 const MAX_ITEMS = 120;
@@ -27,7 +27,7 @@ const str = (v: unknown, max: number): string => (typeof v === 'string' ? v.trim
 /** 입력을 검증·축약한다. 설명은 60자, 항목 120개까지 */
 const sanitize = (b: Body) => ({
   shop: str(b.shop, 60) || null,
-  kind: str(b.kind, 10) || 'menu',
+  kind: toKind(b.kind),
   items: (Array.isArray(b.items) ? b.items : []).slice(0, MAX_ITEMS).map((it) => ({
     k: str(it?.k, 12), ja: str(it?.ja, 60), ko: str(it?.ko, 60), price: typeof it?.price === 'number' ? it.price : null, desc: str(it?.desc, 60), group: str(it?.group, 12) || null,
   })).filter((it) => it.k && it.ja),
@@ -37,17 +37,18 @@ const sanitize = (b: Body) => ({
   history: dropLeadingBot((Array.isArray(b.history) ? b.history : []).slice(-MAX_HISTORY).map((t): { role: 'me' | 'bot'; text: string } => ({ role: t?.role === 'me' ? 'me' : 'bot', text: str(t?.text, 400) })).filter((t) => t.text)),
   image: b.image && typeof b.image.data === 'string' && b.image.data.length <= MAX_IMAGE_B64 && /^image\/(jpeg|png|webp)$/.test(b.image.mediaType ?? '') ? { data: b.image.data, mediaType: b.image.mediaType } : null,
 });
+const toKind = (v: unknown): ChatKind => (v === 'sign' || v === 'other' ? v : 'menu');
 /** 대화는 user 턴으로 시작해야 한다(실패해서 답이 없는 질문이 섞이면 앞이 bot 으로 시작할 수 있다) */
 const dropLeadingBot = (h: ReadonlyArray<{ role: 'me' | 'bot'; text: string }>): ReadonlyArray<{ role: 'me' | 'bot'; text: string }> => { const i = h.findIndex((t) => t.role === 'me'); return i < 0 ? [] : h.slice(i); };
 
 const requestBody = (p: ReturnType<typeof sanitize>): unknown => {
-  const context = `가게: ${p.shop ?? '(모름)'} · 종류: ${p.kind}\n항목: ${JSON.stringify(p.items)}\n문구: ${JSON.stringify(p.notes)}\n지금 보는 항목: ${p.focus ?? '없음'}`;
+  const context = `종류: ${KIND_KO[p.kind]}${p.shop ? ` · 가게: ${p.shop}` : ''}\n항목: ${JSON.stringify(p.items)}\n글줄: ${JSON.stringify(p.notes)}\n지금 보는 항목: ${p.focus ?? '없음'}`;
   const prior = p.history.map((t) => ({ role: t.role === 'me' ? 'user' : 'assistant', content: t.text }));
   const ask = p.image
     ? [{ type: 'image', source: { type: 'base64', media_type: p.image.mediaType, data: p.image.data } }, { type: 'text', text: `${context}\n\n질문(사진 첨부): ${p.question}` }]
     : [{ type: 'text', text: `${context}\n\n질문: ${p.question}` }];
   return {
-    model: MODEL, stream: true, max_tokens: 700, thinking: { type: 'adaptive' }, output_config: { effort: 'low' }, system: CHAT_SYSTEM,
+    model: MODEL, stream: true, max_tokens: 700, thinking: { type: 'adaptive' }, output_config: { effort: 'low' }, system: chatSystem(p.kind),
     messages: [...prior, { role: 'user', content: ask }],
   };
 };
