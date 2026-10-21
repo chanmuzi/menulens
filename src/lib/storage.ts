@@ -69,7 +69,10 @@ export const saveScan = (scan: Scan): Promise<readonly Scan[]> => {
   return next;
 };
 
+/** 스캔에 딸린 localStorage 키(주문·대화)를 함께 지운다 */
+const removeAttached = (id: string): void => { remove(`menulens.order.${id}`); remove(`ml.chat.${id}`); };
 export const removeScan = async (id: string): Promise<readonly Scan[]> => {
+  removeAttached(id);
   await dbDeleteScan(id).catch(() => { /* 아래 localStorage 쪽도 지운다 */ });
   const legacy = legacyLoad();
   if (legacy.some((s) => s.id === id)) write(KEY.scans, legacy.filter((s) => s.id !== id));
@@ -77,6 +80,7 @@ export const removeScan = async (id: string): Promise<readonly Scan[]> => {
 };
 
 export const clearScans = async (): Promise<readonly Scan[]> => {
+  try { Object.keys(localStorage).filter((k) => k.startsWith('menulens.order.') || k.startsWith('ml.chat.')).forEach((k) => remove(k)); } catch { /* 무시 */ }
   await dbClearScans().catch(() => { /* 폴백 쪽만이라도 */ });
   remove(KEY.scans);
   return mergedList();

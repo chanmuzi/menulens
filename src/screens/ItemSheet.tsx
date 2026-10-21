@@ -3,11 +3,12 @@ import type { ImageMode, MenuItem, Rate } from '../types';
 import { formatKrw, formatPrice, payableJpy } from '../lib/money';
 import { ItemImage } from '../components/ItemImage';
 import { QtyStepper } from '../components/QtyStepper';
+import { PixelIcon } from '../components/PixelIcon';
 
-type Props = { readonly item: MenuItem; readonly rate: Rate | null; readonly mode: ImageMode; readonly onClose: () => void; /** null 이면 주문 기능 없음(안내문) */ readonly qty?: number | null; readonly onQty?: (qty: number) => void; /** 설명이 아직 올 수 있는가(스캔 진행 중). 기록에서 연 미완 스캔은 false 라 깜빡이지 않는다 */ readonly pending?: boolean };
+type Props = { readonly item: MenuItem; readonly rate: Rate | null; readonly mode: ImageMode; readonly onClose: () => void; /** null 이면 주문 기능 없음(안내문) */ readonly qty?: number | null; readonly onQty?: (qty: number) => void; /** 설명이 아직 올 수 있는가(스캔 진행 중). 기록에서 연 미완 스캔은 false 라 깜빡이지 않는다 */ readonly pending?: boolean; /** 이 항목을 맥락으로 챗 열기 */ readonly onAsk?: () => void };
 
 /** 메뉴 하나의 상세 바텀시트. 주문할 때 보여줄 일본어 문구와 한글 발음을 함께 보여준다. */
-export const ItemSheet = ({ item, rate, mode, onClose, qty = null, onQty, pending = false }: Props) => {
+export const ItemSheet = ({ item, rate, mode, onClose, qty = null, onQty, pending = false, onAsk }: Props) => {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
@@ -51,6 +52,7 @@ export const ItemSheet = ({ item, rate, mode, onClose, qty = null, onQty, pendin
           <span style={{ fontSize: 13, fontWeight: 500 }}>{pron}오 히토츠 쿠다사이</span>
           <span className="muted small">「{item.name_ko} 하나 주세요」</span>
         </div>}
+        {onAsk && <button type="button" className="btn" onClick={onAsk} style={{ gap: 6 }}><PixelIcon icon="bubble" size={1} />물어보기</button>}
         <button type="button" className="btn" onClick={onClose}>닫기</button>
       </div>
     </div>
