@@ -27,6 +27,9 @@ export const ResultScreen = ({ scan, rate, mode, onMode, onHome, originalFile }:
   const [order, setOrder] = useState<Order>(() => (isMenu ? loadOrder(scan.id) : {}));
   const [orderOpen, setOrderOpen] = useState(false);
   const [note, setNote] = useState<Note | null>(null);
+  // 오버레이의 번역 표시 토글. 사진 안에 두면 사진을 가리고, 사진 위 전용 줄은 여백만 만들어 제목 줄 오른쪽에 둔다
+  const [showMarks, setShowMarks] = useState(true);
+  const overlayShown = view === 'overlay' || !isMenu;
   useEffect(() => { if (isMenu) saveOrder(scan.id, order); }, [isMenu, scan.id, order]);
   const setQty = (id: string, qty: number) => setOrder((o) => withQty(o, id, qty));
   const lines = isMenu ? orderLines(scan, order) : [];
@@ -62,17 +65,24 @@ export const ResultScreen = ({ scan, rate, mode, onMode, onHome, originalFile }:
       } />
       {saveMsg && <div role="status" className="frame frame--flat" style={{ padding: '8px 12px', fontSize: 12 }}>{saveMsg}</div>}
 
-      <div style={{ minWidth: 0 }}>
-        <div className="jp" style={{ fontSize: 20, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{scan.shopName ?? (isMenu ? KIND_LABEL[scan.kind] : (scan.notes[0]?.text_ko ?? KIND_LABEL[scan.kind]))}</div>
-        <div className="muted small">
-          {isMenu ? <>{scan.items.length}개{summary && ` · ${summary}`}{formatRateLine(rate) && ` · ${formatRateLine(rate)}`}</> : <>{scan.notes.length}줄 번역 · 일본어만</>}
-          {streaming && <span className="blink"> ▌</span>}
-          {detailing && <span> · 설명 쓰는 중<span className="blink">▌</span></span>}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div className="jp" style={{ fontSize: 20, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{scan.shopName ?? (isMenu ? KIND_LABEL[scan.kind] : (scan.notes[0]?.text_ko ?? KIND_LABEL[scan.kind]))}</div>
+          <div className="muted small">
+            {isMenu ? <>{scan.items.length}개{summary && ` · ${summary}`}{formatRateLine(rate) && ` · ${formatRateLine(rate)}`}</> : <>{scan.notes.length}줄 번역 · 일본어만</>}
+            {streaming && <span className="blink"> ▌</span>}
+            {detailing && <span> · 설명 쓰는 중<span className="blink">▌</span></span>}
+          </div>
         </div>
+        {overlayShown && (
+          <div className="seg" style={{ flexShrink: 0 }}>
+            <button type="button" className="seg__btn seg__btn--small" aria-pressed={showMarks} onClick={() => setShowMarks((v) => !v)}>{showMarks ? '표시 끄기' : '표시 켜기'}</button>
+          </div>
+        )}
       </div>
 
-      {view === 'overlay' || !isMenu
-        ? <OverlayView scan={scan} selectedId={selected?.id ?? null} onSelect={setSelected} onNote={setNote} />
+      {overlayShown
+        ? <OverlayView scan={scan} selectedId={selected?.id ?? null} onSelect={setSelected} onNote={setNote} showMarks={showMarks} />
         : <CardsView scan={scan} rate={rate} mode={mode} onMode={onMode} onSelect={setSelected} order={order} onQty={setQty} />}
 
       {lines.length > 0 && <div aria-hidden="true" style={{ height: 72 }} />}

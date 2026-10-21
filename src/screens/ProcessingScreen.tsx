@@ -29,9 +29,10 @@ const translateStep = (kind: ScanKind | 'unknown', found: number, lines: number,
 
 export const ProcessingScreen = ({ scan, onCancel, onPeek, onRetry }: Props) => {
   const kind: ScanKind | 'unknown' = scan.kindKnown ? scan.kind : 'unknown';
-  const isMenu = kind === 'menu' || kind === 'unknown';
+  // 판정 전(unknown)에도 팁·진행 블록은 메뉴판 기준으로 보여준다(대부분 메뉴판). 아이콘만은 확정된 메뉴판에서만 라멘
+  const assumeMenu = kind === 'menu' || kind === 'unknown';
   // 안내문을 읽는 동안 이자카야 상식은 어울리지 않으니 표기 상식으로 바꾼다
-  const tip = useMemo(() => (isMenu ? pickTip(scan.createdAt) : pickSignTip(scan.createdAt)), [scan.createdAt, isMenu]);
+  const tip = useMemo(() => (assumeMenu ? pickTip(scan.createdAt) : pickSignTip(scan.createdAt)), [scan.createdAt, assumeMenu]);
   const found = scan.items.length;
   const reading = scan.status === 'reading';
   const streaming = scan.status === 'streaming';
@@ -75,12 +76,13 @@ export const ProcessingScreen = ({ scan, onCancel, onPeek, onRetry }: Props) => 
       </div>
 
       {/* 안내문은 항목이 흐르지 않고 끝에 줄 목록이 한 번에 오므로 개수 대신 진행 중임만 보여준다 */}
-      <ProgressBlocks filled={isMenu ? found : 0} total={EXPECTED_BLOCKS} active={busy} label={isMenu ? `메뉴 ${found}개 찾음` : '번역하는 중'} />
+      <ProgressBlocks filled={assumeMenu ? found : 0} total={EXPECTED_BLOCKS} active={busy} label={assumeMenu ? `메뉴 ${found}개 찾음` : '번역하는 중'} />
 
       <div className="frame frame--double" style={{ display: 'flex', gap: 14, padding: '16px 16px 16px 14px' }}>
         <div style={{ position: 'relative', width: 64, height: 64, flexShrink: 0 }} aria-hidden="true">
-          <PixelIcon icon={isMenu ? 'ramen' : 'camera'} size={4} />
-          {!failed && isMenu && <>
+          {/* assumeMenu 와 달리 확정된 메뉴판만 라멘 + 김. 판정 전에는 로고(camera) */}
+          <PixelIcon icon={kind === 'menu' ? 'ramen' : 'camera'} size={4} />
+          {!failed && kind === 'menu' && <>
             <div className="steam" style={{ left: 22, top: -2 }} />
             <div className="steam" style={{ left: 32, top: -6, animationDelay: '.5s' }} />
             <div className="steam" style={{ left: 42, top: -2, animationDelay: '1s' }} />
