@@ -13,11 +13,12 @@ import { OrderSheet } from './OrderSheet';
 import { NoteSheet } from './NoteSheet';
 import type { Note } from '../types';
 import { KIND_LABEL, KIND_SUB } from '../lib/kind';
+import { BatchStrip } from '../components/BatchStrip';
 
 type View = 'overlay' | 'cards';
-type Props = { readonly scan: Scan; readonly rate: Rate | null; readonly mode: ImageMode; readonly onMode: (m: ImageMode) => void; readonly onHome: () => void; readonly originalFile: File | null };
+type Props = { readonly scan: Scan; readonly batch: readonly Scan[]; readonly onSwitch: (id: string) => void; readonly rate: Rate | null; readonly mode: ImageMode; readonly onMode: (m: ImageMode) => void; readonly onHome: () => void; readonly originalFile: File | null };
 
-export const ResultScreen = ({ scan, rate, mode, onMode, onHome, originalFile }: Props) => {
+export const ResultScreen = ({ scan, batch, onSwitch, rate, mode, onMode, onHome, originalFile }: Props) => {
   const isMenu = scan.kind === 'menu';
   // 안내문·기타는 카드가 의미 없으니 오버레이만 보여준다
   const [view, setView] = useState<View>(isMenu ? 'cards' : 'overlay');
@@ -64,6 +65,7 @@ export const ResultScreen = ({ scan, rate, mode, onMode, onHome, originalFile }:
         </button>
       } />
       {saveMsg && <div role="status" className="frame frame--flat" style={{ padding: '8px 12px', fontSize: 12 }}>{saveMsg}</div>}
+      <BatchStrip scans={batch} currentId={scan.id} onSwitch={onSwitch} />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ minWidth: 0, flex: 1 }}>
@@ -89,7 +91,7 @@ export const ResultScreen = ({ scan, rate, mode, onMode, onHome, originalFile }:
       {isMenu && <OrderBar lines={lines} rate={rate} onOpen={() => setOrderOpen(true)} />}
       {orderOpen && <OrderSheet lines={lines} rate={rate} onQty={setQty} onClear={() => { setOrder({}); setOrderOpen(false); }} onClose={() => setOrderOpen(false)} />}
       {note && <NoteSheet note={note} onClose={() => setNote(null)} />}
-      {selected && <ItemSheet item={selected} rate={rate} mode={mode} onClose={() => setSelected(null)} qty={isMenu ? (order[selected.id] ?? 0) : null} onQty={(q) => setQty(selected.id, q)} />}
+      {selected && <ItemSheet item={selected} rate={rate} mode={mode} onClose={() => setSelected(null)} qty={isMenu ? (order[selected.id] ?? 0) : null} onQty={(q) => setQty(selected.id, q)} pending={scan.status !== 'done' && scan.status !== 'error'} />}
     </div>
   );
 };

@@ -42,6 +42,8 @@ export type ScanStatus = 'preparing' | 'reading' | 'streaming' | 'detailing' | '
 
 export type Scan = {
   readonly id: string;
+  /** 여러 장을 한 번에 읽었을 때 묶음 id. 한 장이면 null. 결과 화면 상단 띠로 같은 묶음끼리 오간다 */
+  readonly batchId: string | null;
   readonly createdAt: number;
   readonly imageDataUrl: string;
   readonly width: number;
