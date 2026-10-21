@@ -1,17 +1,18 @@
 import { useState } from 'react';
-import type { Category, ImageMode, MenuItem, Rate, Scan } from '../types';
+import type { ImageMode, MenuItem, Rate, Scan } from '../types';
 import { formatKrw, formatPrice, payableJpy } from '../lib/money';
 import { ItemImage } from '../components/ItemImage';
 import { Segmented } from '../components/Segmented';
 import { QtyStepper } from '../components/QtyStepper';
 import type { Order } from '../lib/order';
 
-type Filter = '전체' | Category | '매운맛';
-const FILTERS: readonly Filter[] = ['전체', '안주', '식사', '음료', '디저트', '기타', '매운맛'];
+import { groupItems, groupsPending } from '../lib/groups';
+
+/** 전체 · 묶음(g:라벨) · 매운맛 */
+type Filter = '전체' | '매운맛' | `g:${string}`;
 
 type Props = { readonly scan: Scan; readonly rate: Rate | null; readonly mode: ImageMode; readonly onMode: (m: ImageMode) => void; readonly onSelect: (item: MenuItem) => void; readonly order: Order; readonly onQty: (id: string, qty: number) => void };
 
-const matches = (it: MenuItem, f: Filter): boolean => f === '전체' || (f === '매운맛' ? it.tags.includes('매움') : it.category === f);
 
 /** 카드에 보여줄 배지는 고르는 데 도움이 되는 것만 최대 2개(사용자 결정 2026-10-21). 음료·튀김·채식 같은 분류성 태그는 상세 시트에만 */
 const BADGE_PRIORITY = ['매움', '날것', '선택 필요', '인기'] as const;
@@ -19,15 +20,28 @@ const cardBadges = (tags: readonly string[]): readonly string[] => BADGE_PRIORIT
 
 export const CardsView = ({ scan, rate, mode, onMode, onSelect, order, onQty }: Props) => {
   const [filter, setFilter] = useState<Filter>('전체');
-  const present = new Set(scan.items.map((i) => i.category));
-  const filters = FILTERS.filter((f) => f === '전체' || f === '매운맛' ? true : present.has(f));
-  const list = scan.items.filter((it) => matches(it, filter));
+  // 묶음은 항목이 흘러드는 동안에도 계속 다시 계산된다(서버 정리 → 항목 group → category)
+  const groups = groupItems(scan.items, scan.groups);
+  const hasSpicy = scan.items.some((it) => it.tags.includes('매움'));
+  // 서버 정리가 올 수 있는 동안은 묶음 칩·헤더를 숨긴다(도착하면 이름이 바뀌어 보던 목록이 튄다)
+  const pending = groupsPending(scan);
+  const filters: readonly { readonly value: Filter; readonly label: string }[] = [
+    { value: '전체', label: '전체' },
+    ...(pending ? [] : groups.map((g) => ({ value: g.key as Filter, label: g.label }))),
+    ...(hasSpicy ? [{ value: '매운맛' as Filter, label: '매운맛' }] : []),
+  ];
+  // 고른 묶음이 사라지면(항목 재계산) 전체로
+  const active = filters.some((f) => f.value === filter) ? filter : '전체';
+  const sections = active === '전체' ? groups : active === '매운맛'
+    ? [{ key: 'spicy', label: '매운맛', items: scan.items.filter((it) => it.tags.includes('매움')) }]
+    : groups.filter((g) => g.key === active);
+  const showHeaders = active === '전체' && groups.length > 1 && !pending;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {scan.kind === 'menu' && <div className="filters" role="group" aria-label="분류">
+      {scan.kind === 'menu' && filters.length > 2 && <div className="filters" role="group" aria-label="묶음">
         {filters.map((f) => (
-          <button key={f} type="button" className="seg__btn" aria-pressed={filter === f} onClick={() => setFilter(f)} style={f === '매운맛' && filter !== f ? { color: 'var(--vermilion)' } : undefined}>{f}</button>
+          <button key={f.value} type="button" className="seg__btn" aria-pressed={active === f.value} onClick={() => setFilter(f.value)} style={f.value === '매운맛' && active !== f.value ? { color: 'var(--vermilion)' } : undefined}>{f.label}</button>
         ))}
       </div>}
       {scan.kind === 'menu' && <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -37,8 +51,14 @@ export const CardsView = ({ scan, rate, mode, onMode, onSelect, order, onQty }: 
           <Segmented size="small" label="대표 이미지 종류" value={mode} onChange={onMode} options={[{ value: 'art', label: '그림' }, { value: 'photo', label: '사진', disabled: true }]} />
         </div>
       </div>}
-      {list.length === 0 && <div className="muted small" style={{ textAlign: 'center', padding: 20 }}>해당하는 메뉴가 없어요</div>}
-      {list.map((it) => (
+      {sections.every((g) => g.items.length === 0) && <div className="muted small" style={{ textAlign: 'center', padding: 20 }}>해당하는 메뉴가 없어요</div>}
+      {sections.flatMap((g) => [
+        showHeaders && g.items.length > 0 ? (
+          <div key={g.key} className="dot" style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 6, fontSize: 14 }}>
+            <span style={{ color: 'var(--vermilion)' }}>▪</span>{g.label}<span className="muted" style={{ fontSize: 11 }}>{g.items.length}</span>
+          </div>
+        ) : null,
+        ...g.items.map((it) => (
         <article key={it.id} className="frame" style={{ display: 'flex', gap: 12, padding: 12, alignItems: 'flex-start' }}>
           {/* 왼쪽 열: 그림 + 작은 배지(그림 폭 안). 본문 아래 빈 줄 대신 여기서 세로 공간을 쓴다 */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'stretch', width: 76, flexShrink: 0 }}>
@@ -69,7 +89,8 @@ export const CardsView = ({ scan, rate, mode, onMode, onSelect, order, onQty }: 
           )}
           </div>
         </article>
-      ))}
+        )),
+      ])}
     </div>
   );
 };

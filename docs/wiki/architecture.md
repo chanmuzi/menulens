@@ -12,8 +12,9 @@
    - `item` — 1단계 LLM 항목이 완성될 때마다 `{key:"묶음:순번", item}`. 단어 60개 초과면 읽기 순서로 최대 4묶음을 **병렬** 호출(`api/_lib/chunk.ts`), 파싱은 서버(`api/_lib/itemStream.ts`)
    - `meta` — 모든 묶음 완료 후 `kind`(menu/sign/other)·`shop_name`·`notes`(비메뉴 문구)
    - `details` — 2단계 LLM: 10개씩 병렬로 `pron_ko/desc_ko/tags/photo_query`. Redis 캐시 적중분은 `cached:true` 로 먼저 온다
+   - `groups` — 메뉴판이고 항목 8개 이상일 때만, 2단계와 **병렬**로 한 번 더 LLM 호출(텍스트만, `GROUPS_SYSTEM`): 1단계가 항목마다 붙인 임시 `group` 을 메뉴판 전체 기준 4~8개 `{name, keys}` 로 합친다. 실패·소수 항목이면 안 보내고 클라이언트가 항목 group/category 로 묶는다(`src/lib/groups.ts`). 목록 표시 시간은 변하지 않고 정리는 목록 후 ≈2s
    - `done` / `error`
-3. **클라이언트** `src/App.tsx` — `kind` 로 `scan.kind`·`kindKnown` 을 먼저 채우고, 항목을 읽기 순서로 끼워 넣고(`insertItem`), `meta` 가 오면 결과 화면으로 전환(`detailing`), `details` 로 카드를 채운다. 완료 스캔은 IndexedDB(`src/lib/db.ts`, 목록 `scans` + 사진 `images` 두 저장소, 사진은 결과 화면을 열 때만 읽음)에 건수 제한 없이 저장하고, 홈에는 최근 5건·전체는 `HistoryScreen` 에서 본다. IndexedDB 를 못 쓰는 환경만 localStorage 5건 폴백.
+3. **클라이언트** `src/App.tsx` — `kind` 로 `scan.kind`·`kindKnown` 을 먼저 채우고, 항목을 읽기 순서로 끼워 넣고(`insertItem`), `meta` 가 오면 결과 화면으로 전환(`detailing`), `details` 로 카드를 채우고 `groups` 로 카드 묶음을 바꾼다. 완료 스캔은 IndexedDB(`src/lib/db.ts`, 목록 `scans` + 사진 `images` 두 저장소, 사진은 결과 화면을 열 때만 읽음)에 건수 제한 없이 저장하고, 홈에는 최근 5건·전체는 `HistoryScreen` 에서 본다. IndexedDB 를 못 쓰는 환경만 localStorage 5건 폴백.
 
 모델은 `api/_lib/prompt.ts` 의 `MODEL`(현재 `claude-sonnet-5-5`, Timely Router `/v1/messages`). 프롬프트 3종: `STAGE1_SYSTEM`(짧은 구조화), `STAGE2_SYSTEM`(설명), `IMAGE_SYSTEM`(폴백).
 

@@ -1,4 +1,4 @@
-import type { OcrWord, Photo, Rate } from '../types';
+import type { OcrWord, Photo, Rate, ScanGroup } from '../types';
 import { getAccessCode } from './storage';
 
 const headers = (): Record<string, string> => ({
@@ -22,6 +22,8 @@ export type AnalyzeHandlers = {
   readonly onItem: (key: string, raw: unknown) => void;
   readonly onMeta: (m: MetaEvent) => void;
   readonly onDetails: (items: readonly unknown[]) => void;
+  /** 메뉴판 묶음 정리(2단계와 병렬). 없을 수도 있다 */
+  readonly onGroups: (groups: readonly ScanGroup[]) => void;
   readonly signal?: AbortSignal;
 };
 
@@ -32,6 +34,7 @@ type Event =
   | { t: 'item'; key: string; item: unknown }
   | ({ t: 'meta' } & MetaEvent)
   | { t: 'details'; items: unknown[] }
+  | { t: 'groups'; groups: ScanGroup[] }
   | { t: 'error'; m: string }
   | { t: 'done' };
 
@@ -59,6 +62,7 @@ export const analyzeImage = async (base64: string, mediaType: string, h: Analyze
       case 'item': h.onItem(ev.key, ev.item); break;
       case 'meta': h.onMeta({ kind: ev.kind, shop_name: ev.shop_name, notes: ev.notes ?? [] }); break;
       case 'details': h.onDetails(ev.items ?? []); break;
+      case 'groups': h.onGroups(Array.isArray(ev.groups) ? ev.groups : []); break;
       case 'error': throw new Error(ev.m || '모델 응답 오류');
       default: break;
     }

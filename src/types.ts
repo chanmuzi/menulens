@@ -19,6 +19,8 @@ export type MenuItem = {
   /** 괄호 안 세금 포함 가격 (¥380(¥418) 의 418). 없으면 null. 실제 지불액은 payableJpy() */
   readonly price_tax_jpy: number | null;
   readonly category: Category;
+  /** 메뉴판 섹션(모델이 원문 제목을 옮기거나 즉석에서 지은 짧은 한국어). 없으면 null → 카드 뷰는 category 로 묶는다 */
+  readonly group: string | null;
   readonly icon: string;
   /** OCR 단어 상자의 합집합(정확) 또는 모델 추정(폴백). 없으면 null */
   readonly bbox: Box | null;
@@ -29,6 +31,9 @@ export type MenuItem = {
   readonly photo_query: string;
   readonly detailed: boolean;
 };
+
+/** 서버가 메뉴판 전체를 보고 정리한 묶음: 이름과 그 묶음에 든 항목 id(key) */
+export type ScanGroup = { readonly name: string; readonly keys: readonly string[] };
 
 /** 메뉴 항목이 아닌 문구 (제목, 안내문) */
 export type Note = { readonly text_ja: string; readonly text_ko: string; readonly bbox: Box | null };
@@ -52,6 +57,8 @@ export type Scan = {
   /** 미세 기울기(도). OCR 글줄 각도의 중앙값 */
   readonly tilt: number;
   readonly notes: readonly Note[];
+  /** 정리된 묶음. 오기 전·실패·소수 항목이면 null → 항목의 group/category 로 묶는다 */
+  readonly groups: readonly ScanGroup[] | null;
   readonly items: readonly MenuItem[];
   readonly status: ScanStatus;
   readonly error: string | null;

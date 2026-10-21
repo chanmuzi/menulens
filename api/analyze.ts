@@ -15,6 +15,7 @@
  *   {"t":"item","key":"<묶음>:<순번>","item":{...}}         1단계 항목 하나 완성마다
  *   {"t":"meta","kind","shop_name","notes":[...]}            1단계 모든 묶음 완료 후
  *   {"t":"details","items":[{key,pron_ko,desc_ko,tags,photo_query}],"cached"?}  캐시 적중분 먼저, 이후 2단계 묶음마다
+ *   {"t":"groups","groups":[{name,keys:[key,...]}]}           메뉴판 묶음 정리(2단계와 병렬, 메뉴판일 때만)
  *   {"t":"error","m":"..."}
  *   {"t":"done"}
  */
@@ -25,7 +26,7 @@ import { chunkWords } from './_lib/chunk.js';
 import { createItemParser, parseLoose } from './_lib/itemStream.js';
 import { cacheGetMany, cacheSetMany } from './_lib/cache.js';
 import { saveDebug } from './_lib/debugStore.js';
-import { IMAGE_SYSTEM, IMAGE_USER_PROMPT, MODEL, STAGE1_SYSTEM, STAGE2_SYSTEM } from './_lib/prompt.js';
+import { GROUPS_SYSTEM, IMAGE_SYSTEM, IMAGE_USER_PROMPT, MODEL, STAGE1_SYSTEM, STAGE2_SYSTEM } from './_lib/prompt.js';
 
 const UPSTREAM = 'https://api.timelyrouter.ai/v1/messages';
 /** 이 수보다 단어가 적으면 OCR 을 믿지 않고 이미지 폴백 */
@@ -37,7 +38,7 @@ type Body = { image?: string; mediaType?: string };
 type Line = Record<string, unknown>;
 type RawItem = Record<string, unknown>;
 type Stage1 = { kind?: string; shop_name?: string | null; notes?: unknown[] };
-type Keyed = { key: string; name_ja: string; name_ko: string };
+type Keyed = { key: string; name_ja: string; name_ko: string; group: string };
 
 const enc = new TextEncoder();
 const line = (obj: Line): Uint8Array => enc.encode(JSON.stringify(obj) + '\n');
@@ -58,6 +59,12 @@ const stage1Body = (words: readonly OcrWord[] | null, image: string, mediaType: 
 const stage2Body = (chunk: ReadonlyArray<{ i: number; name_ja: string; name_ko: string }>): unknown => ({
   ...llm, stream: false, max_tokens: 2500, system: STAGE2_SYSTEM,
   messages: [{ role: 'user', content: JSON.stringify(chunk) }],
+});
+
+const groupsBody = (items: ReadonlyArray<{ i: number; name_ja: string; name_ko: string; g: string }>): unknown => ({
+  // 메뉴판 전체를 한 번에 받으므로 한도는 항목 수에 비례(번호 배열 ≈ 항목당 5토큰 + 생각 토큰). 잘리면 묶음 정리가 조용히 빠진다
+  ...llm, stream: false, max_tokens: Math.min(4000, 1500 + items.length * 15), system: GROUPS_SYSTEM,
+  messages: [{ role: 'user', content: JSON.stringify(items) }],
 });
 
 /** Anthropic SSE 를 읽어 text_delta 만 콜백으로 넘긴다 */
@@ -108,7 +115,7 @@ const runStage1Chunk = async (key: string, chunkIndex: number, words: readonly O
       if (typeof raw !== 'object' || raw === null) continue;
       const it = raw as RawItem;
       const k = `${chunkIndex}:${items.length}`;
-      items.push({ key: k, name_ja: typeof it.name_ja === 'string' ? it.name_ja : '', name_ko: typeof it.name_ko === 'string' ? it.name_ko : '' });
+      items.push({ key: k, name_ja: typeof it.name_ja === 'string' ? it.name_ja : '', name_ko: typeof it.name_ko === 'string' ? it.name_ko : '', group: typeof it.group === 'string' ? it.group : '' });
       rawItems.push({ ...it, key: k });
       send({ t: 'item', key: k, item: it });
     }
@@ -145,6 +152,39 @@ const runStage2 = async (key: string, items: readonly Keyed[], send: (o: Line) =
       await cacheSetMany(out.map((d) => [d.name_ja, pickDetail(d)] as const));
     } catch { /* 이 묶음의 설명은 비워 둔다 */ }
   }));
+};
+
+/** 항목이 이만큼 넘을 때만 묶음을 정리한다. 적은 메뉴판은 묶지 않아도 한눈에 들어온다. 클라이언트 src/lib/groups.ts 의 같은 상수와 맞춘다 */
+const MIN_ITEMS_FOR_GROUPS = 8;
+
+/** 임시 group 들을 메뉴판 전체 기준으로 4~8개로 합친다. 실패하면 조용히 건너뛴다(클라이언트는 임시 group/category 로 묶는다) */
+const runGroups = async (key: string, items: readonly Keyed[], send: (o: Line) => void): Promise<void> => {
+  if (items.length < MIN_ITEMS_FOR_GROUPS) return;
+  try {
+    const payload = items.map((x, i) => ({ i, name_ja: x.name_ja, name_ko: x.name_ko, g: x.group }));
+    const res = await fetch(UPSTREAM, { method: 'POST', headers: headers(key), body: JSON.stringify(groupsBody(payload)) });
+    if (!res.ok) return;
+    const data = (await res.json()) as { content?: Array<{ type: string; text?: string }>; stop_reason?: string };
+    if (data.stop_reason === 'max_tokens') console.warn(`groups: 출력이 한도에서 잘림 (items=${items.length})`);
+    const text = (data.content ?? []).filter((c) => c.type === 'text').map((c) => c.text ?? '').join('');
+    const parsed = parseLoose(text) as { groups?: Array<{ name?: unknown; i?: unknown }> };
+    if (!Array.isArray(parsed.groups)) return;
+    const seen = new Set<string>();
+    const groups = parsed.groups.flatMap((g) => {
+      if (typeof g.name !== 'string' || !Array.isArray(g.i)) return [];
+      const keys = g.i.filter((n): n is number => typeof n === 'number' && !!items[n]).map((n) => items[n]!.key).filter((k) => !seen.has(k) && (seen.add(k), true));
+      return keys.length > 0 ? [{ name: g.name.trim().slice(0, 12), keys }] : [];
+    });
+    if (groups.length < 2) return;
+    // 모델이 빠뜨린 항목은 메뉴판 순서상 바로 앞 항목의 묶음에 넣는다(이웃 = 같은 섹션일 확률이 높다). 맨 앞이 빠졌으면 첫 묶음
+    const groupOf = new Map(groups.flatMap((g, gi) => g.keys.map((k) => [k, gi] as const)));
+    let lastGi = 0;
+    for (const it of items) {
+      const gi = groupOf.get(it.key);
+      if (gi === undefined) groups[lastGi]!.keys.push(it.key); else lastGi = gi;
+    }
+    send({ t: 'groups', groups });
+  } catch { /* 묶음 없이 간다 */ }
 };
 
 const handler = async (req: Request): Promise<Response> => {
@@ -185,7 +225,7 @@ const handler = async (req: Request): Promise<Response> => {
         send({ t: 'meta', kind: first?.kind ?? 'menu', shop_name: first?.shop_name ?? null, notes });
         const all = results.flatMap((r) => r.items);
         // 안내문·기타는 요리 설명(2단계)이 필요 없다. 생략하면 그만큼 빨리 끝난다
-        if (all.length > 0 && (first?.kind ?? 'menu') === 'menu') await runStage2(timelyKey, all, send);
+        if (all.length > 0 && (first?.kind ?? 'menu') === 'menu') await Promise.all([runStage2(timelyKey, all, send), runGroups(timelyKey, all, send)]);
         send({ t: 'done' });
         await saveDebug({ at: new Date().toISOString(), mode: ocr ? 'ocr' : 'image', width: ocr?.width ?? 0, height: ocr?.height ?? 0, rotation: ocr?.rotation ?? 0, tilt: ocr?.tilt ?? 0, words: ocr?.words ?? [], items: results.flatMap((r) => r.raw), notes, chunks: chunks.length }, image);
       } catch (e) {
