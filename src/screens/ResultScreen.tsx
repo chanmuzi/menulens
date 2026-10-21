@@ -16,9 +16,9 @@ import { KIND_LABEL, KIND_SUB } from '../lib/kind';
 import { BatchStrip } from '../components/BatchStrip';
 
 type View = 'overlay' | 'cards';
-type Props = { readonly scan: Scan; readonly batch: readonly Scan[]; readonly onSwitch: (id: string) => void; readonly rate: Rate | null; readonly mode: ImageMode; readonly onMode: (m: ImageMode) => void; readonly onHome: () => void; readonly originalFile: File | null };
+type Props = { readonly scan: Scan; readonly batch: readonly Scan[]; readonly onSwitch: (id: string) => void; readonly onAdd: ((files: readonly File[]) => void) | undefined; readonly rate: Rate | null; readonly mode: ImageMode; readonly onMode: (m: ImageMode) => void; readonly onHome: () => void; readonly originalFile: File | null };
 
-export const ResultScreen = ({ scan, batch, onSwitch, rate, mode, onMode, onHome, originalFile }: Props) => {
+export const ResultScreen = ({ scan, batch, onSwitch, onAdd, rate, mode, onMode, onHome, originalFile }: Props) => {
   const isMenu = scan.kind === 'menu';
   // 안내문·기타는 카드가 의미 없으니 오버레이만 보여준다
   const [view, setView] = useState<View>(isMenu ? 'cards' : 'overlay');
@@ -65,7 +65,7 @@ export const ResultScreen = ({ scan, batch, onSwitch, rate, mode, onMode, onHome
         </button>
       } />
       {saveMsg && <div role="status" className="frame frame--flat" style={{ padding: '8px 12px', fontSize: 12 }}>{saveMsg}</div>}
-      <BatchStrip scans={batch} currentId={scan.id} onSwitch={onSwitch} />
+      <BatchStrip scans={batch} currentId={scan.id} onSwitch={onSwitch} onAdd={onAdd} />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ minWidth: 0, flex: 1 }}>
