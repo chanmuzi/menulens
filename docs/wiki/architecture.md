@@ -30,7 +30,7 @@ src/
   App.tsx       화면 상태 머신 gate → home → processing → result
   screens/      Gate Home ConfirmBatch Processing Result(Overlay / Cards / ItemSheet / ChatPopup)
   components/   MenuPhoto(회전·기울기·확대·핀치 줌) PixelIcon Segmented ProgressBlocks ItemImage TopBar
-  lib/          image api scan(정규화·unionBox·applyDetails) icons(키워드 우선) kind(종류별 문구) history(기록 목록 묶음·제목·요약) chatChips(챗 칩 문구 정책) sample(덮개 배경·글자색) money storage photos savePhoto(묶음 전부 공유) version
+  lib/          image api scan(정규화·unionBox·applyDetails) icons(키워드 우선) kind(종류별 문구) history(기록 목록 묶음·제목·요약) sample(덮개 배경·글자색) money storage photos savePhoto(묶음 전부 공유) version
   styles/       global.css(토큰·픽셀 프레임·애니메이션) pixel-icons.css(생성: scripts/px_icons.py)
 scripts/bench/  벤치·진단 스크립트        docs/wiki/   이 위키        vite-plugin-dev-api.ts  로컬에서 api/ 실행
 ```

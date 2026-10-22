@@ -1,4 +1,4 @@
-/** 사진 챗: 서버에 보낼 맥락 만들기, NDJSON 답 스트림 읽기, 스캔별 대화 저장(localStorage). 칩 문구 정책은 chatChips.ts */
+/** 사진 챗: 서버에 보낼 맥락 만들기, NDJSON 답 스트림 읽기, 스캔별 대화 저장(localStorage). 제목은 kind.ts 의 chatTitle */
 import type { Scan, ScanKind } from '../types';
 import { getAccessCode } from './storage';
 
