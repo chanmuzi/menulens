@@ -9,12 +9,13 @@ import { useInstallHint } from './lib/platform';
 import { GateScreen } from './screens/GateScreen';
 import { HomeScreen } from './screens/HomeScreen';
 import { HistoryScreen } from './screens/HistoryScreen';
-import { ConfirmScreen } from './screens/ConfirmScreen';
+import { CropScreen } from './screens/CropScreen';
 import { ConfirmBatchScreen } from './screens/ConfirmBatchScreen';
 import { BATCH_CONCURRENCY, BATCH_MAX, runLimited } from './lib/batch';
 import type { ScanGroup } from './lib/history';
 import { ProcessingScreen } from './screens/ProcessingScreen';
 import { ResultScreen } from './screens/ResultScreen';
+import { LeaveDialog } from './screens/LeaveDialog';
 
 type Route = 'gate' | 'home' | 'history' | 'confirm' | 'processing' | 'result';
 
@@ -43,9 +44,10 @@ export const App = () => {
   const [batch, setBatch] = useState<readonly Scan[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
   const current = batch.find((s) => s.id === currentId) ?? null;
-  /** 확인 화면에서 기다리는 사진. 촬영·앨범 여러 장은 모음 화면, 앨범 한 장은 영역 지정 화면 */
+  /** 모음 화면에서 기다리는 사진. 어느 경로로 들어오든(촬영·앨범·붙여넣기·드롭, 한 장이든 여러 장이든) 모음 화면을 거친다 */
   const [pending, setPending] = useState<readonly File[]>([]);
-  const [confirmMode, setConfirmMode] = useState<'batch' | 'single'>('batch');
+  /** 홈으로 나가려는데 읽는 중인 사진이 있어 확인을 받는 중 */
+  const [leaving, setLeaving] = useState(false);
   /** 모음 화면에서 자르러 온 사진의 번호(없으면 null). 잘라서 그 자리에 넣고 모음으로 돌아간다. 미리 읽던 사진이었으면 자른 뒤 다시 미리 읽는다 */
   const [cropAt, setCropAt] = useState<{ readonly index: number; readonly wasReading: boolean } | null>(null);
   /** 상한 때문에 뺀 장수(모음 화면 안내용) */
@@ -225,13 +227,17 @@ export const App = () => {
     if (route === 'processing' && (current?.status === 'detailing' || current?.status === 'done')) setRoute('result');
   }, [route, current?.status]);
 
-  const goHome = () => { abortAll(); setBatch([]); setCurrentId(null); setPending([]); setRoute('home'); };
-  // 촬영은 모음 화면으로 가서 더 찍을 수 있게 하고, 그동안 첫 장을 미리 읽는다. 앨범 여러 장도 모음 화면. 앨범·붙여넣기·드롭 한 장은 영역 지정 화면
+  const goHome = () => { abortAll(); setBatch([]); setCurrentId(null); setPending([]); setLeaving(false); setRoute('home'); };
+  /** 아직 읽는 중인(돈이 드는 호출이 열려 있는) 사진 수. 기록에서 연 묶음은 전부 끝난 상태라 0 */
+  // 모음 화면의 미리 읽기는 사용자가 시작한 읽기가 아니고 저장되지도 않으니 묻지 않는다(나가면 그냥 끊는다)
+  const busy = route === 'confirm' ? 0 : batch.filter((s) => s.status !== 'done' && s.status !== 'error').length;
+  /** 홈으로: 읽는 중이면 중단할지 먼저 묻는다(뒤에서 계속 돌며 비용이 들지 않게) */
+  const requestHome = () => { if (busy > 0) setLeaving(true); else goHome(); };
+  // 어느 경로든 모음 화면으로(한 장이어도 더 찍기·앨범 추가·자르기가 가능하게). 촬영은 그동안 첫 장을 미리 읽는다
   const pick = (input: readonly File[], source: PickSource) => {
     const list = input.slice(0, BATCH_MAX);
     setDropped(input.length - list.length);
     setPending(list);
-    setConfirmMode(source === 'camera' || list.length > 1 ? 'batch' : 'single');
     setCropAt(null);
     setRoute('confirm');
     if (source === 'camera') prewarm(list[0]!);
@@ -241,14 +247,15 @@ export const App = () => {
   const changeMode = (m: ImageMode) => { saveImageMode(m); setMode(m); };
 
   if (route === 'gate') return <GateScreen onEnter={() => setRoute('home')} />;
+  const leaveDialog = leaving && <LeaveDialog busy={busy} detailingOnly={batch.every((s) => s.status === 'detailing' || s.status === 'done' || s.status === 'error')} onStay={() => setLeaving(false)} onLeave={goHome} />;
   // 결과 화면에서 띠로 실패·대기 중 사진을 고르면 처리 화면(오류·다시 시도·진행 표시)을 보여준다. route 는 그대로 두어 완료된 사진으로 돌아오면 결과가 보인다
   const showProcessing = current !== null && (route === 'processing' || (route === 'result' && (current.status === 'error' || current.status === 'preparing' || current.status === 'reading')));
   if (showProcessing && current) {
-    return <ProcessingScreen scan={current} batch={batch} onSwitch={switchTo} onAdd={live.current ? addScans : undefined} onCancel={goHome} onPeek={() => setRoute('result')} onRetry={() => retryOne(current.id)} />;
+    return <><ProcessingScreen scan={current} batch={batch} onSwitch={switchTo} onAdd={live.current ? addScans : undefined} onCancel={requestHome} onPeek={() => setRoute('result')} onRetry={() => retryOne(current.id)} />{leaveDialog}</>;
   }
   if (route === 'result' && current) {
     // key 로 스캔마다 다시 마운트해 보기 방식·선택·주문서 상태가 사진 사이에 새지 않게 한다
-    return <ResultScreen key={current.id} scan={current} batch={batch} onSwitch={switchTo} onAdd={live.current ? addScans : undefined} rate={rate} mode={mode} onMode={changeMode} onHome={goHome} originalFiles={batch.map((s) => files.current.get(s.id) ?? null)} />;
+    return <><ResultScreen key={current.id} scan={current} batch={batch} onSwitch={switchTo} onAdd={live.current ? addScans : undefined} rate={rate} mode={mode} onMode={changeMode} onHome={requestHome} originalFiles={batch.map((s) => files.current.get(s.id) ?? null)} />{leaveDialog}</>;
   }
   // 목록에는 사진이 없다. 결과 화면으로 가기 전에 사진 한 건만 읽는다
   // 묶음으로 읽은 스캔은 같은 묶음 전부를 찍은 순서로 띠에 올린다(사진은 띠 썸네일용으로 모두 읽음, 묶음은 최대 BATCH_MAX 장)
@@ -264,7 +271,7 @@ export const App = () => {
   const remove = (g: ScanGroup) => void removeScans(g.scans.map((s) => s.id)).then(setScans);
   if (route === 'confirm' && cropAt && pending[cropAt.index]) {
     // 모음에서 한 장 자르기: 잘라서 그 자리에 바꿔 넣는다. 영역을 안 바꿨으면 원본 그대로
-    const back = () => { setCropAt(null); setConfirmMode('batch'); };
+    const back = () => setCropAt(null);
     const applyCrop = (f: File) => {
       const original = pending[cropAt.index];
       setPending((list) => list.map((x, i) => (i === cropAt.index ? f : x)));
@@ -272,18 +279,14 @@ export const App = () => {
       if (cropAt.wasReading && f !== original) { if (batch[0]) abortScan(batch[0].id); prewarm(f); }
       back();
     };
-    return <ConfirmScreen apply file={pending[cropAt.index]!} onConfirm={applyCrop} onCancel={back} />;
-  }
-  if (route === 'confirm' && confirmMode === 'single' && pending.length === 1) {
-    const file = pending[0]!;
-    return <ConfirmScreen file={file} onConfirm={(f) => { setPending([]); void startScans([f]); }} onCancel={goHome} />;
+    return <CropScreen file={pending[cropAt.index]!} onConfirm={applyCrop} onCancel={back} />;
   }
   if (route === 'confirm' && pending.length > 0) {
     // 미리 읽던 첫 장을 모음에서 빼면 그 읽기도 멈춘다
     const change = (list: readonly File[]) => { setPending(list); if (reading && !list.includes(reading)) { abortScan(batch[0]!.id); setBatch([]); setCurrentId(null); } };
     // 자르는 동안에도 미리 읽기는 계속 돈다(들어갔다 그냥 나오면 그대로 이어 받는다)
     const crop = (index: number) => setCropAt({ index, wasReading: reading !== null && reading === pending[index] });
-    return <ConfirmBatchScreen files={pending} dropped={dropped} onChange={change} reading={reading} onConfirm={(list) => { setPending([]); void startScans(list); }} onCrop={crop} onCancel={goHome} />;
+    return <><ConfirmBatchScreen files={pending} dropped={dropped} onChange={change} reading={reading} onConfirm={(list) => { setPending([]); void startScans(list); }} onCrop={crop} onCancel={requestHome} />{leaveDialog}</>;
   }
   if (route === 'history') {
     return <HistoryScreen scans={scans} installHint={installHint} onBack={() => setRoute('home')} onOpen={openScan} onRemove={remove} onClear={() => void clearScans().then(setScans)} />;

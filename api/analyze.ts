@@ -97,8 +97,8 @@ const readSse = async (body: ReadableStream<Uint8Array>, onText: (t: string) => 
 /** 1단계 한 묶음: 스트리밍하며 항목을 즉시 전송하고, 끝나면 메타와 항목 목록을 돌려준다 */
 const KIND_RE = /"kind"\s*:\s*"(menu|sign|other)"/;
 
-const runStage1Chunk = async (key: string, chunkIndex: number, words: readonly OcrWord[] | null, image: string, mediaType: string, send: (o: Line) => void, onKind: (k: string) => void): Promise<{ meta: Stage1 | null; items: Keyed[]; raw: RawItem[] }> => {
-  const res = await fetch(UPSTREAM, { method: 'POST', headers: headers(key), body: JSON.stringify(stage1Body(words, image, mediaType)) });
+const runStage1Chunk = async (key: string, chunkIndex: number, words: readonly OcrWord[] | null, image: string, mediaType: string, send: (o: Line) => void, onKind: (k: string) => void, signal: AbortSignal): Promise<{ meta: Stage1 | null; items: Keyed[]; raw: RawItem[] }> => {
+  const res = await fetch(UPSTREAM, { signal, method: 'POST', headers: headers(key), body: JSON.stringify(stage1Body(words, image, mediaType)) });
   if (!res.ok || !res.body) throw new Error(`upstream ${res.status}: ${(await res.text().catch(() => '')).slice(0, 300)}`);
   const parser = createItemParser();
   const items: Keyed[] = [];
@@ -128,7 +128,7 @@ const runStage1Chunk = async (key: string, chunkIndex: number, words: readonly O
 const DETAIL_FIELDS = ['pron_ko', 'desc_ko', 'tags', 'photo_query'] as const;
 const pickDetail = (d: Record<string, unknown>): Record<string, unknown> => Object.fromEntries(DETAIL_FIELDS.filter((f) => f in d).map((f) => [f, d[f]]));
 
-const runStage2 = async (key: string, items: readonly Keyed[], send: (o: Line) => void): Promise<void> => {
+const runStage2 = async (key: string, items: readonly Keyed[], send: (o: Line) => void, signal: AbortSignal): Promise<void> => {
   // 캐시에 있는 메뉴는 즉시 보내고, 나머지만 LLM 에 묻는다
   const cached = await cacheGetMany(items.filter((x) => x.name_ja).map((x) => x.name_ja));
   const hits = items.filter((x) => cached.has(x.name_ja)).map((x) => ({ ...cached.get(x.name_ja)!, key: x.key }));
@@ -139,7 +139,7 @@ const runStage2 = async (key: string, items: readonly Keyed[], send: (o: Line) =
   await Promise.all(chunks.map(async (chunk) => {
     try {
       const payload = chunk.map((x, i) => ({ i, name_ja: x.name_ja, name_ko: x.name_ko }));
-      const res = await fetch(UPSTREAM, { method: 'POST', headers: headers(key), body: JSON.stringify(stage2Body(payload)) });
+      const res = await fetch(UPSTREAM, { signal, method: 'POST', headers: headers(key), body: JSON.stringify(stage2Body(payload)) });
       if (!res.ok) return;
       const data = (await res.json()) as { content?: Array<{ type: string; text?: string }> };
       const text = (data.content ?? []).filter((c) => c.type === 'text').map((c) => c.text ?? '').join('');
@@ -158,11 +158,11 @@ const runStage2 = async (key: string, items: readonly Keyed[], send: (o: Line) =
 const MIN_ITEMS_FOR_GROUPS = 8;
 
 /** 임시 group 들을 메뉴판 전체 기준으로 4~8개로 합친다. 실패하면 조용히 건너뛴다(클라이언트는 임시 group/category 로 묶는다) */
-const runGroups = async (key: string, items: readonly Keyed[], send: (o: Line) => void): Promise<void> => {
+const runGroups = async (key: string, items: readonly Keyed[], send: (o: Line) => void, signal: AbortSignal): Promise<void> => {
   if (items.length < MIN_ITEMS_FOR_GROUPS) return;
   try {
     const payload = items.map((x, i) => ({ i, name_ja: x.name_ja, name_ko: x.name_ko, g: x.group }));
-    const res = await fetch(UPSTREAM, { method: 'POST', headers: headers(key), body: JSON.stringify(groupsBody(payload)) });
+    const res = await fetch(UPSTREAM, { signal, method: 'POST', headers: headers(key), body: JSON.stringify(groupsBody(payload)) });
     if (!res.ok) return;
     const data = (await res.json()) as { content?: Array<{ type: string; text?: string }>; stop_reason?: string };
     if (data.stop_reason === 'max_tokens') console.warn(`groups: 출력이 한도에서 잘림 (items=${items.length})`);
@@ -200,17 +200,20 @@ const handler = async (req: Request): Promise<Response> => {
   const image = body.image;
   const mediaType = body.mediaType ?? 'image/jpeg';
 
+  // 클라이언트가 홈으로 나가거나 사진을 빼서 요청을 끊으면 OCR·LLM 상류 호출도 같이 끊어 비용이 더 들지 않게 한다
+  const signal = req.signal;
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
-      const send = (obj: Line) => controller.enqueue(line(obj));
+      const send = (obj: Line) => { if (!signal.aborted) controller.enqueue(line(obj)); };
       try {
         let ocr: OcrResult | null = null;
         if (upstageKey) {
           try {
-            const r = await runOcr(image, mediaType, upstageKey);
+            const r = await runOcr(image, mediaType, upstageKey, signal);
             if (r.words.length >= MIN_WORDS) ocr = r;
             send({ t: 'ocr', width: r.width, height: r.height, words: r.words, rotation: r.rotation, tilt: r.tilt, ms: r.ms, used: ocr !== null });
           } catch (e) {
+            if (signal.aborted) throw e;
             send({ t: 'ocr', width: 1, height: 1, words: [], rotation: 0, tilt: 0, ms: 0, used: false, error: String(e) });
           }
         }
@@ -219,19 +222,22 @@ const handler = async (req: Request): Promise<Response> => {
 
         // meta.kind 는 앞 묶음의 판정을 쓰므로 처리 중 kind 도 0번 묶음의 것만 보낸다 (묶음은 동시에 시작하니 늦어지지 않는다)
         const onKind = (k: string) => send({ t: 'kind', kind: k });
-        const results = await Promise.all(chunks.map((c, i) => runStage1Chunk(timelyKey, i, c, image, mediaType, send, i === 0 ? onKind : () => {})));
+        const results = await Promise.all(chunks.map((c, i) => runStage1Chunk(timelyKey, i, c, image, mediaType, send, i === 0 ? onKind : () => {}, signal)));
         const first = results.find((r) => r.meta)?.meta ?? null;
         const notes = results.flatMap((r) => (Array.isArray(r.meta?.notes) ? r.meta!.notes! : []));
         send({ t: 'meta', kind: first?.kind ?? 'menu', shop_name: first?.shop_name ?? null, notes });
         const all = results.flatMap((r) => r.items);
         // 안내문·기타는 요리 설명(2단계)이 필요 없다. 생략하면 그만큼 빨리 끝난다
-        if (all.length > 0 && (first?.kind ?? 'menu') === 'menu') await Promise.all([runStage2(timelyKey, all, send), runGroups(timelyKey, all, send)]);
+        if (all.length > 0 && (first?.kind ?? 'menu') === 'menu') await Promise.all([runStage2(timelyKey, all, send, signal), runGroups(timelyKey, all, send, signal)]);
+        // 2단계 도중 끊기면 묶음별 catch 가 삼켜 여기까지 오므로, 중단된 스캔은 진단 저장도 하지 않는다
+        if (signal.aborted) return;
         send({ t: 'done' });
         await saveDebug({ at: new Date().toISOString(), mode: ocr ? 'ocr' : 'image', width: ocr?.width ?? 0, height: ocr?.height ?? 0, rotation: ocr?.rotation ?? 0, tilt: ocr?.tilt ?? 0, words: ocr?.words ?? [], items: results.flatMap((r) => r.raw), notes, chunks: chunks.length }, image);
       } catch (e) {
-        send({ t: 'error', m: e instanceof Error ? e.message : String(e) });
+        if (signal.aborted) console.info('[analyze] 클라이언트가 끊어 상류 호출을 중단함');
+        else send({ t: 'error', m: e instanceof Error ? e.message : String(e) });
       } finally {
-        controller.close();
+        try { controller.close(); } catch { /* 이미 닫힘 */ }
       }
     },
   });
