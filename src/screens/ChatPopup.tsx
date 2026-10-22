@@ -86,7 +86,8 @@ export const ChatPopup = ({ scan, open, aboveBar, focus, onClearFocus, onOpenIte
       if (ac.current === ctrl) setLive(null);
     }
   };
-  const submit = (e: FormEvent) => { e.preventDefault(); void ask(draft); };
+  // 보내면 키보드를 내린다. 답이 오는 동안 키보드가 화면 절반을 가리고 있으면 답을 읽으려고 닫았다 다시 열어야 한다
+  const submit = (e: FormEvent) => { e.preventDefault(); inputRef.current?.blur(); void ask(draft); };
 
   const refChips = (refs: readonly string[]) => refs.map((k) => itemById.get(k)).filter((it): it is MenuItem => it !== undefined).slice(0, 4);
 
@@ -104,7 +105,7 @@ export const ChatPopup = ({ scan, open, aboveBar, focus, onClearFocus, onOpenIte
         )}
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
           {quickQuestions(scan, focus !== null, seed).map((q) => (
-            <button key={q} type="button" className="chip" disabled={live !== null} onClick={() => void ask(q)} style={{ cursor: 'pointer', fontSize: 12, padding: '6px 10px', minHeight: 32 }}>{q}</button>
+            <button key={q} type="button" className="chip" disabled={live !== null} onClick={() => { inputRef.current?.blur(); void ask(q); }} style={{ cursor: 'pointer', fontSize: 12, padding: '6px 10px', minHeight: 32 }}>{q}</button>
           ))}
           <button type="button" aria-label="다른 질문 보기" onClick={() => setSeed((n) => nextSeed(scan, focus !== null, n))} className="dot" style={{ border: 0, background: 'transparent', color: 'var(--muted)', fontSize: 14, minHeight: 32, minWidth: 32, padding: '0 6px', cursor: 'pointer' }}>↻</button>
         </div>

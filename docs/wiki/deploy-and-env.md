@@ -8,6 +8,7 @@
   프리뷰를 살리려면 대시보드에서 보호 해제·우회 토큰 발급·Preview 환경변수 추가가 필요한데, 모두 사용자 결정 사항(절대 규칙 3).
 - 런타임: **Node.js**(2026-10-20 Edge 에서 전환). 이유: Redis TCP 필요, Edge 의 25초 첫 응답 제한 해제. `vercel.json` 에 리전 `hnd1`(도쿄)·`maxDuration 120`.
 - Node ESM 주의: `api/` 의 상대 import 는 `.js` 확장자 필수(없으면 FUNCTION_INVOCATION_FAILED).
+- **요청 취소**: Node 함수는 `vercel.json` `functions["api/*.ts"].supportsCancellation: true` 가 있어야 클라이언트가 끊었을 때 `request.signal` 이 abort 되고 함수가 종료된다(기본 꺼짐). `/api/analyze`·`/api/chat` 이 이 signal 을 상류 fetch 에 넘긴다. 참고: https://vercel.com/changelog/node-js-vercel-functions-now-support-per-path-request-cancellation
 - iOS 홈 화면 앱은 시작 페이지를 오래 캐시한다 → 빌드마다 `version.json` 을 내고 앱이 열릴 때 비교해 다르면 1회 새로고침(`src/lib/version.ts`).
 
 ## 환경변수 (프로덕션)

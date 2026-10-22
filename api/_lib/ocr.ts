@@ -45,12 +45,12 @@ const estimateAngle = (words: readonly RawWord[]): { rotation: 0 | 90 | 180 | 27
   return { rotation, tilt: Math.round((median - snappedRaw) * 10) / 10 };
 };
 
-export const runOcr = async (base64: string, mediaType: string, key: string): Promise<OcrResult> => {
+export const runOcr = async (base64: string, mediaType: string, key: string, signal?: AbortSignal): Promise<OcrResult> => {
   const t0 = Date.now();
   const form = new FormData();
   form.append('document', new Blob([base64ToBytes(base64)], { type: mediaType }), 'menu.jpg');
   form.append('model', 'ocr');
-  const res = await fetch(ENDPOINT, { method: 'POST', headers: { authorization: `Bearer ${key}` }, body: form });
+  const res = await fetch(ENDPOINT, { method: 'POST', headers: { authorization: `Bearer ${key}` }, body: form, signal });
   if (!res.ok) throw new Error(`ocr ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}`);
   const data = (await res.json()) as { pages?: RawPage[] };
   const page = data.pages?.[0];

@@ -19,7 +19,8 @@ const readBody = (req: IncomingMessage): Promise<Buffer> =>
     req.on('error', reject);
   });
 
-const toRequest = async (req: IncomingMessage): Promise<Request> => {
+/** 클라이언트가 끊으면 Vercel(supportsCancellation)처럼 req.signal 을 중단시킨다. 응답을 다 쓴 뒤의 close 는 중단이 아니다 */
+const toRequest = async (req: IncomingMessage, res: ServerResponse): Promise<Request> => {
   const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
   const headers = new Headers();
   for (const [k, v] of Object.entries(req.headers)) {
@@ -28,7 +29,9 @@ const toRequest = async (req: IncomingMessage): Promise<Request> => {
   }
   const method = req.method ?? 'GET';
   const body = method === 'GET' || method === 'HEAD' ? undefined : new Uint8Array(await readBody(req));
-  return new Request(url, { method, headers, body });
+  const ac = new AbortController();
+  res.on('close', () => { if (!res.writableEnded) ac.abort(); });
+  return new Request(url, { method, headers, body, signal: ac.signal });
 };
 
 const writeResponse = async (res: ServerResponse, out: Response): Promise<void> => {
@@ -40,6 +43,7 @@ const writeResponse = async (res: ServerResponse, out: Response): Promise<void> 
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
+    if (res.destroyed) { await reader.cancel().catch(() => undefined); return; }
     res.write(value);
     (res as ServerResponse & { flush?: () => void }).flush?.();
   }
@@ -61,7 +65,7 @@ export const devApi = (): Plugin => ({
       try {
         const mod = (await server.ssrLoadModule(file)) as Module;
         const fn = typeof mod.default === 'function' ? mod.default : mod.default.fetch;
-        const out = await fn(await toRequest(req));
+        const out = await fn(await toRequest(req, res));
         await writeResponse(res, out);
       } catch (e) {
         server.config.logger.error(String(e));
