@@ -13,7 +13,7 @@ import { OrderSheet } from './OrderSheet';
 import { KIND_LABEL } from '../lib/kind';
 import { DotGlyph } from '../components/DotGlyph';
 import { BatchStrip } from '../components/BatchStrip';
-import { ChatFab } from '../components/ChatFab';
+import { ChatFab, FAB_SIZE, fabBottom } from '../components/ChatFab';
 import { ChatPopup } from './ChatPopup';
 import { chatTitle } from '../lib/kind';
 
@@ -29,6 +29,8 @@ export const ResultScreen = ({ scan, batch, title, onRename, onSwitch, onAdd, ra
   // 주문 수량(메뉴판만). 스캔별로 기기에 저장
   const [order, setOrder] = useState<Order>(() => (isMenu ? loadOrder(scan.id) : {}));
   const [orderOpen, setOrderOpen] = useState(false);
+  // 주문서 바의 실제 높이(px). 말풍선 버튼과 아래 여백이 이 값 위에 앉는다(상수로 가정하면 글꼴 행간 차이로 겹친다)
+  const [barHeight, setBarHeight] = useState(0);
   // 안내문 문단 선택: 덮개나 번역문 줄을 누르면 선택, 같은 것을 다시 누르면 해제(원문·번역은 사진 아래 정리 영역에 있어 시트를 띄우지 않는다)
   const [selectedNote, setSelectedNote] = useState<number | null>(null);
   const toggleNote = (i: number) => setSelectedNote((cur) => (cur === i ? null : i));
@@ -106,11 +108,11 @@ export const ResultScreen = ({ scan, batch, title, onRename, onSwitch, onAdd, ra
         ? <OverlayView scan={scan} selectedId={selected?.id ?? null} onSelect={setSelected} selectedNote={selectedNote} onNote={toggleNote} rate={rate} showMarks={showMarks} />
         : <CardsView scan={scan} rate={rate} mode={mode} onMode={onMode} onSelect={setSelected} order={order} onQty={setQty} />}
 
-      {/* 아래 여백: 주문서 바(72) + 말풍선 버튼 자리(72). 마지막 카드의 스테퍼가 버튼에 가려지지 않게 */}
-      <div aria-hidden="true" style={{ height: (lines.length > 0 ? 72 : 0) + 72 }} />
-      {isMenu && <OrderBar lines={lines} rate={rate} onOpen={() => setOrderOpen(true)} />}
+      {/* 아래 여백: 주문서 바(실측) + 말풍선 버튼 자리. 마지막 카드의 스테퍼가 버튼에 가려지지 않게 */}
+      <div aria-hidden="true" style={{ height: fabBottom(barHeight) + FAB_SIZE + 16 }} />
+      {isMenu && <OrderBar lines={lines} rate={rate} onOpen={() => setOrderOpen(true)} onHeight={setBarHeight} />}
       {orderOpen && <OrderSheet lines={lines} rate={rate} onQty={setQty} onClear={() => { setOrder({}); setOrderOpen(false); }} onClose={() => setOrderOpen(false)} />}
-      {!orderOpen && !selected && !chatOpen && <ChatFab title={chatTitle(scan.kind)} buttonRef={fabRef} unread={unread} aboveBar={lines.length > 0} onClick={openChat} />}
+      {!orderOpen && !selected && !chatOpen && <ChatFab title={chatTitle(scan.kind)} buttonRef={fabRef} unread={unread} barHeight={barHeight} onClick={openChat} />}
       {chatMounted && <ChatPopup scan={scan} open={chatOpen} focus={chatFocus} onClearFocus={() => setChatFocus(null)} onOpenItem={(id) => { const it = scan.items.find((x) => x.id === id); if (it) { setChatOpen(false); setSelected(it); } }} onClose={closeChat} onAnswered={() => { if (!chatOpenRef.current) setUnread((n) => n + 1); }} />}
       {selected && <ItemSheet item={selected} rate={rate} mode={mode} onClose={() => setSelected(null)} qty={isMenu ? (order[selected.id] ?? 0) : null} onQty={(q) => setQty(selected.id, q)} pending={scan.status !== 'done' && scan.status !== 'error'} onAsk={openChat} />}
     </div>
