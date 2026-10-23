@@ -58,8 +58,6 @@ export const App = () => {
   const ctrls = useRef(new Map<string, AbortController>());
   /** 아직 「N장 분석하기」를 누르지 않은 미리 읽기 스캔 id. 확정 전에는 기록에 저장하지 않는다 */
   const draft = useRef(new Set<string>());
-  /** 지금 묶음이 이 세션에서 읽은 것인지(기록에서 연 묶음에는 사진을 더 붙이지 않는다) */
-  const live = useRef(false);
   /** 스캔 id → 원본 파일. 사진 저장 버튼과 다시 시도에 쓴다 */
   const files = useRef(new Map<string, File>());
   const installHint = useInstallHint();
@@ -174,7 +172,6 @@ export const App = () => {
   const startScans = useCallback(async (input: readonly File[]) => {
     const list = input.slice(0, BATCH_MAX);
     if (list.length === 0) return;
-    live.current = true;
     const batchId = list.length > 1 ? newScanId() : null;
     const reuse = new Map<File, string>();
     for (const s of batch) { const f = files.current.get(s.id); if (f && list.includes(f) && s.status !== 'error') reuse.set(f, s.id); else abortScan(s.id); }
@@ -204,13 +201,12 @@ export const App = () => {
   const prewarm = useCallback((file: File) => {
     const s = newScan(file, null, 0);
     draft.current.add(s.id);
-    live.current = true;
     setBatch([s]);
     setCurrentId(s.id);
     void start(s);
   }, [newScan, start]);
 
-  /** 결과·처리 중 화면에서 사진을 더 붙인다. 묶음 id 가 없던 한 장짜리는 묶음으로 승격해 저장한다 */
+  /** 결과·처리 중 화면에서 사진을 더 붙인다(기록에서 연 묶음도 같다). 묶음 id 가 없던 한 장짜리는 묶음으로 승격해 저장한다 */
   const addScans = useCallback((input: readonly File[]) => {
     const list = input.slice(0, Math.max(0, BATCH_MAX - batch.length));
     if (list.length === 0 || batch.length === 0) return;
@@ -267,16 +263,15 @@ export const App = () => {
   // 결과 화면에서 띠로 실패·대기 중 사진을 고르면 처리 화면(오류·다시 시도·진행 표시)을 보여준다. route 는 그대로 두어 완료된 사진으로 돌아오면 결과가 보인다
   const showProcessing = current !== null && (route === 'processing' || (route === 'result' && (current.status === 'error' || current.status === 'preparing' || current.status === 'reading')));
   if (showProcessing && current) {
-    return <><ProcessingScreen scan={current} batch={batch} onSwitch={switchTo} onAdd={live.current ? addScans : undefined} onCancel={requestHome} onPeek={() => setRoute('result')} onRetry={() => retryOne(current.id)} />{leaveDialog}</>;
+    return <><ProcessingScreen scan={current} batch={batch} onSwitch={switchTo} onAdd={addScans} onCancel={requestHome} onPeek={() => setRoute('result')} onRetry={() => retryOne(current.id)} />{leaveDialog}</>;
   }
   if (route === 'result' && current) {
     // key 로 스캔마다 다시 마운트해 보기 방식·선택·주문서 상태가 사진 사이에 새지 않게 한다
-    return <><ResultScreen key={current.id} scan={current} batch={batch} onSwitch={switchTo} onAdd={live.current ? addScans : undefined} rate={rate} mode={mode} onMode={changeMode} onHome={requestHome} originalFiles={batch.map((s) => files.current.get(s.id) ?? null)} />{leaveDialog}</>;
+    return <><ResultScreen key={current.id} scan={current} batch={batch} onSwitch={switchTo} onAdd={addScans} rate={rate} mode={mode} onMode={changeMode} onHome={requestHome} originalFiles={batch.map((s) => files.current.get(s.id) ?? null)} />{leaveDialog}</>;
   }
   // 목록에는 사진이 없다. 결과 화면으로 가기 전에 사진 한 건만 읽는다
   // 묶음으로 읽은 스캔은 같은 묶음 전부를 찍은 순서로 띠에 올린다(사진은 띠 썸네일용으로 모두 읽음, 묶음은 최대 BATCH_MAX 장)
   const openScan = (g: ScanGroup) => {
-    live.current = false;
     void Promise.all(g.scans.map(async (x) => upgrade({ ...x, imageDataUrl: await loadScanImage(x) }))).then((list) => {
       setBatch(list);
       setCurrentId(g.scans[0]!.id);
