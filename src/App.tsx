@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ImageMode, Note, OcrWord, PickSource, Rate, Scan, ScanKind } from './types';
+import type { ImageMode, Note, OcrWord, PickSource, Rate, Scan, ScanKind, Talk } from './types';
 import { hasFiles } from './lib/drop';
 import { analyzeImage, checkStoredCode, fetchRate } from './lib/api';
 import { prepareImage } from './lib/image';
@@ -18,8 +18,12 @@ import { ResultScreen } from './screens/ResultScreen';
 import { LeaveDialog } from './screens/LeaveDialog';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { RenameDialog } from './components/RenameDialog';
+import { TalkScreen } from './screens/TalkScreen';
+import { loadTalks, removeTalk, saveTalk } from './lib/talkStore';
+import { newTalk, talkTitle } from './lib/talk';
+import type { HomeTab } from './lib/storage';
 
-type Route = 'gate' | 'home' | 'history' | 'confirm' | 'processing' | 'result';
+type Route = 'gate' | 'home' | 'history' | 'confirm' | 'processing' | 'result' | 'talk';
 
 const emptyScan = (): Scan => ({
   id: newScanId(), batchId: null, createdAt: Date.now(), imageDataUrl: '', width: 4, height: 3, kind: 'menu', kindKnown: false, shopName: null, autoTitle: null, userTitle: null, thumb: null, sheetQuad: null,
@@ -69,6 +73,19 @@ export const App = () => {
   /** 스캔 id → 원본 파일. 사진 저장 버튼과 다시 시도에 쓴다 */
   const files = useRef(new Map<string, File>());
   const installHint = useInstallHint();
+  /** 대화 통역: 저장된 대화 목록, 지금 열린 대화, 기록 화면 탭, 지우기·이름 고치기 중인 대화 */
+  const [talks, setTalks] = useState<readonly Talk[]>([]);
+  const [currentTalk, setCurrentTalk] = useState<Talk | null>(null);
+  const [historyTab, setHistoryTab] = useState<HomeTab>('menu');
+  const [removingTalk, setRemovingTalk] = useState<Talk | null>(null);
+  const [renamingTalk, setRenamingTalk] = useState<Talk | null>(null);
+  const persistTalk = useCallback((t: Talk) => { void saveTalk(t).then(setTalks); }, []);
+
+  useEffect(() => {
+    let alive = true;
+    void loadTalks().then((list) => { if (alive) setTalks(list); });
+    return () => { alive = false; };
+  }, []);
 
   // 어느 화면에서든 파일을 끌어다 놓아도 브라우저가 그 파일로 이동하지 않게 막는다 (홈 화면은 자기 리스너에서 받아 처리)
   useEffect(() => {
@@ -281,6 +298,26 @@ export const App = () => {
   const changeMode = (m: ImageMode) => { saveImageMode(m); setMode(m); };
 
   if (route === 'gate') return <GateScreen onEnter={() => setRoute('home')} />;
+  /** 대화 이름 고치기: 저장된 최신본에 반영하고(아직 저장 전이면 화면 것만), 열린 대화에도 내려보낸다 */
+  const renameTalk = (t: Talk, userTitle: string | null) => {
+    const latest = talks.find((x) => x.id === t.id);
+    if (latest) persistTalk({ ...latest, userTitle });
+    setCurrentTalk((c) => (c && c.id === t.id ? { ...c, userTitle } : c));
+    setRenamingTalk(null);
+  };
+  const talkRenameDialog = renamingTalk && (
+    <RenameDialog current={talkTitle(renamingTalk)} auto={talkTitle({ ...renamingTalk, userTitle: null })} edited={!!renamingTalk.userTitle}
+      onCancel={() => setRenamingTalk(null)} onSave={(name) => renameTalk(renamingTalk, name)} />
+  );
+  const talkRemoveDialog = removingTalk && (
+    <ConfirmDialog title="이 대화를 지울까요?" confirmLabel="지우기" body={`「${talkTitle(removingTalk)}」 대화를 지우면 되돌릴 수 없어요.`}
+      onCancel={() => setRemovingTalk(null)} onConfirm={() => { void removeTalk(removingTalk.id).then(setTalks); setRemovingTalk(null); }} />
+  );
+  const openTalk = (t: Talk) => { setCurrentTalk(t); setRoute('talk'); };
+  if (route === 'talk' && currentTalk) {
+    // 이름 고치기 대상은 화면이 들고 있는 최신본(제목·마디가 App 것보다 앞설 수 있다)
+    return <><TalkScreen key={currentTalk.id} talk={currentTalk} onSave={persistTalk} onHome={() => { setCurrentTalk(null); setRoute('home'); }} onRename={setRenamingTalk} />{talkRenameDialog}</>;
+  }
   const leaveDialog = leaving && <LeaveDialog busy={busy} detailingOnly={batch.every((s) => s.status === 'detailing' || s.status === 'done' || s.status === 'error')} onStay={() => setLeaving(false)} onLeave={goHome} />;
   /** 이름 고치기: 기록과 지금 열린 묶음을 함께 바꾼다(열린 묶음이 나중에 다시 저장돼도 이름이 남게) */
   const rename = (g: ScanGroup, userTitle: string | null) => {
@@ -340,7 +377,13 @@ export const App = () => {
     return <><ConfirmBatchScreen files={pending} dropped={dropped} onChange={change} reading={reading} onConfirm={(list) => { setPending([]); void startScans(list); }} onCrop={crop} onCancel={requestHome} />{leaveDialog}</>;
   }
   if (route === 'history') {
-    return <><HistoryScreen scans={scans} installHint={installHint} onBack={() => setRoute('home')} onOpen={openScan} onRename={setRenaming} onRemove={setRemoving} onClear={() => void clearScans().then(setScans)} />{removeDialog}{renameDialog}</>;
+    return (
+      <>
+        <HistoryScreen scans={scans} installHint={installHint} onBack={() => setRoute('home')} onOpen={openScan} onRename={setRenaming} onRemove={setRemoving} onClear={() => void clearScans().then(setScans)}
+          tab={historyTab} onTab={setHistoryTab} talks={talks} onOpenTalk={openTalk} onRenameTalk={setRenamingTalk} onRemoveTalk={setRemovingTalk} />
+        {removeDialog}{renameDialog}{talkRemoveDialog}{talkRenameDialog}
+      </>
+    );
   }
   return (
     <>
@@ -348,13 +391,21 @@ export const App = () => {
         scans={scans}
         installHint={installHint}
         onPick={pick}
-        onShowAll={() => setRoute('history')}
+        onShowAll={() => { setHistoryTab('menu'); setRoute('history'); }}
         onOpen={openScan}
         onRename={setRenaming}
         onRemove={setRemoving}
+        talks={talks}
+        onNewTalk={() => openTalk(newTalk())}
+        onOpenTalk={openTalk}
+        onRenameTalk={setRenamingTalk}
+        onRemoveTalk={setRemovingTalk}
+        onShowAllTalks={() => { setHistoryTab('talk'); setRoute('history'); }}
       />
       {removeDialog}
       {renameDialog}
+      {talkRemoveDialog}
+      {talkRenameDialog}
     </>
   );
 };

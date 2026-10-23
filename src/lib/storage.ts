@@ -1,5 +1,5 @@
 /** 영속 저장 래퍼. 스캔 기록은 IndexedDB(db.ts), 나머지는 localStorage. 모든 읽기/쓰기는 실패해도 앱이 동작하도록 감싼다. */
-import type { ImageMode, Photo, Rate, Scan } from '../types';
+import type { ImageMode, Photo, Rate, Scan, TalkPair } from '../types';
 import { dbClearScans, dbDeleteScan, dbLoadImage, dbLoadScans, dbPatchScan, dbPutScan } from './db';
 import { makeThumb } from './thumb';
 
@@ -9,6 +9,8 @@ const KEY = {
   rate: 'menulens.rate',
   photos: 'menulens.photos',
   mode: 'menulens.imageMode',
+  homeTab: 'menulens.homeTab',
+  talkPrefs: 'menulens.talkPrefs',
 } as const;
 
 /** IndexedDB 를 못 쓰는 환경(옛 Safari 사생활 보호 모드 등)에서만 쓰는 localStorage 폴백의 보관 한도 */
@@ -138,3 +140,20 @@ export const savePhoto = (query: string, photo: Photo): void => {
 
 export const loadImageMode = (): ImageMode => read<ImageMode>(KEY.mode) ?? 'art';
 export const saveImageMode = (mode: ImageMode): void => { write(KEY.mode, mode); };
+
+/** 홈 탭(메뉴판 읽기 / 대화 통역). 처음은 메뉴판 */
+export type HomeTab = 'menu' | 'talk';
+export const loadHomeTab = (): HomeTab => (read<HomeTab>(KEY.homeTab) === 'talk' ? 'talk' : 'menu');
+export const saveHomeTab = (tab: HomeTab): void => { write(KEY.homeTab, tab); };
+
+// ── 대화 화면 설정(기기별): 말풍선 언어 쌍, 일본어 발음 보기 ──────────────────
+export type TalkPrefs = { readonly pair: TalkPair; readonly pron: boolean };
+const PAIRS: readonly TalkPair[] = ['ko-ja', 'ko-en', 'ja-en'];
+
+export const loadTalkPrefs = (): TalkPrefs => {
+  try {
+    const raw = JSON.parse(localStorage.getItem(KEY.talkPrefs) ?? '{}') as Partial<TalkPrefs>;
+    return { pair: raw.pair && PAIRS.includes(raw.pair) ? raw.pair : 'ko-ja', pron: raw.pron !== false };
+  } catch { return { pair: 'ko-ja', pron: true }; }
+};
+export const saveTalkPrefs = (prefs: TalkPrefs): void => { try { localStorage.setItem(KEY.talkPrefs, JSON.stringify(prefs)); } catch { /* 무시 */ } };
