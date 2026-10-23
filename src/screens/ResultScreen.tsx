@@ -24,7 +24,10 @@ type Props = { readonly scan: Scan; readonly batch: readonly Scan[]; readonly vi
 export const ResultScreen = ({ scan, batch, view, onView, showMarks, onShowMarks, title, onRename, onSwitch, onAdd, rate, mode, onMode, onHome, originalFiles }: Props) => {
   const isMenu = scan.kind === 'menu';
   // 안내문·기타는 카드가 의미 없으니 오버레이만 보여준다(view 는 App 상태)
-  const [selected, setSelected] = useState<MenuItem | null>(null);
+  // 선택한 항목은 어느 사진 것인지 함께 든다(항목 id 가 사진마다 겹친다). 지금 보는 사진의 것만 화면에 쓴다
+  const [selected, setSelected] = useState<{ readonly scanId: string; readonly item: MenuItem } | null>(null);
+  const selectedItem = selected && selected.scanId === scan.id ? selected.item : null;
+  const select = (item: MenuItem) => setSelected({ scanId: scan.id, item });
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   // 주문 수량: 묶음 전체(사진 id → 항목 id → 수량). 1번 사진에서 담은 것과 2번 사진에서 담은 것이 한 주문서가 된다. 저장은 사진별 키 그대로
   const [order, setOrder] = useState<BatchOrder>(() => loadBatchOrder(batch.map((s) => s.id)));
@@ -46,10 +49,13 @@ export const ResultScreen = ({ scan, batch, view, onView, showMarks, onShowMarks
   chatOpenRef.current = chatOpen;
   const [chatFocus, setChatFocus] = useState<MenuItem | null>(null);
   const [unread, setUnread] = useState(0);
-  // 화면은 묶음 단위로 살아 있고(App 의 key), 사진을 바꾸면 사진에 딸린 선택만 닫는다. 보기 방식·표시 토글·주문서는 사진 사이에 유지.
-  // 사진별 state 를 ResultScreen 에 추가하면 여기에도 넣는다(항목 id 가 사진마다 겹쳐 빠뜨리면 다른 사진의 항목이 선택된 채 보인다). 하위 뷰의 내부 상태(확대·필터·탭)는 key={scan.id} 로 초기화한다
-  useEffect(() => { setSelectedNote(null); setSelected(null); setChatFocus(null); setChatOpen(false); setChatMounted(false); setUnread(0); }, [scan.id]);
-  const openChat = () => { setChatFocus(selected); setSelected(null); setUnread(0); setChatMounted(true); setChatOpen(true); };
+  // 화면은 묶음 단위로 살아 있고(App 의 key), 사진을 바꾸면 사진에 딸린 선택만 닫는다. 보기 방식·표시 토글·주문서·챗(묶음에 하나)은 사진 사이에 유지.
+  // 사진별 state 를 ResultScreen 에 추가하면 여기에도 넣는다(항목 id 가 사진마다 겹쳐 빠뜨리면 다른 사진의 항목이 선택된 채 보인다). 하위 뷰의 내부 상태(확대·필터·탭)는 key={scan.id} 로 초기화한다.
+  // 참조 칩으로 다른 사진의 항목을 열 때는 사진을 바꾸면서 그 사진의 선택을 함께 넣으므로 지우지 않는다
+  useEffect(() => { setSelectedNote(null); setSelected((s) => (s && s.scanId === scan.id ? s : null)); setChatFocus(null); setChatOpen(false); }, [scan.id]);
+  const openChat = () => { setChatFocus(selectedItem); setSelected(null); setUnread(0); setChatMounted(true); setChatOpen(true); };
+  /** 챗 참조 칩: 다른 사진의 항목이면 그 사진으로 바꾸고 상세를 연다 */
+  const jumpTo = (scanId: string, item: MenuItem) => { setChatOpen(false); if (scanId !== scan.id) onSwitch(scanId); setSelected({ scanId, item }); };
   const overlayShown = view === 'overlay' || !isMenu;
   useEffect(() => { saveBatchOrder(order); }, [order]);
   /** 어느 사진의 어느 항목 수량. 카드·상세 시트는 지금 사진, 주문서 시트는 줄마다 자기 사진 */
@@ -110,16 +116,16 @@ export const ResultScreen = ({ scan, batch, view, onView, showMarks, onShowMarks
       </div>
 
       {overlayShown
-        ? <OverlayView key={scan.id} scan={scan} selectedId={selected?.id ?? null} onSelect={setSelected} selectedNote={selectedNote} onNote={toggleNote} rate={rate} showMarks={showMarks} />
-        : <CardsView key={scan.id} scan={scan} rate={rate} mode={mode} onMode={onMode} onSelect={setSelected} order={currentOrder} onQty={setQty} />}
+        ? <OverlayView key={scan.id} scan={scan} selectedId={selectedItem?.id ?? null} onSelect={select} selectedNote={selectedNote} onNote={toggleNote} rate={rate} showMarks={showMarks} />
+        : <CardsView key={scan.id} scan={scan} rate={rate} mode={mode} onMode={onMode} onSelect={select} order={currentOrder} onQty={setQty} />}
 
       {/* 아래 여백: 주문서 바(실측) + 말풍선 버튼 자리. 마지막 카드의 스테퍼가 버튼에 가려지지 않게 */}
       <div aria-hidden="true" style={{ height: fabBottom(barHeight) + FAB_SIZE + 16 }} />
       {hasMenu && <OrderBar lines={lines} rate={rate} onOpen={() => setOrderOpen(true)} onHeight={setBarHeight} />}
       {orderOpen && <OrderSheet lines={lines} rate={rate} photos={batch.length} onQty={setQtyOf} onClear={() => { setOrder(clearedBatchOrder); setOrderOpen(false); }} onClose={() => setOrderOpen(false)} />}
-      {!orderOpen && !selected && !chatOpen && <ChatFab title={chatTitle(scan.kind)} buttonRef={fabRef} unread={unread} barHeight={barHeight} onClick={openChat} />}
-      {chatMounted && <ChatPopup key={scan.id} scan={scan} open={chatOpen} focus={chatFocus} onClearFocus={() => setChatFocus(null)} onOpenItem={(id) => { const it = scan.items.find((x) => x.id === id); if (it) { setChatOpen(false); setSelected(it); } }} onClose={closeChat} onAnswered={() => { if (!chatOpenRef.current) setUnread((n) => n + 1); }} />}
-      {selected && <ItemSheet item={selected} rate={rate} mode={mode} onClose={() => setSelected(null)} qty={isMenu ? (currentOrder[selected.id] ?? 0) : null} onQty={(q) => setQty(selected.id, q)} pending={scan.status !== 'done' && scan.status !== 'error'} onAsk={openChat} />}
+      {!orderOpen && !selectedItem && !chatOpen && <ChatFab title={chatTitle(scan.kind)} buttonRef={fabRef} unread={unread} barHeight={barHeight} onClick={openChat} />}
+      {chatMounted && <ChatPopup batch={batch} scan={scan} open={chatOpen} focus={chatFocus} onClearFocus={() => setChatFocus(null)} onOpenItem={jumpTo} onClose={closeChat} onAnswered={() => { if (!chatOpenRef.current) setUnread((n) => n + 1); }} />}
+      {selectedItem && <ItemSheet item={selectedItem} rate={rate} mode={mode} onClose={() => setSelected(null)} qty={isMenu ? (currentOrder[selectedItem.id] ?? 0) : null} onQty={(q) => setQty(selectedItem.id, q)} pending={scan.status !== 'done' && scan.status !== 'error'} onAsk={openChat} />}
     </div>
   );
 };
