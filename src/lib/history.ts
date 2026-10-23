@@ -33,14 +33,16 @@ const topCategory = (scan: Scan): string | null => {
   return [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
 };
 
+const HANGUL = /[\uAC00-\uD7A3]/;
+
 /**
- * 자동 제목(사용자가 고치지 않았을 때의 이름): 1단계가 지은 「이모지 제목」 → 가게명 → 옛 기록 규칙
- * (메뉴판은 「가장 많은 분류 + 메뉴판」, 안내문은 첫 문단 번역)
+ * 자동 제목(사용자가 고치지 않았을 때의 이름): 1단계가 지은 「이모지 제목」 → 한글로 된 가게명 → 옛 기록 규칙
+ * (안내문은 첫 문단 번역, 메뉴판은 「가장 많은 분류 + 메뉴판」). 옛 기록의 가게명은 원문(한자)이라 그대로 쓰지 않는다(2026-10-23 피드백)
  */
 export const autoGroupTitle = (g: ScanGroup): string => {
   const auto = g.scans.find((s) => s.autoTitle)?.autoTitle;
   if (auto) return auto;
-  const shop = g.scans.find((s) => s.shopName)?.shopName;
+  const shop = g.scans.find((s) => s.shopName && HANGUL.test(s.shopName))?.shopName;
   if (shop) return shop;
   const first = g.scans[0]!;
   if (first.kind === 'menu') { const top = topCategory(first); return top ? `${top} ${KIND_LABEL.menu}` : KIND_LABEL.menu; }
