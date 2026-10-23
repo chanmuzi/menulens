@@ -16,6 +16,9 @@
 | 이름 | 용도 | 비고 |
 |---|---|---|
 | `TIMELY_API_KEY` | LLM(Timely Router) | 서버 전용 |
+| `ANTHROPIC_API_KEY` | 대화 통역 번역·도우미의 **예비** Claude 경로(Timely 가 402·429·한도 문구로 거절할 때만) | 서버 전용. Max 구독 월 API 크레딧에서 차감, auto-reload 끔(소진 시 호출만 멈춤) |
+| `GROQ_API_KEY` | 대화 통역 음성 인식 기본(Groq Whisper) | 서버 전용. 무료 등급 |
+| `GEMINI_API_KEY` | 음성 인식 예비(Gemini 받아쓰기 모델) | 서버 전용. 무료 등급(입력·출력이 Google 제품 개선에 쓰일 수 있음) |
 | `UPSTAGE_API_KEY` | OCR | 서버 전용 |
 | `ACCESS_CODES` | 초대 코드(쉼표 구분) | 배포 환경에서 비어 있으면 **전체 거부**. 실제 값은 문서에 쓰지 않는다 |
 | `REDIS_URL` | 설명 캐시·진단 저장 | Vercel Storage 에서 Redis 추가 시 자동 등록 |
@@ -43,6 +46,10 @@
 ## 비용
 
 - 호출당 과금은 LLM(Sonnet) 뿐. OCR 은 Upstage 키 과금 정책을 따른다. Vercel Hobby·Redis Free 는 무료 범위.
+- 대화 통역(2026-10-23 사용자 결정): 음성 인식은 무료 등급만 쓴다. 번역·도우미는 Timely(호출당 과금), 한도 문제일 때만 Anthropic 직접 키(Max 크레딧).
+  - **Groq 무료 한도**(응답 헤더 실측, 모델별): 요청 2,000회/일, 오디오 7,200초/시간. 일 오디오 상한(28,800초설)은 헤더에 안 나와 미확인. 10초 미만 요청도 10초로 센다(공식 문서).
+  - **Gemini 무료 한도**: 받아쓰기 모델 `gemini-3.5-transcribe` 분당 3회(429 응답 문구 실측). 그 밖의 수치는 AI Studio 에서만 보인다(문서 미기재).
+  - 둘 다 안 되면 `/api/stt` 가 503 `stt_unavailable` 과 `retryAfter`(한도라서 다시 될 때까지의 초를 알면, 아니면 null)를 준다. 클라이언트는 시간을 알면 「N분 뒤」, 모르면 「관리자에게 문의」 안내.
 - 초대 코드 게이트가 없으면 키가 공개 노출되는 셈이므로 `ACCESS_CODES` 를 비우지 않는다.
 
 ## 초대 코드 운용
