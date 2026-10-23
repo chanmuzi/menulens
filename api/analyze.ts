@@ -29,6 +29,7 @@ import { createItemParser, parseLoose } from './_lib/itemStream.js';
 import { cacheGetMany, cacheSetMany } from './_lib/cache.js';
 import { saveDebug } from './_lib/debugStore.js';
 import { GROUPS_SYSTEM, IMAGE_SYSTEM, IMAGE_USER_PROMPT, MODEL, STAGE1_SYSTEM, STAGE2_SYSTEM, SUMMARY_SYSTEM } from './_lib/prompt.js';
+import { readSse } from './_lib/claude.js';
 
 const UPSTREAM = 'https://api.timelyrouter.ai/v1/messages';
 /** 이 수보다 단어가 적으면 OCR 을 믿지 않고 이미지 폴백 */
@@ -81,33 +82,6 @@ const summaryBody = (notes: ReadonlyArray<{ ja: string; ko: string }>): unknown 
   ...llm, stream: false, max_tokens: 1500, system: SUMMARY_SYSTEM,
   messages: [{ role: 'user', content: JSON.stringify(notes) }],
 });
-
-/** Anthropic SSE 를 읽어 text_delta 만 콜백으로 넘긴다 */
-const readSse = async (body: ReadableStream<Uint8Array>, onText: (t: string) => void): Promise<void> => {
-  const reader = body.getReader();
-  const dec = new TextDecoder();
-  let pending = '';
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    pending += dec.decode(value, { stream: true });
-    const lines = pending.split('\n');
-    pending = lines.pop() ?? '';
-    for (const l of lines) {
-      if (!l.startsWith('data:')) continue;
-      const raw = l.slice(5).trim();
-      if (!raw || raw === '[DONE]') continue;
-      try {
-        const ev = JSON.parse(raw) as { type?: string; delta?: { type?: string; text?: string }; error?: { message?: string } };
-        if (ev.type === 'content_block_delta' && ev.delta?.type === 'text_delta' && ev.delta.text) onText(ev.delta.text);
-        else if (ev.type === 'error') throw new Error(ev.error?.message ?? 'upstream error');
-      } catch (e) {
-        if (e instanceof SyntaxError) continue;
-        throw e;
-      }
-    }
-  }
-};
 
 /** 1단계 한 묶음: 스트리밍하며 항목을 즉시 전송하고, 끝나면 메타와 항목 목록을 돌려준다 */
 const KIND_RE = /"kind"\s*:\s*"(menu|sign|other)"/;
