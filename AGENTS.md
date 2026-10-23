@@ -1,6 +1,6 @@
 # MenuLens — 에이전트 라우터
 
-> **Version**: 1.4.0 · **Updated**: 2026-10-23
+> **Version**: 1.5.0 · **Updated**: 2026-10-23
 > **이 파일이 규약의 단일 진입점(SSoT)이다.** 아래 판정표로 작업 유형을 정하고 그 행의 경로만 로드한다.
 > 전체 grep 은 라우팅으로 못 찾을 때의 최후 수단이다. 위키 루트는 `docs/wiki/index.md`.
 
@@ -12,6 +12,8 @@ Vercel Node.js 함수 6개, Upstage OCR → Claude Sonnet(Timely Router) 2단 �
 
 1. **비밀은 저장소에 절대 넣지 않는다.** `.env`·`.env.local`·`.vercel/`은 gitignore 상태를 유지하고,
    `.env.example` 에는 가짜 예시만 쓴다. 초대 코드 실제 값(`ACCESS_CODES`)은 문서·커밋·PR 본문 어디에도 적지 않는다.
+   **저장소는 공개(public)다.** 개인 정보(이메일·실명·연락처), 사용자 사진·진단 데이터 원문, 사진 속 사적인 글(메시지 등)은 커밋·PR·위키에 넣지 않는다(위키에는 요약 숫자와 일반화한 서술만).
+   초대 코드는 저장소에서 보이는 문자열(GitHub 계정명·프로젝트명·예시 값)과 같으면 안 된다. 커밋 전 의심되면 `.env` 값으로 추적 파일을 grep 해 확인한다(값은 출력하지 않는다).
 2. **`main` push = 프로덕션 배포.** Vercel Git 연동으로 main 에 푸시되면 즉시 배포된다.
    깨진 상태로 푸시하지 않는다: `pnpm build`(tsc 포함)가 통과하고, 가능하면 로컬 브라우저 흐름까지 확인한 뒤 푸시한다.
 3. **비용이 드는 호출은 LLM 뿐이어야 한다.** 새 외부 서비스·유료 플랜·대시보드 설정 변경은 사용자 확인 후에만.
@@ -50,8 +52,10 @@ Vercel Node.js 함수 6개, Upstage OCR → Claude Sonnet(Timely Router) 2단 �
 
 1. 커밋 메시지는 `type(scope): 설명` 한국어, 본문은 왜·무엇 중심. 커밋 단위는 변경 의도별로 나눈다.
 2. **작업 종료 시 결과 1엔트리** — `docs/wiki/log/YYYY-MM.md` **맨 위에**(newest-first) ≤3줄.
-   커밋 해시·`[[페이지]]` 참조 포함, 상세 서술 금지. 착수·중간 진행은 쓰지 않는다.
-3. 결정(채택·보류·폐기)이 바뀌면 [[design-decisions]] 또는 [[backlog]] 를 같은 PR 에서 갱신한다.
+   **PR 번호**(엔트리는 PR 생성 전에 쓰므로 `gh pr list --state all --limit 1` 의 다음 번호) 또는 직접 푸시면 커밋 해시, 그리고 `[[페이지]]` 참조 포함. 상세 서술 금지. 착수·중간 진행은 쓰지 않는다.
+3. 결정(채택·보류·폐기)이 바뀌면 같은 PR 에서 해당 결정 페이지를 갱신한다: 공통·원칙·폐기는 [[design-decisions]], 결과 화면은 [[decisions-result]], 입력·처리·기록은 [[decisions-input]], 미결은 [[backlog]].
+4. 측정한 시간은 [[benchmarks]] 에 날짜·환경·사진과 함께 표로(로그에만 남기지 않는다). 재현 스크립트는 `scripts/bench/`.
+5. 새 파일·모듈·API 이벤트·환경변수·Redis 키가 생기면 같은 PR 에서 [[architecture]] 파일 지도 / [[deploy-and-env]] 를 갱신한다. 새 위키 페이지는 `docs/wiki/index.md` 와 위 판정표에 등재.
 
 ## Git 절차
 
@@ -74,7 +78,7 @@ Vercel Node.js 함수 6개, Upstage OCR → Claude Sonnet(Timely Router) 2단 �
 4. **리뷰 반영** — 지적을 고치고 2 를 다시 통과. 받아들이지 않은 지적은 이유와 함께 보고에 적는다.
 5. **커밋·PR** — `git-claw:commit` / `git-claw:pr`. PR 본문에 "로컬 리뷰 N건 반영(미반영 M건: 사유)" 한 줄.
 6. **merge → 프로덕션 배포** — 보고 전에 PR 을 merge 한다(Git 절차 3, 예외도 거기). main 푸시로 Vercel 이 자동 배포하므로 `npx vercel` 로 직접 배포하지 않는다.
-   Vercel 프로덕션 Ready 를 확인하고 프로덕션 API 스모크(auth 401/200, rate)를 돌린 뒤 마무리 세트까지 끝낸다.
+   Vercel 프로덕션 Ready 는 **merge 커밋 기준**으로 확인한다(`npx vercel api "/v6/deployments?projectId=menulens&target=production&limit=1"` 의 커밋 해시·state, [[deploy-and-env]]). `vercel ls` 표 출력은 깨져 읽히지 않을 수 있어 근거로 쓰지 않는다. 그다음 프로덕션 API 스모크(auth 401/200, rate)를 돌리고 마무리 세트까지 끝낸다.
    프리뷰 배포는 쓰지 않는다 — Preview 환경에 비밀 변수가 없고 배포 보호(Vercel Authentication)로 302 되어 실기기 확인이 안 된다([[deploy-and-env]]).
 7. **보고** — 배포가 끝난 상태에서 **사용자가 프로덕션 실기기에서 확인할 항목**을 짧게 적어 보고한다. 문제가 나오면 `fix/…` 브랜치로 후속 PR.
 
@@ -84,6 +88,7 @@ PR 게시 리뷰(`code-review <PR#>` + `review-reply`)는 사용자 명시 지�
 
 merge 직후 같은 턴에서: 로컬 브랜치 삭제 → 원격 브랜치 삭제 확인 → 메인 체크아웃 `git pull --ff-only` + `git fetch --prune` → 워크트리를 썼으면 `git worktree remove`(미커밋 변경이 거부되면 `--force` 대신 내용 확인) →
 Vercel 자동 배포 Ready 확인 → `main HEAD`·`git worktree list`·잔여 브랜치·개발 서버 종료 여부를 보고에 포함. 로그 엔트리(기록 의무 2)는 같은 PR 에 들어 있어야 한다.
+PR 을 여러 개 낸 세션은 끝날 때 한 번 **위키 점검**: 오늘 엔트리의 PR 번호, 깨진 `[[링크]]`, 판정표·index 에 새 페이지·기능 경로가 있는지, 저장소에 비밀·개인 정보가 없는지(절대 규칙 1).
 
 ## 피드백 세션의 커밋 단위
 
