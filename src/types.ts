@@ -35,8 +35,17 @@ export type MenuItem = {
 /** 서버가 메뉴판 전체를 보고 정리한 묶음: 이름과 그 묶음에 든 항목 id(key) */
 export type ScanGroup = { readonly name: string; readonly keys: readonly string[] };
 
-/** 메뉴 항목이 아닌 문구 (제목, 안내문) */
-export type Note = { readonly text_ja: string; readonly text_ko: string; readonly bbox: Box | null };
+/** 안내문 문단의 쓰임: 제목·본문·짧은 이름표(지도·출구 안내) */
+export type NoteRole = 'title' | 'body' | 'label';
+
+/**
+ * 메뉴 항목이 아닌 문구 (제목, 안내문). 안내문은 문단 하나가 Note 하나다.
+ * lines 는 문단을 이루는 줄 상자(원문을 줄마다 지운다). 2026-10-23 이전 기록·메뉴판 문구·이미지 폴백에는 없고 bbox 하나뿐이다.
+ */
+export type Note = { readonly text_ja: string; readonly text_ko: string; readonly bbox: Box | null; readonly lines?: readonly Box[]; readonly role?: NoteRole };
+
+/** 안내문 요약: 사진에 적힌 내용(text)과 사진에 없는 일반 상식(tips)을 나눠 둔다 */
+export type NoticeSummary = { readonly text: string; readonly tips: readonly string[] };
 
 export type ScanStatus = 'preparing' | 'reading' | 'streaming' | 'detailing' | 'done' | 'error';
 
@@ -59,6 +68,8 @@ export type Scan = {
   /** 미세 기울기(도). OCR 글줄 각도의 중앙값 */
   readonly tilt: number;
   readonly notes: readonly Note[];
+  /** 안내문·기타의 요약. 메뉴판·요약 전·이전 기록이면 null */
+  readonly summary: NoticeSummary | null;
   /** 정리된 묶음. 오기 전·실패·소수 항목이면 null → 항목의 group/category 로 묶는다 */
   readonly groups: readonly ScanGroup[] | null;
   readonly items: readonly MenuItem[];

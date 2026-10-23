@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
-import type { MenuItem, Note, Scan } from '../types';
+import { useCallback, useEffect, useState } from 'react';
+import type { MenuItem, Rate, Scan } from '../types';
 import { formatJpy, formatPriceOrBlank, payableJpy } from '../lib/money';
 import { MenuPhoto, type MarkerCtx } from '../components/MenuPhoto';
-import { loadSampler, rgba, sampleBox, type BoxColors } from '../lib/sample';
+import { loadSampler, sampleBox, type BoxColors } from '../lib/sample';
+import { NoticeCovers, type CoverBlock } from '../components/NoticeCovers';
+import { NoticePanel } from './NoticePanel';
 
-type Props = { readonly scan: Scan; readonly selectedId: string | null; readonly onSelect: (item: MenuItem) => void; /** 안내문 줄을 탭했을 때 */ readonly onNote?: (note: Note) => void; /** 번역 표시(배지·덮개) 켜짐. 토글 버튼은 결과 화면 제목 줄에 있다 */ readonly showMarks: boolean };
+type Props = { readonly scan: Scan; readonly selectedId: string | null; readonly onSelect: (item: MenuItem) => void; /** 안내문 문단 선택(같은 문단을 다시 누르면 해제) */ readonly selectedNote: number | null; readonly onNote: (i: number) => void; readonly rate: Rate | null; /** 번역 표시(배지·덮개) 켜짐. 토글 버튼은 결과 화면 제목 줄에 있다 */ readonly showMarks: boolean };
 
 /** 메뉴가 이 수를 넘으면 칩 대신 번호 배지를 붙인다. 회전된 사진은 칩 배치가 어긋나므로 항상 배지 */
 const CHIP_LIMIT = 4;
@@ -24,76 +26,6 @@ const badgeSizes = (items: readonly MenuItem[], ctx: MarkerCtx): Map<string, num
     out.set(c.id, Math.round(Math.max(BADGE_MIN, Math.min(BADGE_MAX, nn * 0.85))));
   }
   return out;
-};
-
-/**
- * 원문 자리를 한글로 덮어씌우는 라벨 (파파고식). 제목·안내문구·비메뉴 사진의 문장에 쓴다.
- * 상자 크기는 원문 bbox 그대로, 글자 크기는 상자 높이(세로쓰기는 너비)에서 정한다.
- */
-/** 글자 폭 추정(em): CJK 1, 그 외 0.55 */
-const textEm = (t: string): number => [...t].reduce((n, ch) => n + (/[\u1100-\u11FF\u3000-\u9FFF\uAC00-\uD7AF\uF900-\uFAFF\uFF00-\uFFEF]/.test(ch) ? 1 : 0.55), 0);
-
-/** 상자에 두 줄 이내로 들어가는지 (안 들어가면 제자리 덮기 대신 ※마커 + 아래 목록) */
-const fitsInBox = (bbox: readonly [number, number, number, number], text: string, W: number, Hi: number): boolean => {
-  const [x0, y0, x1, y1] = bbox;
-  const wPx = ((x1 - x0) / 1000) * W, hPx = ((y1 - y0) / 1000) * Hi;
-  const vertical = hPx > wPx * 2;
-  const along = vertical ? hPx : wPx, across = vertical ? wPx : hPx;
-  const em = Math.max(1, textEm(text));
-  const oneLine = Math.min(across * 0.78, (along * 0.94) / em);
-  if (oneLine >= 9) return true;
-  const twoLineFont = Math.min(across * 0.78, 12, (along * 0.94 * 2) / em);
-  return twoLineFont >= 9;
-};
-
-const NoteMarker = ({ bbox, n, scale }: { bbox: readonly [number, number, number, number]; n: number; scale: number }) => (
-  <div aria-hidden="true" className="dot" style={{ position: 'absolute', left: `${bbox[0] / 10}%`, top: `${bbox[1] / 10}%`, transform: `translate(-20%, -20%) scale(${scale})`, transformOrigin: 'top left',
-    background: 'var(--paper-2)', color: 'var(--vermilion)', border: '2px solid var(--vermilion)', fontSize: 11, lineHeight: 1, padding: '2px 4px', zIndex: 2 }}>※{n}</div>
-);
-
-type CoverProps = { bbox: readonly [number, number, number, number]; text: string; W: number; Hi: number; rotation: number; rot: number; colors?: BoxColors; onClick?: () => void };
-
-/** 덮개 상자의 바탕: 사진에서 뽑은 배경색을 살짝 비치게(0.92). 더 투명하면 원문이 겹쳐 보여 읽기 어렵고, 획만 지운 배경 조각은 얼룩져 보인다는 피드백(2026-10-22) */
-const COVER_ALPHA = 0.92;
-const coverBg = (colors: BoxColors | undefined): string => rgba(colors?.bgRgb ?? [251, 246, 236], COVER_ALPHA);
-
-/**
- * 파파고식 덮어쓰기: 원문 자리를 반투명 종이색으로 덮고 원문 글자색으로 번역을 쓴다. 테두리 없음.
- * 사진 층이 rot 만큼 돌아가 있으므로 라벨은 역회전해 바로 세운다(번호 배지와 같은 방식). 90·270 이면 화면상 가로·세로가 바뀐다.
- */
-/** 덮개 라벨 치수: 화면 기준 방향·굵기·한 줄 글자 크기·접힘 여부 */
-const coverMetrics = (bbox: readonly [number, number, number, number], text: string, rotation: number, W: number, Hi: number) => {
-  const [x0, y0, x1, y1] = bbox;
-  const rawW = ((x1 - x0) / 1000) * W, rawH = ((y1 - y0) / 1000) * Hi;
-  const swap = rotation === 90 || rotation === 270;
-  const wPx = swap ? rawH : rawW, hPx = swap ? rawW : rawH; // 화면 기준 상자 크기
-  const vertical = hPx > wPx * 2;                              // 화면 기준 세로 글줄이면 세로쓰기
-  const along = vertical ? hPx : wPx;   // 글줄 진행 방향 길이
-  const across = vertical ? wPx : hPx;  // 글줄 굵기
-  // 한 줄로 넣을 때 가능한 글자 크기: 굵기 기준과 길이 기준 중 작은 쪽. 원문보다 한 단계 작게(원문 크기 그대로는 크다는 피드백)
-  const oneLine = Math.min(across * 0.68, (along * 0.92) / Math.max(1, textEm(text)), 22);
-  return { wPx, hPx, vertical, across, oneLine, wrap: oneLine < 9 } as const;
-};
-
-const CoverLabel = ({ bbox, text, W, Hi, rotation, rot, colors, onClick }: CoverProps) => {
-  const [x0, y0, x1, y1] = bbox;
-  const { wPx, hPx, vertical, across, oneLine, wrap } = coverMetrics(bbox, text, rotation, W, Hi);
-  const fontSize = wrap ? Math.max(10, Math.min(across * 0.68, 12)) : oneLine;
-  const fg = colors?.fg ?? 'var(--ink)', bg = coverBg(colors);
-  return (
-    <div style={{ position: 'absolute', left: `${x0 / 10}%`, top: `${y0 / 10}%`, width: `${(x1 - x0) / 10}%`, height: `${(y1 - y0) / 10}%`, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2, pointerEvents: 'none' }}>
-      <div role={onClick ? 'button' : undefined} tabIndex={onClick ? 0 : undefined} onClick={onClick}
-        onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } } : undefined}
-        style={{ flexShrink: 0, transform: `rotate(${rot}deg)`,
-          width: vertical ? Math.max(across, fontSize * 1.3) : wPx, height: vertical ? hPx : (wrap ? 'auto' : Math.max(across, fontSize * 1.3)), minHeight: vertical ? undefined : across,
-          boxSizing: 'border-box', padding: vertical ? '2px 0' : '0 2px', background: bg, color: fg, boxShadow: `0 0 0 2px ${bg}`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', fontSize, lineHeight: 1.1, fontWeight: 600,
-          overflow: 'visible', whiteSpace: wrap ? 'normal' : 'nowrap', wordBreak: 'keep-all', writingMode: vertical ? 'vertical-rl' : 'horizontal-tb', textOrientation: vertical ? 'upright' : undefined,
-          cursor: onClick ? 'pointer' : 'default', pointerEvents: 'auto' }}>
-        {text}
-      </div>
-    </div>
-  );
 };
 
 /** 덮어쓸 상자들의 글자색을 사진에서 한 번 뽑는다 (사진이 바뀔 때만, 결과 화면이 뜬 뒤 비동기). 붉은 안내 글은 붉게 남도록 */
@@ -119,33 +51,32 @@ const useBoxColors = (imageDataUrl: string, boxes: ReadonlyArray<readonly [strin
  * 항목이 적으면 이름·가격 칩, 많으면 번호 배지(탭하면 상세). 배지는 이웃과의 거리에 맞춰 작아지고,
  * 사진을 두 손가락으로 확대하면 화면상 크기는 그대로라 겹침이 풀린다.
  */
-export const OverlayView = ({ scan, selectedId, onSelect, onNote, showMarks }: Props) => {
+export const OverlayView = ({ scan, selectedId, onSelect, selectedNote, onNote, rate, showMarks }: Props) => {
   const badges = scan.kind === 'menu' && (scan.items.length > CHIP_LIMIT || scan.rotation !== 0);
   const rot = scan.rotation + scan.tilt;
-  const approxW = 350, approxHi = (approxW * scan.height) / scan.width;
   const isMenu = scan.kind === 'menu';
   // 메뉴판은 덮개를 그리지 않으므로(아래 covers) 색도 뽑지 않는다
   const colors = useBoxColors(scan.imageDataUrl, isMenu ? [] : [
     ...scan.notes.flatMap((n, i) => (n.bbox ? [[`n${i}`, n.bbox] as const] : [])),
     ...scan.items.flatMap((it) => (it.bbox ? [[it.id, it.bbox] as const] : [])),
   ]);
-  // 사진 위에 못 올린 줄(상자 없음)만 아래 목록으로. 올린 줄은 덮개를 누르면 원문·번역 시트(사진 아래 줄 카드는 중복이라는 피드백으로 2026-10-22 제거)
-  const unplaced = isMenu ? [] : scan.notes.filter((n) => !n.bbox);
+  // 번호 배지로만 찍힌 문단(덮개에 안 들어감) → 사진 아래 번역문에도 같은 번호를 단다
+  const [coverBadges, setCoverBadges] = useState<ReadonlyMap<string, number>>(new Map());
+  const onBadges = useCallback((b: ReadonlyMap<string, number>) => setCoverBadges(b), []);
+  const noteBadges = new Map([...coverBadges].flatMap(([k, n]) => (k.startsWith('n') ? [[Number(k.slice(1)), n] as const] : [])));
+  const blocks: CoverBlock[] = isMenu ? [] : [
+    ...scan.notes.flatMap((n, i) => (n.bbox ? [{ key: `n${i}`, text: n.text_ko, lines: n.lines?.length ? n.lines : [n.bbox], title: n.role === 'title', badgeLabel: (k: number) => String(k), selected: selectedNote === i, onClick: () => onNote(i), colors: colors.get(`n${i}`) }] : [])),
+    // 안내문에 상품명 같은 항목이 잡힌 경우: 덮개로 쓰고, 안 들어가면 점 배지(누르면 상세)
+    ...scan.items.flatMap((it) => (it.bbox ? [{ key: `i${it.id}`, text: it.name_ko, lines: [it.bbox], title: false, badgeLabel: () => null, selected: it.id === selectedId, onClick: () => onSelect(it), colors: colors.get(it.id) }] : [])),
+  ];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div className="frame" style={{ boxShadow: '4px 4px 0 var(--ink)', overflow: 'hidden', position: 'relative' }}>
         <MenuPhoto src={scan.imageDataUrl} width={scan.width} height={scan.height} words={scan.words} rotation={scan.rotation} tilt={scan.tilt} maxHeight={620} zoomable>
           {(ctx) => {
             if (!showMarks) return null;
-            let marker = 0;
-            // 메뉴판은 번호 배지만 남긴다. 분류 제목·안내 문구 덮기는 사진을 어지럽혀 안내문(sign)에서만 쓴다
-            const covers = isMenu ? [] : scan.notes.filter((n) => n.bbox).map((n, i) =>
-              !isMenu || fitsInBox(n.bbox!, n.text_ko, approxW, approxHi) // 아래 목록과 같은 기준으로 판정해 번호가 맞도록
-                ? <CoverLabel key={`n${i}`} bbox={n.bbox!} text={n.text_ko} W={ctx.W} Hi={ctx.Hi} rotation={scan.rotation} rot={rot} colors={colors.get(`n${i}`)} onClick={onNote ? () => onNote(n) : undefined} />
-                : <NoteMarker key={`n${i}`} bbox={n.bbox!} n={++marker} scale={ctx.markerScale} />);
-            if (!isMenu) {
-              return [...covers, ...scan.items.filter((it) => it.bbox).map((it) => <CoverLabel key={it.id} bbox={it.bbox!} text={it.name_ko} W={ctx.W} Hi={ctx.Hi} rotation={scan.rotation} rot={rot} colors={colors.get(it.id)} onClick={() => onSelect(it)} />)];
-            }
+            // 메뉴판은 번호 배지만 남긴다. 분류 제목·안내 문구 덮기는 사진을 어지럽혀 안내문·기타에서만 쓴다
+            if (!isMenu) return <NoticeCovers blocks={blocks} ctx={ctx} rotation={scan.rotation} rot={rot} onBadges={onBadges} />;
             const sizes = badges ? badgeSizes(scan.items, ctx) : null;
             const ms = ctx.markerScale;
             const marks = scan.items.map((it, i) => {
@@ -177,21 +108,11 @@ export const OverlayView = ({ scan, selectedId, onSelect, onNote, showMarks }: P
                 </button>
               );
             });
-            return [...covers, ...marks];
+            return marks;
           }}
         </MenuPhoto>
       </div>
-      {unplaced.length > 0 && (
-        <ol style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {unplaced.map((n, i) => (
-            <li key={i}>
-              <button type="button" onClick={onNote ? () => onNote(n) : undefined} className="frame frame--flat" style={{ width: '100%', textAlign: 'left', padding: '10px 12px', background: 'var(--paper-2)', cursor: onNote ? 'pointer' : 'default', fontSize: 15, fontWeight: 600 }}>
-                {n.text_ko}
-              </button>
-            </li>
-          ))}
-        </ol>
-      )}
+      {!isMenu && <NoticePanel scan={scan} rate={rate} selected={selectedNote} onSelect={onNote} badges={noteBadges} />}
       {badges && (
         <ol style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '6px 10px' }}>
           {scan.items.map((it, i) => (

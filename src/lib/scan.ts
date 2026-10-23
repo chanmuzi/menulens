@@ -1,5 +1,5 @@
 /** 모델이 준 원시 객체를 검증해 MenuItem / Note / Quad 로 정규화한다. */
-import type { Box, Category, MenuItem, Note, OcrWord, Point, Quad } from '../types';
+import type { Box, Category, MenuItem, Note, NoteRole, OcrWord, Point, Quad } from '../types';
 import { resolveIcon } from './icons';
 
 const CATEGORIES: readonly Category[] = ['안주', '식사', '음료', '디저트', '기타'];
@@ -103,12 +103,25 @@ export const applyDetails = (items: readonly MenuItem[], details: readonly unkno
   });
 };
 
+const ROLES: readonly NoteRole[] = ['title', 'body', 'label'];
+
+/** 안내문 문단의 lines([[단어 id…]…]) → 줄 상자들. 못 찾은 줄은 뺀다 */
+const linesOf = (r: Record<string, unknown>, words: readonly OcrWord[]): Box[] =>
+  (Array.isArray(r.lines) ? r.lines : []).flatMap((ids) => {
+    const b = Array.isArray(ids) ? unionBox(ids.filter((n): n is number => typeof n === 'number'), words) : null;
+    return b ? [b] : [];
+  });
+
 export const toNote = (raw: unknown, words: readonly OcrWord[]): Note | null => {
   if (typeof raw !== 'object' || raw === null) return null;
   const r = raw as Record<string, unknown>;
   const text_ja = str(r, 'text_ja');
   if (!text_ja) return null;
-  return { text_ja, text_ko: str(r, 'text_ko') || text_ja, bbox: boxOf(r, words) };
+  const lines = linesOf(r, words);
+  const role = ROLES.find((x) => x === r.role);
+  const base = { text_ja, text_ko: str(r, 'text_ko') || text_ja };
+  if (lines.length === 0) return { ...base, bbox: boxOf(r, words), ...(role ? { role } : {}) };
+  return { ...base, bbox: [Math.min(...lines.map((b) => b[0])), Math.min(...lines.map((b) => b[1])), Math.max(...lines.map((b) => b[2])), Math.max(...lines.map((b) => b[3]))], lines, ...(role ? { role } : {}) };
 };
 
 const toPoint = (p: unknown): Point | null =>

@@ -13,9 +13,11 @@
  *   {"t":"mode","mode":"ocr"|"image","chunks":N}
  *   {"t":"kind","kind":"menu"|"sign"|"other"}               1단계 출력의 첫 키(kind)가 보이는 즉시 (한 번만)
  *   {"t":"item","key":"<묶음>:<순번>","item":{...}}         1단계 항목 하나 완성마다
+ *   {"t":"note","key":"<묶음>:<순번>","note":{...}}         1단계 문구(안내문은 문단) 하나 완성마다. meta.notes 가 최종본
  *   {"t":"meta","kind","shop_name","notes":[...]}            1단계 모든 묶음 완료 후
  *   {"t":"details","items":[{key,pron_ko,desc_ko,tags,photo_query}],"cached"?}  캐시 적중분 먼저, 이후 2단계 묶음마다
  *   {"t":"groups","groups":[{name,keys:[key,...]}]}           메뉴판 묶음 정리(2단계와 병렬, 메뉴판일 때만)
+ *   {"t":"summary","summary_ko","tips_ko":[...]}              안내문·기타 요약(meta 뒤 한 번, 문단이 있을 때만)
  *   {"t":"error","m":"..."}
  *   {"t":"done"}
  */
@@ -26,7 +28,7 @@ import { chunkWords } from './_lib/chunk.js';
 import { createItemParser, parseLoose } from './_lib/itemStream.js';
 import { cacheGetMany, cacheSetMany } from './_lib/cache.js';
 import { saveDebug } from './_lib/debugStore.js';
-import { GROUPS_SYSTEM, IMAGE_SYSTEM, IMAGE_USER_PROMPT, MODEL, STAGE1_SYSTEM, STAGE2_SYSTEM } from './_lib/prompt.js';
+import { GROUPS_SYSTEM, IMAGE_SYSTEM, IMAGE_USER_PROMPT, MODEL, STAGE1_SYSTEM, STAGE2_SYSTEM, SUMMARY_SYSTEM } from './_lib/prompt.js';
 
 const UPSTREAM = 'https://api.timelyrouter.ai/v1/messages';
 /** 이 수보다 단어가 적으면 OCR 을 믿지 않고 이미지 폴백 */
@@ -67,6 +69,11 @@ const groupsBody = (items: ReadonlyArray<{ i: number; name_ja: string; name_ko: 
   messages: [{ role: 'user', content: JSON.stringify(items) }],
 });
 
+const summaryBody = (notes: ReadonlyArray<{ ja: string; ko: string }>): unknown => ({
+  ...llm, stream: false, max_tokens: 1500, system: SUMMARY_SYSTEM,
+  messages: [{ role: 'user', content: JSON.stringify(notes) }],
+});
+
 /** Anthropic SSE 를 읽어 text_delta 만 콜백으로 넘긴다 */
 const readSse = async (body: ReadableStream<Uint8Array>, onText: (t: string) => void): Promise<void> => {
   const reader = body.getReader();
@@ -101,11 +108,19 @@ const runStage1Chunk = async (key: string, chunkIndex: number, words: readonly O
   const res = await fetch(UPSTREAM, { signal, method: 'POST', headers: headers(key), body: JSON.stringify(stage1Body(words, image, mediaType)) });
   if (!res.ok || !res.body) throw new Error(`upstream ${res.status}: ${(await res.text().catch(() => '')).slice(0, 300)}`);
   const parser = createItemParser();
+  // 안내문은 items 가 비고 notes(문단)가 본문이라, 문단도 완성되는 즉시 보내 덮개가 위에서부터 차례로 뜨게 한다
+  const noteParser = createItemParser('notes');
+  const streamedNotes: unknown[] = [];
   const items: Keyed[] = [];
   const rawItems: RawItem[] = [];
   let kindSeen = false;
   await readSse(res.body, (d) => {
     const found = parser.push(d);
+    for (const note of noteParser.push(d)) {
+      if (typeof note !== 'object' || note === null) continue;
+      send({ t: 'note', key: `${chunkIndex}:${streamedNotes.length}`, note });
+      streamedNotes.push(note);
+    }
     // kind 는 출력의 첫 키라 항목보다 먼저 온다. 보이는 즉시 알려 처리 중 화면이 종류에 맞는 문구를 쓰게 한다
     if (!kindSeen) {
       const m = KIND_RE.exec(parser.text());
@@ -122,7 +137,28 @@ const runStage1Chunk = async (key: string, chunkIndex: number, words: readonly O
   });
   let meta: Stage1 | null = null;
   try { meta = parseLoose(parser.text()) as Stage1; } catch { meta = null; }
+  // 출력이 잘리거나 꼬리가 깨져 전체 파싱에 실패해도, 이미 보낸 문단은 meta 에 남겨 화면에서 사라지지 않게 한다
+  if (streamedNotes.length > 0 && !(Array.isArray(meta?.notes) && meta.notes.length >= streamedNotes.length)) meta = { ...(meta ?? {}), notes: streamedNotes };
   return { meta, items, raw: rawItems };
+};
+
+/** 안내문·기타 요약. 실패하면 요약 없이 끝난다(덮개·번역문은 이미 보냈다) */
+const runSummary = async (key: string, notes: readonly unknown[], send: (o: Line) => void, signal: AbortSignal): Promise<void> => {
+  const payload = notes.flatMap((n) => {
+    const r = (typeof n === 'object' && n !== null ? n : {}) as Record<string, unknown>;
+    return typeof r.text_ja === 'string' && r.text_ja ? [{ ja: r.text_ja, ko: typeof r.text_ko === 'string' ? r.text_ko : '' }] : [];
+  });
+  if (payload.length === 0) return;
+  try {
+    const res = await fetch(UPSTREAM, { signal, method: 'POST', headers: headers(key), body: JSON.stringify(summaryBody(payload)) });
+    if (!res.ok) return;
+    const data = (await res.json()) as { content?: Array<{ type: string; text?: string }>; stop_reason?: string };
+    if (data.stop_reason === 'max_tokens') console.warn(`summary: 출력이 한도에서 잘림 (notes=${payload.length})`);
+    const parsed = parseLoose((data.content ?? []).filter((c) => c.type === 'text').map((c) => c.text ?? '').join('')) as { summary_ko?: unknown; tips_ko?: unknown };
+    const summary = typeof parsed.summary_ko === 'string' ? parsed.summary_ko.trim() : '';
+    const tips = Array.isArray(parsed.tips_ko) ? parsed.tips_ko.filter((t): t is string => typeof t === 'string' && t.trim() !== '').slice(0, 2) : [];
+    if (summary) send({ t: 'summary', summary_ko: summary, tips_ko: tips });
+  } catch { /* 요약 없이 끝낸다 */ }
 };
 
 const DETAIL_FIELDS = ['pron_ko', 'desc_ko', 'tags', 'photo_query'] as const;
@@ -229,6 +265,7 @@ const handler = async (req: Request): Promise<Response> => {
         const all = results.flatMap((r) => r.items);
         // 안내문·기타는 요리 설명(2단계)이 필요 없다. 생략하면 그만큼 빨리 끝난다
         if (all.length > 0 && (first?.kind ?? 'menu') === 'menu') await Promise.all([runStage2(timelyKey, all, send, signal), runGroups(timelyKey, all, send, signal)]);
+        else if ((first?.kind ?? 'menu') !== 'menu') await runSummary(timelyKey, notes, send, signal);
         // 2단계 도중 끊기면 묶음별 catch 가 삼켜 여기까지 오므로, 중단된 스캔은 진단 저장도 하지 않는다
         if (signal.aborted) return;
         send({ t: 'done' });

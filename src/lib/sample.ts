@@ -53,6 +53,13 @@ const toPx = (ctx: CanvasRenderingContext2D, box: Box) => {
   return { x: (box[0] / 1000) * cw, y: (box[1] / 1000) * ch, w: ((box[2] - box[0]) / 1000) * cw, h: ((box[3] - box[1]) / 1000) * ch };
 };
 
+/** WCAG 상대 휘도와 대비 */
+const relLum = (c: Rgb): number => {
+  const ch = (v: number) => { const x = v / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; };
+  return 0.2126 * ch(c[0]) + 0.7152 * ch(c[1]) + 0.0722 * ch(c[2]);
+};
+const contrast = (a: Rgb, b: Rgb): number => { const la = relLum(a) + 0.05, lb = relLum(b) + 0.05; return la > lb ? la / lb : lb / la; };
+
 const analyze = (ctx: CanvasRenderingContext2D, box: Box): { readonly bg: Rgb; readonly fg: Rgb } => {
   const { x, y, w, h } = toPx(ctx, box);
   const ring = Math.max(2, Math.min(6, h * 0.3));
@@ -66,8 +73,8 @@ const analyze = (ctx: CanvasRenderingContext2D, box: Box): { readonly bg: Rgb; r
   // 글자색: 배경과 가장 먼 상위 15% 픽셀의 평균. 차이가 작으면 밝기로 흑/백
   const far = [...inside].sort((a, b) => dist2(b, bg) - dist2(a, bg)).slice(0, Math.max(1, Math.floor(inside.length * 0.15)));
   const fgAvg: Rgb = far.length ? [far.reduce((n, p) => n + p[0], 0) / far.length, far.reduce((n, p) => n + p[1], 0) / far.length, far.reduce((n, p) => n + p[2], 0) / far.length] : bg;
-  const lum = (c: Rgb) => 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
-  const fg: Rgb = dist2(fgAvg, bg) < 40 * 40 ? (lum(bg) > 140 ? [30, 25, 20] : [250, 248, 240]) : fgAvg;
+  // 가는 손글씨·흐린 인쇄는 뽑은 색이 배경과 비슷해 읽기 어렵다 → 대비가 4.5:1 미만이면 먹색/종이색으로
+  const fg: Rgb = contrast(fgAvg, bg) < 4.5 ? (relLum(bg) > 0.4 ? [30, 25, 20] : [250, 248, 240]) : fgAvg;
   return { bg, fg };
 };
 

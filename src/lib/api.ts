@@ -1,4 +1,4 @@
-import type { OcrWord, Photo, Rate, ScanGroup } from '../types';
+import type { NoticeSummary, OcrWord, Photo, Rate, ScanGroup } from '../types';
 import { getAccessCode } from './storage';
 
 const headers = (): Record<string, string> => ({
@@ -20,10 +20,14 @@ export type AnalyzeHandlers = {
   /** 1단계 출력에서 종류(menu/sign/other)가 보이는 즉시. 항목보다 먼저 온다 */
   readonly onKind: (kind: string) => void;
   readonly onItem: (key: string, raw: unknown) => void;
+  /** 문구(안내문은 문단) 하나 완성마다. 최종본은 onMeta 의 notes */
+  readonly onNote: (key: string, raw: unknown) => void;
   readonly onMeta: (m: MetaEvent) => void;
   readonly onDetails: (items: readonly unknown[]) => void;
   /** 메뉴판 묶음 정리(2단계와 병렬). 없을 수도 있다 */
   readonly onGroups: (groups: readonly ScanGroup[]) => void;
+  /** 안내문·기타 요약(meta 뒤). 없을 수도 있다 */
+  readonly onSummary: (s: NoticeSummary) => void;
   readonly signal?: AbortSignal;
 };
 
@@ -32,6 +36,8 @@ type Event =
   | { t: 'mode'; mode: 'ocr' | 'image'; chunks?: number }
   | { t: 'kind'; kind: string }
   | { t: 'item'; key: string; item: unknown }
+  | { t: 'note'; key: string; note: unknown }
+  | { t: 'summary'; summary_ko?: unknown; tips_ko?: unknown }
   | ({ t: 'meta' } & MetaEvent)
   | { t: 'details'; items: unknown[] }
   | { t: 'groups'; groups: ScanGroup[] }
@@ -60,6 +66,13 @@ export const analyzeImage = async (base64: string, mediaType: string, h: Analyze
       case 'mode': h.onMode(ev.mode); break;
       case 'kind': h.onKind(ev.kind); break;
       case 'item': h.onItem(ev.key, ev.item); break;
+      case 'note': h.onNote(ev.key, ev.note); break;
+      case 'summary': {
+        const text = typeof ev.summary_ko === 'string' ? ev.summary_ko.trim() : '';
+        const tips = Array.isArray(ev.tips_ko) ? ev.tips_ko.filter((t): t is string => typeof t === 'string') : [];
+        if (text) h.onSummary({ text, tips });
+        break;
+      }
       case 'meta': h.onMeta({ kind: ev.kind, shop_name: ev.shop_name, notes: ev.notes ?? [] }); break;
       case 'details': h.onDetails(ev.items ?? []); break;
       case 'groups': h.onGroups(Array.isArray(ev.groups) ? ev.groups : []); break;
