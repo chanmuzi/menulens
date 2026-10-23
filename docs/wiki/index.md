@@ -15,4 +15,4 @@
 - [[deploy-and-env]] — Vercel(Node 런타임, 도쿄, Git 자동 배포), 환경변수 5종, Redis Cloud 연결 경위, 초대 코드 게이트, 비용
 - [[debug-store]] — 진단 저장: 켜는 법, 내려받기, 사용자 실기기 케이스 재현 절차, 끄는 시점
 - [[icons]] — 보유 도트 아이콘 목록(자동 생성)·매칭 순서·런타임 생성 파이프라인. 제작 규칙은 `.claude/skills/pixel-icon`
-- [[design-decisions]] — 확정된 디자인·UX 결정(시안 A, 언어 규칙, 카드 기본·오버레이 BETA, 사진 모드 보류, 아이콘 규칙)과 폐기된 것
+- [[design-decisions]] — 확정된 디자인·UX 결정(시안 A, 언어 규칙, 오버레이 기본, 사진 모드 보류, 아이콘 규칙)과 폐기된 것
