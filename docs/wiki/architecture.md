@@ -43,7 +43,7 @@ src/
                 ConfirmDialog(지우기 확인) RenameDialog(이름 고치기) ChatFab OrderBar QtyStepper CropBox InstallHint PixelIcon Segmented ProgressBlocks ItemImage TopBar
   lib/          image api scan(정규화·unionBox·applyDetails) coverLayout(덮개/번호 판정·글자 맞춤) sample(덮개 배경·글자색) icons(키워드 우선) iconStore pixel kind(종류별 문구)
                 history(기록 묶음·제목 규칙) when(날짜·요일·12시간제) storage(저장 큐·이름 고치기·썸네일 채우기·홈 탭·대화 화면 설정) db(IndexedDB) thumb(168px 썸네일) batch(runLimited)
-                groups chat order money crop clipboard drop platform photos savePhoto(묶음 전부 공유) version
+                groups chat order(묶음 전체 수량 BatchOrder·주문 문구) money crop clipboard drop platform photos savePhoto(묶음 전부 공유) version
                 talk(마디·말풍선 언어·제목·「말해 볼 문장」) talkApi(/api/stt·/api/talk) talkStore(IndexedDB menulens-talk) ndjson(스트림 줄 읽기: chat·talkApi 공용) recorder(녹음·소리 크기·무음 거르기)
   styles/       global.css(토큰·픽셀 프레임·애니메이션) pixel-icons.css(생성: scripts/px_icons.py)
 scripts/bench/  벤치·진단 스크립트        docs/wiki/   이 위키        vite-plugin-dev-api.ts  로컬에서 api/ 실행

@@ -1,9 +1,13 @@
-/** 주문 수량과 주문 문구. 메뉴판(kind=menu)에서만 쓴다. 수량은 스캔별로 localStorage 에 둔다(작은 값). */
+/** 주문 수량과 주문 문구. 메뉴판(kind=menu)에서만 쓴다. 수량은 사진(스캔)별로 localStorage 에 두고(작은 값), 화면에서는 묶음 전체를 합쳐 하나의 주문서로 본다. */
 import type { MenuItem, Rate, Scan } from '../types';
 import { payableJpy } from './money';
 
+/** 사진 한 장의 수량: 항목 id → 수량. 항목 id(「묶음:순번」)는 사진마다 겹치므로 사진 밖에서는 BatchOrder 로 다룬다 */
 export type Order = Readonly<Record<string, number>>;
-export type OrderLine = { readonly item: MenuItem; readonly qty: number };
+/** 묶음 전체의 수량: 사진(스캔) id → Order. 1번 사진에서 담은 것과 2번 사진에서 담은 것이 한 주문서가 된다 */
+export type BatchOrder = Readonly<Record<string, Order>>;
+/** 주문서 한 줄. photo 는 묶음 안 사진 번호(1부터, 띠의 번호와 같다) */
+export type OrderLine = { readonly scanId: string; readonly photo: number; readonly item: MenuItem; readonly qty: number };
 
 const KEY = (scanId: string) => `menulens.order.${scanId}`;
 
@@ -13,6 +17,11 @@ export const loadOrder = (scanId: string): Order => {
 export const saveOrder = (scanId: string, order: Order): void => {
   try { if (Object.keys(order).length === 0) localStorage.removeItem(KEY(scanId)); else localStorage.setItem(KEY(scanId), JSON.stringify(order)); } catch { /* 무시 */ }
 };
+/** 묶음의 사진 전부의 저장된 수량. 비어 있는 사진은 넣지 않는다 */
+export const loadBatchOrder = (scanIds: readonly string[]): BatchOrder =>
+  Object.fromEntries(scanIds.flatMap((id) => { const o = loadOrder(id); return Object.keys(o).length > 0 ? [[id, o] as const] : []; }));
+/** 들어 있는 사진마다 저장한다(빈 Order 는 키를 지운다 → 비우기도 여기로 반영된다) */
+export const saveBatchOrder = (bo: BatchOrder): void => { for (const [id, o] of Object.entries(bo)) saveOrder(id, o); };
 
 /** 수량 변경: 0 이하는 항목을 지운다 */
 export const withQty = (order: Order, id: string, qty: number): Order => {
@@ -20,8 +29,18 @@ export const withQty = (order: Order, id: string, qty: number): Order => {
   return qty > 0 ? { ...rest, [id]: Math.min(99, qty) } : rest;
 };
 
-export const orderLines = (scan: Scan, order: Order): readonly OrderLine[] =>
-  scan.items.flatMap((item) => (order[item.id] ? [{ item, qty: order[item.id]! }] : []));
+/** 묶음 안 한 사진의 수량 변경 */
+export const withBatchQty = (bo: BatchOrder, scanId: string, itemId: string, qty: number): BatchOrder => ({ ...bo, [scanId]: withQty(bo[scanId] ?? {}, itemId, qty) });
+/** 전부 비우기. 키는 남겨 두어 저장 시 각 사진의 저장 값도 지워지게 한다 */
+export const clearedBatchOrder = (bo: BatchOrder): BatchOrder => Object.fromEntries(Object.keys(bo).map((id) => [id, {}]));
+
+/** 묶음 전체의 주문서 줄: 사진 순서대로, 사진 안에서는 메뉴 순서대로. 메뉴판이 아닌 사진은 건너뛴다 */
+export const batchLines = (batch: readonly Scan[], bo: BatchOrder): readonly OrderLine[] =>
+  batch.flatMap((scan, i) => {
+    if (scan.kind !== 'menu') return [];
+    const order = bo[scan.id] ?? {};
+    return scan.items.flatMap((item) => (order[item.id] ? [{ scanId: scan.id, photo: i + 1, item, qty: order[item.id]! }] : []));
+  });
 
 export const totalCount = (lines: readonly OrderLine[]): number => lines.reduce((n, l) => n + l.qty, 0);
 /** 가격 미표기 항목은 합계에서 뺀다. 그런 항목이 있으면 두 번째 값이 true */
