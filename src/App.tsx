@@ -12,10 +12,11 @@ import { HistoryScreen } from './screens/HistoryScreen';
 import { CropScreen } from './screens/CropScreen';
 import { ConfirmBatchScreen } from './screens/ConfirmBatchScreen';
 import { BATCH_CONCURRENCY, BATCH_MAX, runLimited } from './lib/batch';
-import type { ScanGroup } from './lib/history';
+import { groupTitle, type ScanGroup } from './lib/history';
 import { ProcessingScreen } from './screens/ProcessingScreen';
 import { ResultScreen } from './screens/ResultScreen';
 import { LeaveDialog } from './screens/LeaveDialog';
+import { ConfirmDialog } from './components/ConfirmDialog';
 
 type Route = 'gate' | 'home' | 'history' | 'confirm' | 'processing' | 'result';
 
@@ -54,6 +55,8 @@ export const App = () => {
   const [dropped, setDropped] = useState(0);
   const [rate, setRate] = useState<Rate | null>(() => loadRate());
   const [mode, setMode] = useState<ImageMode>(() => loadImageMode());
+  /** 지우기 확인 중인 기록(최근·전체 목록 공용) */
+  const [removing, setRemoving] = useState<ScanGroup | null>(null);
   /** 스캔 id → 그 사진의 중단 컨트롤러. 사진마다 따로 두어 한 장을 더 붙이거나 빼도 나머지는 계속 돈다 */
   const ctrls = useRef(new Map<string, AbortController>());
   /** 아직 「N장 분석하기」를 누르지 않은 미리 읽기 스캔 id. 확정 전에는 기록에 저장하지 않는다 */
@@ -280,6 +283,12 @@ export const App = () => {
   };
   /** 묶음이면 그 안의 사진 전부를 지운다 */
   const remove = (g: ScanGroup) => void removeScans(g.scans.map((s) => s.id)).then(setScans);
+  // 목록의 「지우기」는 바로 지우지 않고 확인을 받는다(되돌릴 수 없다)
+  const removeDialog = removing && (
+    <ConfirmDialog title="이 기록을 지울까요?" confirmLabel="지우기"
+      body={`「${groupTitle(removing)}」${removing.scans.length > 1 ? ` 사진 ${removing.scans.length}장 묶음` : ' 기록'}을 지우면 되돌릴 수 없어요.`}
+      onCancel={() => setRemoving(null)} onConfirm={() => { remove(removing); setRemoving(null); }} />
+  );
   if (route === 'confirm' && cropAt && pending[cropAt.index]) {
     // 모음에서 한 장 자르기: 잘라서 그 자리에 바꿔 넣는다. 영역을 안 바꿨으면 원본 그대로
     const back = () => setCropAt(null);
@@ -300,16 +309,19 @@ export const App = () => {
     return <><ConfirmBatchScreen files={pending} dropped={dropped} onChange={change} reading={reading} onConfirm={(list) => { setPending([]); void startScans(list); }} onCrop={crop} onCancel={requestHome} />{leaveDialog}</>;
   }
   if (route === 'history') {
-    return <HistoryScreen scans={scans} installHint={installHint} onBack={() => setRoute('home')} onOpen={openScan} onRemove={remove} onClear={() => void clearScans().then(setScans)} />;
+    return <><HistoryScreen scans={scans} installHint={installHint} onBack={() => setRoute('home')} onOpen={openScan} onRemove={setRemoving} onClear={() => void clearScans().then(setScans)} />{removeDialog}</>;
   }
   return (
-    <HomeScreen
-      scans={scans}
-      installHint={installHint}
-      onPick={pick}
-      onShowAll={() => setRoute('history')}
-      onOpen={openScan}
-      onRemove={remove}
-    />
+    <>
+      <HomeScreen
+        scans={scans}
+        installHint={installHint}
+        onPick={pick}
+        onShowAll={() => setRoute('history')}
+        onOpen={openScan}
+        onRemove={setRemoving}
+      />
+      {removeDialog}
+    </>
   );
 };
