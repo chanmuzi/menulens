@@ -14,7 +14,7 @@ import { ConfirmBatchScreen } from './screens/ConfirmBatchScreen';
 import { BATCH_CONCURRENCY, BATCH_MAX, runLimited } from './lib/batch';
 import { autoGroupTitle, groupScans, groupTitle, type ScanGroup } from './lib/history';
 import { ProcessingScreen } from './screens/ProcessingScreen';
-import { ResultScreen } from './screens/ResultScreen';
+import { ResultScreen, type ResultView } from './screens/ResultScreen';
 import { LeaveDialog } from './screens/LeaveDialog';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { RenameDialog } from './components/RenameDialog';
@@ -61,6 +61,9 @@ export const App = () => {
   /** 상한 때문에 뺀 장수(모음 화면 안내용) */
   const [dropped, setDropped] = useState(0);
   const [rate, setRate] = useState<Rate | null>(() => loadRate());
+  /** 결과 화면의 보기 방식·번역 표시 토글. ResultScreen 은 읽는 중 사진을 고르면(처리 중 화면) 내려갔다 올라오므로 여기서 들어 묶음 안에서 유지한다. 홈으로 나가면 처음으로 */
+  const [resultView, setResultView] = useState<ResultView>('overlay');
+  const [showMarks, setShowMarks] = useState(true);
   const [mode, setMode] = useState<ImageMode>(() => loadImageMode());
   /** 지우기 확인 중인 기록(최근·전체 목록 공용) */
   const [removing, setRemoving] = useState<ScanGroup | null>(null);
@@ -278,7 +281,7 @@ export const App = () => {
     if (route === 'processing' && (current?.status === 'detailing' || current?.status === 'done')) setRoute('result');
   }, [route, current?.status]);
 
-  const goHome = () => { abortAll(); setBatch([]); setCurrentId(null); setPending([]); setLeaving(false); setRoute('home'); };
+  const goHome = () => { abortAll(); setBatch([]); setCurrentId(null); setPending([]); setLeaving(false); setResultView('overlay'); setShowMarks(true); setRoute('home'); };
   /** 아직 읽는 중인(돈이 드는 호출이 열려 있는) 사진 수. 기록에서 연 묶음은 전부 끝난 상태라 0 */
   // 모음 화면의 미리 읽기는 사용자가 시작한 읽기가 아니고 저장되지도 않으니 묻지 않는다(나가면 그냥 끊는다)
   const busy = route === 'confirm' ? 0 : batch.filter((s) => s.status !== 'done' && s.status !== 'error').length;
@@ -336,9 +339,9 @@ export const App = () => {
     return <><ProcessingScreen scan={current} batch={batch} onSwitch={switchTo} onAdd={addScans} onCancel={requestHome} onPeek={() => setRoute('result')} onRetry={() => retryOne(current.id)} />{leaveDialog}</>;
   }
   if (route === 'result' && current) {
-    // key 로 스캔마다 다시 마운트해 보기 방식·선택·주문서 상태가 사진 사이에 새지 않게 한다
+    // key 는 묶음 단위(첫 사진 id): 주문서가 사진 사이에 유지된다. 사진에 딸린 선택·챗은 ResultScreen 이 사진이 바뀔 때 닫는다
     const group = groupScans(batch)[0]!;
-    return <><ResultScreen key={current.id} scan={current} batch={batch} title={groupTitle(group)} onRename={() => setRenaming(group)} onSwitch={switchTo} onAdd={addScans} rate={rate} mode={mode} onMode={changeMode} onHome={requestHome} originalFiles={batch.map((s) => files.current.get(s.id) ?? null)} />{leaveDialog}{renameDialog}</>;
+    return <><ResultScreen key={batch[0]!.id} scan={current} batch={batch} view={resultView} onView={setResultView} showMarks={showMarks} onShowMarks={setShowMarks} title={groupTitle(group)} onRename={() => setRenaming(group)} onSwitch={switchTo} onAdd={addScans} rate={rate} mode={mode} onMode={changeMode} onHome={requestHome} originalFiles={batch.map((s) => files.current.get(s.id) ?? null)} />{leaveDialog}{renameDialog}</>;
   }
   // 목록에는 사진이 없다. 결과 화면으로 가기 전에 사진 한 건만 읽는다
   // 묶음으로 읽은 스캔은 같은 묶음 전부를 찍은 순서로 띠에 올린다(사진은 띠 썸네일용으로 모두 읽음, 묶음은 최대 BATCH_MAX 장)
