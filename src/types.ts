@@ -93,3 +93,47 @@ export type ImageMode = 'art' | 'photo';
 
 /** 사진이 들어온 경로. 촬영만 확인 화면을 건너뛴다 */
 export type PickSource = 'camera' | 'album' | 'paste' | 'drop';
+
+/** 대화 통역: 누가 한 말인지. me = 나(한국어 → 일본어), them = 상대(일본어 → 한국어) */
+export type TalkWho = 'me' | 'them';
+
+/** 대화 한 마디. 번역은 필드가 도착하는 대로 채워진다(status 'translating' 동안 비어 있을 수 있다) */
+export type TalkTurn = {
+  readonly id: string;
+  readonly who: TalkWho;
+  /** voice = 말하기, text = 글로 쓰기, helper = 도우미가 추천한 문장 */
+  readonly via: 'voice' | 'text' | 'helper';
+  /** 받아 적은 말·입력한 글 그대로 */
+  readonly src: string;
+  /** 음성 인식 오류·오타를 고친 원문(없으면 src 를 쓴다) */
+  readonly fixed: string;
+  readonly ja: string;
+  readonly ko: string;
+  /** ja 의 한글 발음(내 말만) */
+  readonly pron: string;
+  /** ja 전체 히라가나(내 말만, 크게 보기에서) */
+  readonly kana: string;
+  readonly en: string;
+  readonly status: 'translating' | 'done' | 'error';
+  readonly at: number;
+};
+
+/** 도우미(상대에게 안 보이는 질문) 대화 한 줄 */
+export type HelperMsg = { readonly role: 'me' | 'bot'; readonly text: string; readonly at: number };
+
+/** 대화 기록 하나. 새 대화를 시작하면 생기고, 첫 마디가 끝나야 저장된다 */
+export type Talk = {
+  readonly id: string;
+  readonly createdAt: number;
+  readonly updatedAt: number;
+  /** 대화 내용을 보고 지은 「이모지 + 제목」. 아직 없으면 null */
+  readonly autoTitle: string | null;
+  /** 자동 제목을 지을 때의 마디 수(내용이 늘면 한 번 더 짓는다) */
+  readonly titledAt: number;
+  readonly userTitle: string | null;
+  readonly turns: readonly TalkTurn[];
+  readonly helper: readonly HelperMsg[];
+};
+
+/** 말풍선에 보일 두 언어. 기본은 한·日 */
+export type TalkPair = 'ko-ja' | 'ko-en' | 'ja-en';

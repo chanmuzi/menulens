@@ -1,6 +1,6 @@
 # MenuLens — 에이전트 라우터
 
-> **Version**: 1.5.0 · **Updated**: 2026-10-23
+> **Version**: 1.5.1 · **Updated**: 2026-10-23
 > **이 파일이 규약의 단일 진입점(SSoT)이다.** 아래 판정표로 작업 유형을 정하고 그 행의 경로만 로드한다.
 > 전체 grep 은 라우팅으로 못 찾을 때의 최후 수단이다. 위키 루트는 `docs/wiki/index.md`.
 
@@ -36,6 +36,7 @@ Vercel Node.js 함수 8개, Upstage OCR → Claude Sonnet(Timely Router) 2단 �
 | 결과 화면(오버레이·카드·주문서·챗·사진 저장) | [[decisions-result]] | [[architecture]] 파일 지도 |
 | 안내문 덮개·정리 영역(요약·번역문·원문) | [[overlay-and-photo]] §안내문 덮개 | `src/lib/coverLayout.ts` · [[decisions-result]] |
 | 입력·여러 장·처리 중·기록 목록·이름 고치기 | [[decisions-input]] | [[architecture]] 파일 지도 |
+| 대화 통역(말하기·번역·도우미·대화 기록) | [[decisions-talk]] | [[architecture]] §stt·talk · [[deploy-and-env]] 키·무료 한도 |
 | 아이콘 추가·매칭 수정 | [[icons]] | `.claude/skills/pixel-icon` |
 | 남은 과제 착수 | [[backlog]] | 해당 페이지 |
 | 위키 쓰기 (신설·수정) | `docs/wiki/index.md` → 대상 페이지 | 신규 페이지는 인덱스에 등재 |
@@ -54,7 +55,7 @@ Vercel Node.js 함수 8개, Upstage OCR → Claude Sonnet(Timely Router) 2단 �
 1. 커밋 메시지는 `type(scope): 설명` 한국어, 본문은 왜·무엇 중심. 커밋 단위는 변경 의도별로 나눈다.
 2. **작업 종료 시 결과 1엔트리** — `docs/wiki/log/YYYY-MM.md` **맨 위에**(newest-first) ≤3줄.
    **PR 번호**(엔트리는 PR 생성 전에 쓰므로 `gh pr list --state all --limit 1` 의 다음 번호) 또는 직접 푸시면 커밋 해시, 그리고 `[[페이지]]` 참조 포함. 상세 서술 금지. 착수·중간 진행은 쓰지 않는다.
-3. 결정(채택·보류·폐기)이 바뀌면 같은 PR 에서 해당 결정 페이지를 갱신한다: 공통·원칙·폐기는 [[design-decisions]], 결과 화면은 [[decisions-result]], 입력·처리·기록은 [[decisions-input]], 미결은 [[backlog]].
+3. 결정(채택·보류·폐기)이 바뀌면 같은 PR 에서 해당 결정 페이지를 갱신한다: 공통·원칙·폐기는 [[design-decisions]], 결과 화면은 [[decisions-result]], 입력·처리·기록은 [[decisions-input]], 대화 통역은 [[decisions-talk]], 미결은 [[backlog]].
 4. 측정한 시간은 [[benchmarks]] 에 날짜·환경·사진과 함께 표로(로그에만 남기지 않는다). 재현 스크립트는 `scripts/bench/`.
 5. 새 파일·모듈·API 이벤트·환경변수·Redis 키가 생기면 같은 PR 에서 [[architecture]] 파일 지도 / [[deploy-and-env]] 를 갱신한다. 새 위키 페이지는 `docs/wiki/index.md` 와 위 판정표에 등재.
 

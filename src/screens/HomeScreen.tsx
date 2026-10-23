@@ -9,6 +9,11 @@ import { InstallHint } from '../components/InstallHint';
 import type { InstallHint as Hint } from '../lib/platform';
 import { whenLabel } from '../lib/when';
 import { canReadClipboard, imageFromPasteEvent, readImageFromClipboard } from '../lib/clipboard';
+import type { Talk } from '../types';
+import { TalkRow } from '../components/TalkRow';
+import { DotGlyph } from '../components/DotGlyph';
+import { Segmented } from '../components/Segmented';
+import { loadHomeTab, saveHomeTab, type HomeTab } from '../lib/storage';
 
 type Props = {
   readonly scans: readonly Scan[];
@@ -19,6 +24,13 @@ type Props = {
   readonly onOpen: (group: ScanGroup) => void;
   readonly onRename: (group: ScanGroup) => void;
   readonly onRemove: (group: ScanGroup) => void;
+  /** 대화 통역 탭 */
+  readonly talks: readonly Talk[];
+  readonly onNewTalk: () => void;
+  readonly onOpenTalk: (talk: Talk) => void;
+  readonly onRenameTalk: (talk: Talk) => void;
+  readonly onRemoveTalk: (talk: Talk) => void;
+  readonly onShowAllTalks: () => void;
 };
 
 const HINT_BY_REASON = {
@@ -31,7 +43,10 @@ const HINT_MS = 3000;
 /** 홈에는 최근 몇 묶음만. 나머지는 「전체 보기」 */
 const HOME_RECENT = 5;
 
-export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRename, onRemove }: Props) => {
+export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRename, onRemove, talks, onNewTalk, onOpenTalk, onRenameTalk, onRemoveTalk, onShowAllTalks }: Props) => {
+  /** 메뉴판 읽기 / 대화 통역. 마지막으로 고른 탭을 기억한다(대화에서 홈으로 돌아오면 대화 탭) */
+  const [tab, setTab] = useState<HomeTab>(loadHomeTab);
+  const changeTab = (t: HomeTab) => { saveHomeTab(t); setTab(t); };
   const cameraRef = useRef<HTMLInputElement>(null);
   const albumRef = useRef<HTMLInputElement>(null);
   // 같은 문구가 연달아 떠도 타이머가 다시 시작되도록 객체로 든다 (같은 문자열은 React 가 갱신을 건너뛴다)
@@ -105,9 +120,38 @@ export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRe
           <div className="dot" style={{ fontSize: 20, lineHeight: 1 }}>MENULENS</div>
         </div>
         <div className="dot" style={{ height: 40, padding: '0 10px', border: '2px solid var(--ink)', background: 'var(--paper-2)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
-          日本語 <span style={{ color: 'var(--vermilion)' }}>→</span> 한국어
+          {tab === 'menu' ? <>日本語 <span style={{ color: 'var(--vermilion)' }}>→</span> 한국어</> : <>한국어 <span style={{ color: 'var(--vermilion)' }}>⇄</span> 日本語</>}
         </div>
       </header>
+
+      <div className="notice-tabs">
+        <Segmented label="기능" value={tab} onChange={changeTab} options={[{ value: 'menu', label: '메뉴판 읽기' }, { value: 'talk', label: '대화 통역' }]} />
+      </div>
+
+      {tab === 'talk' ? (
+        <>
+          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 600, lineHeight: 1.3 }}>말하거나 쓰면 일본어로,<br />들으면 한국어로 보여드려요</h1>
+          <div className="corners frame" style={{ background: 'var(--paper-dark)', boxShadow: '4px 4px 0 var(--ink)', padding: '28px 18px 18px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <span className="c3" /><span className="c4" />
+            <TalkMock />
+            <button type="button" className="btn btn--primary" onClick={onNewTalk} style={{ marginTop: 10, minHeight: 60, borderWidth: 3, boxShadow: '4px 4px 0 var(--ink)', fontSize: 18, fontWeight: 600 }}>
+              <DotGlyph name="mic" size={18} />새 대화 시작
+            </button>
+          </div>
+          {talks.length > 0 && (
+            <section style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div className="dot" style={{ fontSize: 14 }}>최근 대화</div>
+                {talks.length > HOME_RECENT && (
+                  <button type="button" className="btn btn--quiet" onClick={onShowAllTalks} style={{ minHeight: 32, padding: '0 6px' }}>전체 보기 ({talks.length}) ›</button>
+                )}
+              </div>
+              {talks.slice(0, HOME_RECENT).map((t) => <TalkRow key={t.id} talk={t} when={whenLabel(t.updatedAt)} onOpen={onOpenTalk} onRename={onRenameTalk} onRemove={onRemoveTalk} />)}
+            </section>
+          )}
+          <InstallHint hint={installHint} />
+        </>
+      ) : (<>
 
       <h1 style={{ margin: 0, fontSize: 24, fontWeight: 600, lineHeight: 1.3 }}>메뉴판이나 안내문을 찍으면<br />바로 읽어드려요</h1>
 
@@ -163,9 +207,24 @@ export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRe
         </div>
       )}
       <InstallHint hint={installHint} />
+      </>)}
     </div>
   );
 };
+
+/** 대화 통역 모형: 내 말(오른쪽, 원문 작게 + 일본어 크게)과 상대 말(왼쪽, 먹색)이 쌓이는 모습. 실제 번역 결과에서 가져온 문장 */
+const TalkMock = () => (
+  <div aria-hidden="true" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div style={{ alignSelf: 'flex-end', maxWidth: '80%', background: 'var(--paper-2)', border: '2px solid var(--ink)', padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <span style={{ fontSize: 11, color: 'var(--muted)' }}>그럼 하나 부탁할게요</span>
+      <span className="jp" style={{ fontSize: 17 }}>じゃあ、一つお願いします</span>
+    </div>
+    <div style={{ alignSelf: 'flex-start', maxWidth: '84%', background: 'var(--ink)', color: 'var(--paper)', padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <span style={{ fontFamily: 'var(--font-jp)', fontSize: 11, color: '#D9CCB4' }}>お水はセルフサービスになっております</span>
+      <span style={{ fontSize: 15, fontWeight: 700 }}>물은 셀프서비스입니다.</span>
+    </div>
+  </div>
+);
 
 /** 메뉴판 모형: 나무판 위 종이 한 장에 글줄(막대)과 그림, 그 위를 지나는 스캔 라인, 한 줄이 번역 칩으로 뜬 모습 */
 const MenuMock = () => (

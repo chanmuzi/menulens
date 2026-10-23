@@ -1,6 +1,7 @@
 /** 사진 챗: 서버에 보낼 맥락 만들기, NDJSON 답 스트림 읽기, 스캔별 대화 저장(localStorage). 제목은 kind.ts 의 chatTitle */
 import type { Scan, ScanKind } from '../types';
 import { getAccessCode } from './storage';
+import { readNdjson } from './ndjson';
 
 export type ChatMsg = { readonly role: 'me' | 'bot'; readonly text: string; readonly refs: readonly string[]; readonly sawImage: boolean; readonly at: number };
 
@@ -44,28 +45,14 @@ export const askMenu = async (
     throw new Error(`서버 오류 (${res.status})`);
   }
   if (!res.body) throw new Error('응답이 비어 있어요');
-  const reader = res.body.getReader();
-  const dec = new TextDecoder();
-  let pending = '';
   let text = '';
   let result: AskResult | null = null;
-  const handle = (raw: string) => {
-    if (!raw.trim()) return;
-    const ev = JSON.parse(raw) as Event;
+  await readNdjson<Event>(res.body, (ev) => {
     if (ev.t === 'delta') { text += ev.text; onDelta(stripRefs(text)); }
     else if (ev.t === 'done') result = { kind: 'answer', text: ev.text ?? stripRefs(text), refs: ev.refs, sawImage: ev.sawImage };
     else if (ev.t === 'need_image') result = { kind: 'need_image' };
     else if (ev.t === 'error') throw new Error(ev.m);
-  };
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    pending += dec.decode(value, { stream: true });
-    const lines = pending.split('\n');
-    pending = lines.pop() ?? '';
-    lines.forEach(handle);
-  }
-  if (pending.trim()) handle(pending);
+  });
   if (!result) throw new Error('답이 끊겼어요');
   return result;
 };
