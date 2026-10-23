@@ -22,7 +22,7 @@ type Props = { readonly scan: Scan; readonly batch: readonly Scan[]; readonly on
 export const ResultScreen = ({ scan, batch, onSwitch, onAdd, rate, mode, onMode, onHome, originalFiles }: Props) => {
   const isMenu = scan.kind === 'menu';
   // 안내문·기타는 카드가 의미 없으니 오버레이만 보여준다
-  const [view, setView] = useState<View>(isMenu ? 'cards' : 'overlay');
+  const [view, setView] = useState<View>('overlay');
   const [selected, setSelected] = useState<MenuItem | null>(null);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   // 주문 수량(메뉴판만). 스캔별로 기기에 저장
@@ -60,10 +60,7 @@ export const ResultScreen = ({ scan, batch, onSwitch, onAdd, rate, mode, onMode,
     <div className="app">
       <TopBar onBack={onHome} backLabel="홈으로" center={
         isMenu ? (
-          <div style={{ position: 'relative' }}>
-            <Segmented shadow label="보기 방식" value={view} onChange={setView} options={[{ value: 'cards', label: '카드' }, { value: 'overlay', label: '오버레이' }]} />
-            <span aria-hidden="true" className="dot" style={{ position: 'absolute', top: -9, right: -10, fontSize: 8, padding: '1px 4px', background: 'var(--vermilion)', color: 'var(--paper-2)', border: '1px solid var(--ink)', lineHeight: 1.2, letterSpacing: '0.1em' }}>BETA</span>
-          </div>
+          <Segmented shadow label="보기 방식" value={view} onChange={setView} options={[{ value: 'overlay', label: '오버레이' }, { value: 'cards', label: '카드' }]} />
         ) : (
           <div className="dot" style={{ fontSize: 16 }}>{KIND_LABEL[scan.kind]}</div>
         )
