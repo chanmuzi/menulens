@@ -11,6 +11,14 @@ export const verifyCode = async (code: string): Promise<boolean> => {
   return res.ok;
 };
 
+/** 저장된 초대 코드가 아직 유효한지. 401 일 때만 invalid(네트워크·서버 오류는 unknown → 내쫓지 않는다) */
+export const checkStoredCode = async (code: string): Promise<'ok' | 'invalid' | 'unknown'> => {
+  try {
+    const res = await fetch('/api/auth', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code }) });
+    return res.ok ? 'ok' : res.status === 401 ? 'invalid' : 'unknown';
+  } catch { return 'unknown'; }
+};
+
 export type OcrEvent = { words: readonly OcrWord[]; width: number; height: number; rotation: 0 | 90 | 180 | 270; tilt: number; ms: number; used: boolean };
 export type MetaEvent = { kind: string; shop_name: string | null; title: string | null; notes: readonly unknown[] };
 
