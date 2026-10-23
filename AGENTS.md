@@ -5,7 +5,8 @@
 > 전체 grep 은 라우팅으로 못 찾을 때의 최후 수단이다. 위키 루트는 `docs/wiki/index.md`.
 
 일본 식당 메뉴판·안내문을 찍으면 한국어로 읽어주는 개인 모바일 웹 앱. Vite + React 프론트,
-Vercel Node.js 함수 6개, Upstage OCR → Claude Sonnet(Timely Router) 2단 파이프라인.
+Vercel Node.js 함수 8개, Upstage OCR → Claude Sonnet(Timely Router) 2단 파이프라인.
+대화 통역은 Groq Whisper(예비 Gemini) 음성 인식 → Claude 번역(Timely, 한도 시 Anthropic 직접 키).
 배포 주소·초대 코드·키는 `.env`(미추적)와 Vercel 환경변수에만 있다.
 
 ## 절대 규칙 (위반 시 작업 중단)
