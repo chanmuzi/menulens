@@ -28,6 +28,15 @@ type Show = { readonly text: string; readonly lang: 'ja' | 'en'; readonly kana: 
 
 const PAIRS: readonly TalkPair[] = ['ko-ja', 'ko-en', 'ja-en'];
 
+/**
+ * 말하기 버튼 두 개는 같은 모양(같은 너비·글꼴)이고, 언어 색으로만 구분한다. 색은 말풍선과 맞춘다:
+ * 한국어(내 말) = 주홍, 일본어(상대 말) = 먹. 평소에는 마이크 글리프만 그 색, 녹음 중에는 버튼 전체가 그 색.
+ */
+const VOICE: Readonly<Record<Lang, { readonly label: string; readonly live: string; readonly status: string; readonly color: string }>> = {
+  ko: { label: '한국어', live: '듣는 중', status: '한국어 듣는 중 · 다 말하면 저절로 끝나요 · 누르면 바로 끝', color: 'var(--vermilion)' },
+  ja: { label: '日本語', live: '聞いています', status: '일본어 듣는 중 · 다 말하면 저절로 끝나요 · 누르면 바로 끝', color: 'var(--ink)' },
+};
+
 /** 다시 될 때까지 남은 시간 → 「40초 」「12분 」「2시간 」 */
 const waitLabel = (s: number): string => (s < 60 ? `${s}초` : s < 3600 ? `${Math.ceil(s / 60)}분` : `${Math.ceil(s / 3600)}시간`);
 const sttNotice = (retryAfter: number | null): string =>
@@ -189,7 +198,19 @@ export const TalkScreen = ({ talk: initial, onSave, onHome, onRename }: Props) =
   const setHelper = useCallback((helper: readonly HelperMsg[]) => setTalk((t) => ({ ...t, updatedAt: Date.now(), helper })), []);
 
   const recording = (lang: Lang) => rec?.lang === lang;
-  const level = (lang: Lang) => (recording(lang) ? <span aria-hidden="true" style={{ position: 'absolute', left: 0, bottom: 0, height: 4, width: `${Math.max(8, rec!.level * 100)}%`, background: 'var(--paper-2)', opacity: 0.8 }} /> : null);
+  const micButton = (lang: Lang) => {
+    const v = VOICE[lang];
+    const on = recording(lang);
+    const other: Lang = lang === 'ko' ? 'ja' : 'ko';
+    return (
+      <button type="button" className="btn" onClick={() => void speak(lang)} disabled={opening || hearing !== null || recording(other)} lang={lang} aria-pressed={on}
+        style={{ position: 'relative', overflow: 'hidden', flex: 1, minHeight: 60, padding: '0 8px', gap: 8, fontSize: 16, fontWeight: 700, boxShadow: '3px 3px 0 var(--ink)', background: on ? v.color : 'var(--paper-2)', color: on ? 'var(--paper-2)' : 'var(--ink)' }}>
+        {on ? <span className="blink" aria-hidden="true">●</span> : <span style={{ display: 'inline-flex', color: v.color }}><DotGlyph name="mic" size={18} /></span>}
+        <span style={{ whiteSpace: 'nowrap' }}>{on ? v.live : v.label}</span>
+        {on && <span aria-hidden="true" style={{ position: 'absolute', left: 0, bottom: 0, height: 4, width: `${Math.max(8, rec!.level * 100)}%`, background: 'var(--paper-2)', opacity: 0.8 }} />}
+      </button>
+    );
+  };
   const hasMine = talk.turns.some((t) => t.who === 'me' && t.status === 'done');
 
   return (
@@ -234,7 +255,7 @@ export const TalkScreen = ({ talk: initial, onSave, onHome, onRename }: Props) =
       <div ref={listRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '6px 14px 16px' }}>
         {talk.turns.length === 0 && !hearing && (
           <p className="muted" style={{ margin: '24px 4px', fontSize: 14, lineHeight: 1.65 }}>
-            「한국어로 말하기」를 누르고 말하면 일본어로 바꿔 보여줘요. 상대가 말할 땐 「日本語」를 눌러 주세요. 다 말하고 조용해지면 저절로 끝나요.
+            「한국어」를 누르고 말하면 일본어로 바꿔 보여줘요. 상대가 말할 땐 「日本語」를 눌러 주세요. 다 말하고 조용해지면 저절로 끝나요.
           </p>
         )}
         {hasMine && <p className="muted" style={{ margin: '6px 0 0', textAlign: 'center', fontSize: 11 }}>내 말풍선을 누르면 상대에게 크게 보여줘요</p>}
@@ -243,7 +264,7 @@ export const TalkScreen = ({ talk: initial, onSave, onHome, onRename }: Props) =
         ))}
         {hearing && (
           <div style={{ display: 'flex', justifyContent: hearing === 'ko' ? 'flex-end' : 'flex-start', marginTop: 16 }}>
-            <div style={{ padding: '8px 12px', border: '2px dashed var(--muted)', background: 'var(--paper-2)', fontSize: 14, color: 'var(--body)' }}>
+            <div style={{ padding: '8px 12px', border: `2px dashed ${VOICE[hearing].color}`, background: 'var(--paper-2)', fontSize: 14, color: 'var(--body)' }}>
               {hearing === 'ko' ? '한국어 받아 적는 중' : '일본어 받아 적는 중'}<span className="blink">▌</span>
             </div>
           </div>
@@ -251,20 +272,17 @@ export const TalkScreen = ({ talk: initial, onSave, onHome, onRename }: Props) =
       </div>
 
       <div style={{ flexShrink: 0, borderTop: '2px solid var(--ink)', padding: '8px 14px calc(14px + var(--safe-bottom))', display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <div role="status" style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--vermilion-dark)', display: notice ? 'block' : 'none' }}>{notice}</div>
+        {/* 녹음 중이면 그 언어 색으로 상태 한 줄, 아니면 안내(오류 등) */}
+        <div role="status" style={{ fontSize: 12, lineHeight: 1.5, fontWeight: rec ? 600 : 400, color: rec ? VOICE[rec.lang].color : 'var(--vermilion-dark)', display: rec || notice ? 'block' : 'none' }}>
+          {rec ? <><span className="blink" aria-hidden="true">● </span>{VOICE[rec.lang].status}</> : notice}
+        </div>
         {mode === 'voice' ? (
           <div style={{ display: 'flex', gap: 8 }}>
             <button type="button" className="btn" onClick={() => setMode('text')} aria-label="글로 쓰기" disabled={rec !== null} style={{ width: 52, minHeight: 60, padding: 0, boxShadow: 'none' }}>
               <DotGlyph name="keyboard" size={22} />
             </button>
-            <button type="button" className="btn btn--primary" onClick={() => void speak('ko')} disabled={opening || hearing !== null || recording('ja')}
-              style={{ position: 'relative', overflow: 'hidden', flex: 3, minHeight: 60, padding: '0 8px', fontSize: 16, fontWeight: 700, boxShadow: '3px 3px 0 var(--ink)', background: recording('ko') ? 'var(--vermilion-dark)' : undefined }}>
-              <DotGlyph name="mic" size={18} />{recording('ko') ? '듣는 중 · 누르면 끝' : '한국어로 말하기'}{level('ko')}
-            </button>
-            <button type="button" className="btn" onClick={() => void speak('ja')} disabled={opening || hearing !== null || recording('ko')} lang="ja"
-              style={{ position: 'relative', overflow: 'hidden', flex: 2, minHeight: 60, padding: '0 8px', fontFamily: 'var(--font-dot)', fontSize: 15, boxShadow: '3px 3px 0 var(--ink)', background: recording('ja') ? 'var(--vermilion)' : 'var(--ink)', color: 'var(--paper-2)' }}>
-              <DotGlyph name="mic" size={16} />{recording('ja') ? '聞いています' : '日本語'}{level('ja')}
-            </button>
+            {micButton('ko')}
+            {micButton('ja')}
           </div>
         ) : (
           <form onSubmit={send} style={{ display: 'flex', gap: 6 }}>
