@@ -29,8 +29,8 @@ type Show = { readonly text: string; readonly lang: 'ja' | 'en'; readonly kana: 
 const PAIRS: readonly TalkPair[] = ['ko-ja', 'ko-en', 'ja-en'];
 
 /**
- * 말하기 버튼 두 개는 같은 모양(같은 너비·글꼴)이고, 언어 색으로만 구분한다. 색은 말풍선과 맞춘다:
- * 한국어(내 말) = 주홍, 일본어(상대 말) = 먹. 평소에는 마이크 글리프만 그 색, 녹음 중에는 버튼 전체가 그 색.
+ * 말하기 버튼 색 정책(2026-10-23 사용자): 두 버튼은 같은 모양(너비·글꼴)이고 색은 언제나 다르다. 말풍선과 맞춰 한국어(내 말) = 주홍, 일본어(상대 말) = 먹.
+ * 평소: 그 색으로 채움. 녹음 중: 뒤집어 종이 바탕 + 그 색 굵은 테두리·글자 + ● 깜빡임 + 그 색 소리 막대, 눌린 듯 그림자 없음. 다른 쪽은 흐리게.
  */
 const VOICE: Readonly<Record<Lang, { readonly label: string; readonly live: string; readonly status: string; readonly color: string }>> = {
   ko: { label: '한국어', live: '듣는 중', status: '한국어 듣는 중 · 다 말하면 저절로 끝나요 · 누르면 바로 끝', color: 'var(--vermilion)' },
@@ -204,10 +204,12 @@ export const TalkScreen = ({ talk: initial, onSave, onHome, onRename }: Props) =
     const other: Lang = lang === 'ko' ? 'ja' : 'ko';
     return (
       <button type="button" className="btn" onClick={() => void speak(lang)} disabled={opening || hearing !== null || recording(other)} lang={lang} aria-pressed={on}
-        style={{ position: 'relative', overflow: 'hidden', flex: 1, minHeight: 60, padding: '0 8px', gap: 8, fontSize: 16, fontWeight: 700, boxShadow: '3px 3px 0 var(--ink)', background: on ? v.color : 'var(--paper-2)', color: on ? 'var(--paper-2)' : 'var(--ink)' }}>
-        {on ? <span className="blink" aria-hidden="true">●</span> : <span style={{ display: 'inline-flex', color: v.color }}><DotGlyph name="mic" size={18} /></span>}
+        style={{ position: 'relative', overflow: 'hidden', flex: 1, minHeight: 60, padding: '0 8px', gap: 8, fontSize: 16, fontWeight: 700,
+          background: on ? 'var(--paper-2)' : v.color, color: on ? v.color : 'var(--paper-2)', border: on ? `3px solid ${v.color}` : '2px solid var(--ink)',
+          boxShadow: on ? 'none' : '3px 3px 0 var(--ink)', transform: on ? 'translate(2px, 2px)' : undefined }}>
+        {on ? <span className="blink" aria-hidden="true">●</span> : <DotGlyph name="mic" size={18} />}
         <span style={{ whiteSpace: 'nowrap' }}>{on ? v.live : v.label}</span>
-        {on && <span aria-hidden="true" style={{ position: 'absolute', left: 0, bottom: 0, height: 4, width: `${Math.max(8, rec!.level * 100)}%`, background: 'var(--paper-2)', opacity: 0.8 }} />}
+        {on && <span aria-hidden="true" style={{ position: 'absolute', left: 0, bottom: 0, height: 5, width: `${Math.max(8, rec!.level * 100)}%`, background: v.color }} />}
       </button>
     );
   };
