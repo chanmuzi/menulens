@@ -10,8 +10,6 @@ import { formatRateLine } from '../lib/money';
 import { loadOrder, orderLines, saveOrder, withQty, type Order } from '../lib/order';
 import { OrderBar } from '../components/OrderBar';
 import { OrderSheet } from './OrderSheet';
-import { NoteSheet } from './NoteSheet';
-import type { Note } from '../types';
 import { KIND_LABEL } from '../lib/kind';
 import { BatchStrip } from '../components/BatchStrip';
 import { ChatFab } from '../components/ChatFab';
@@ -30,7 +28,10 @@ export const ResultScreen = ({ scan, batch, onSwitch, onAdd, rate, mode, onMode,
   // 주문 수량(메뉴판만). 스캔별로 기기에 저장
   const [order, setOrder] = useState<Order>(() => (isMenu ? loadOrder(scan.id) : {}));
   const [orderOpen, setOrderOpen] = useState(false);
-  const [note, setNote] = useState<Note | null>(null);
+  // 안내문 문단 선택: 덮개나 번역문 줄을 누르면 선택, 같은 것을 다시 누르면 해제(원문·번역은 사진 아래 정리 영역에 있어 시트를 띄우지 않는다)
+  const [selectedNote, setSelectedNote] = useState<number | null>(null);
+  const toggleNote = (i: number) => setSelectedNote((cur) => (cur === i ? null : i));
+  useEffect(() => { setSelectedNote(null); }, [scan.id]);
   // 오버레이의 번역 표시 토글. 사진 안에 두면 사진을 가리고, 사진 위 전용 줄은 여백만 만들어 제목 줄 오른쪽에 둔다
   const [showMarks, setShowMarks] = useState(true);
   // 챗 팝업. 열려 있는 항목(카드 상세)이 있으면 맥락으로 붙고, 팝업을 닫은 뒤 온 답은 버튼 배지로 센다
@@ -89,7 +90,7 @@ export const ResultScreen = ({ scan, batch, onSwitch, onAdd, rate, mode, onMode,
           {(isMenu || streaming || detailing) && <div className="muted small">
             {isMenu && <>{scan.items.length}개{summary && ` · ${summary}`}{formatRateLine(rate) && ` · ${formatRateLine(rate)}`}</>}
             {streaming && <span className="blink">{isMenu ? ' ' : ''}▌</span>}
-            {detailing && <span>{isMenu ? ' · ' : ''}설명 쓰는 중<span className="blink">▌</span></span>}
+            {detailing && <span>{isMenu ? ' · 설명 쓰는 중' : '번역·요약 쓰는 중'}<span className="blink">▌</span></span>}
           </div>}
         </div>
         {overlayShown && (
@@ -100,15 +101,14 @@ export const ResultScreen = ({ scan, batch, onSwitch, onAdd, rate, mode, onMode,
       </div>
 
       {overlayShown
-        ? <OverlayView scan={scan} selectedId={selected?.id ?? null} onSelect={setSelected} onNote={setNote} showMarks={showMarks} />
+        ? <OverlayView scan={scan} selectedId={selected?.id ?? null} onSelect={setSelected} selectedNote={selectedNote} onNote={toggleNote} rate={rate} showMarks={showMarks} />
         : <CardsView scan={scan} rate={rate} mode={mode} onMode={onMode} onSelect={setSelected} order={order} onQty={setQty} />}
 
       {/* 아래 여백: 주문서 바(72) + 말풍선 버튼 자리(72). 마지막 카드의 스테퍼가 버튼에 가려지지 않게 */}
       <div aria-hidden="true" style={{ height: (lines.length > 0 ? 72 : 0) + 72 }} />
       {isMenu && <OrderBar lines={lines} rate={rate} onOpen={() => setOrderOpen(true)} />}
       {orderOpen && <OrderSheet lines={lines} rate={rate} onQty={setQty} onClear={() => { setOrder({}); setOrderOpen(false); }} onClose={() => setOrderOpen(false)} />}
-      {note && <NoteSheet note={note} onClose={() => setNote(null)} />}
-      {!orderOpen && !note && !selected && !chatOpen && <ChatFab title={chatTitle(scan.kind)} buttonRef={fabRef} unread={unread} aboveBar={lines.length > 0} onClick={openChat} />}
+      {!orderOpen && !selected && !chatOpen && <ChatFab title={chatTitle(scan.kind)} buttonRef={fabRef} unread={unread} aboveBar={lines.length > 0} onClick={openChat} />}
       {chatMounted && <ChatPopup scan={scan} open={chatOpen} focus={chatFocus} onClearFocus={() => setChatFocus(null)} onOpenItem={(id) => { const it = scan.items.find((x) => x.id === id); if (it) { setChatOpen(false); setSelected(it); } }} onClose={closeChat} onAnswered={() => { if (!chatOpenRef.current) setUnread((n) => n + 1); }} />}
       {selected && <ItemSheet item={selected} rate={rate} mode={mode} onClose={() => setSelected(null)} qty={isMenu ? (order[selected.id] ?? 0) : null} onQty={(q) => setQty(selected.id, q)} pending={scan.status !== 'done' && scan.status !== 'error'} onAsk={openChat} />}
     </div>

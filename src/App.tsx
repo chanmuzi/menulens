@@ -21,7 +21,7 @@ type Route = 'gate' | 'home' | 'history' | 'confirm' | 'processing' | 'result';
 
 const emptyScan = (): Scan => ({
   id: newScanId(), batchId: null, createdAt: Date.now(), imageDataUrl: '', width: 4, height: 3, kind: 'menu', kindKnown: false, shopName: null, sheetQuad: null,
-  words: [], rotation: 0, tilt: 0, notes: [], groups: null, items: [], status: 'preparing', error: null,
+  words: [], rotation: 0, tilt: 0, notes: [], summary: null, groups: null, items: [], status: 'preparing', error: null,
   timing: { ocrMs: null, firstItemMs: null, listMs: null, totalMs: null },
 });
 
@@ -30,7 +30,7 @@ const upgrade = (s: Scan): Scan => ({
   ...emptyScan(), ...s, batchId: s.batchId ?? null,
   // 설명 도중 저장된 스캔은 다시 열 때 「설명 쓰는 중」이 영원히 깜빡이지 않도록 완료로 본다
   status: s.status === 'error' ? 'error' : 'done',
-  words: s.words ?? [], rotation: s.rotation ?? 0, tilt: s.tilt ?? 0, kind: s.kind ?? 'menu', kindKnown: true, sheetQuad: s.sheetQuad ?? null, notes: s.notes ?? [], groups: s.groups ?? null,
+  words: s.words ?? [], rotation: s.rotation ?? 0, tilt: s.tilt ?? 0, kind: s.kind ?? 'menu', kindKnown: true, sheetQuad: s.sheetQuad ?? null, notes: s.notes ?? [], summary: s.summary ?? null, groups: s.groups ?? null,
   items: (s.items ?? []).map((it) => ({ ...it, price_tax_jpy: it.price_tax_jpy ?? null, group: it.group ?? null, pron_ko: it.pron_ko ?? '', desc_ko: it.desc_ko ?? '', tags: it.tags ?? [], photo_query: it.photo_query ?? it.name_ja, detailed: it.detailed ?? true })),
   timing: { ...emptyScan().timing, ...(s.timing ?? {}) },
 });
@@ -98,6 +98,9 @@ export const App = () => {
       update((s) => ({ ...s, imageDataUrl: img.dataUrl, width: img.width, height: img.height, status: 'reading' }));
       let words: readonly OcrWord[] = [];
       let firstItemMs: number | null = null;
+      // 스트리밍 중 문구(안내문 문단). 묶음끼리 도착 순서가 섞이므로 key(묶음:순번) 순으로 정렬해 보여준다. meta 가 오면 최종본으로 바뀐다
+      let streamed: ReadonlyArray<readonly [string, Note]> = [];
+      const keyOrder = (k: string): [number, number] => { const [c, n] = k.split(':').map(Number); return [c ?? 0, n ?? 0]; };
       await analyzeImage(img.base64, img.mediaType, {
         signal: ac.signal,
         onOcr: (r) => {
@@ -113,8 +116,21 @@ export const App = () => {
           const first = firstItemMs;
           update((s) => ({ ...s, items: insertItem(s.items, item), timing: { ...s.timing, firstItemMs: first } }));
         },
+        onNote: (key, raw) => {
+          const note = toNote(raw, words);
+          if (!note) return;
+          const now = Date.now() - t0;
+          streamed = [...streamed, [key, note] as const].sort((x, y) => { const [a1, a2] = keyOrder(x[0]), [b1, b2] = keyOrder(y[0]); return a1 - b1 || a2 - b2; });
+          const notes = streamed.map(([, n]) => n);
+          // 안내문은 첫 문단부터 결과 화면을 열어 덮개가 차례로 뜨게 한다(메뉴판은 항목이 기준이라 그대로)
+          // 「첫 항목」 시간은 안내문만 문단 기준(메뉴판은 notes 가 items 보다 먼저 나와 항목 기준을 지킨다)
+          update((s) => ({ ...s, notes, status: s.kind !== 'menu' && s.status === 'streaming' ? 'detailing' : s.status, timing: { ...s.timing, firstItemMs: s.kind !== 'menu' ? (s.timing.firstItemMs ?? now) : s.timing.firstItemMs } }));
+        },
+        onSummary: (summary) => update((s) => ({ ...s, summary })),
         onMeta: (m) => {
-          const notes = m.notes.map((n) => toNote(n, words)).filter((n): n is Note => n !== null);
+          const finalNotes = m.notes.map((n) => toNote(n, words)).filter((n): n is Note => n !== null);
+          // 서버 최종본이 스트리밍으로 받은 것보다 짧으면(파싱 실패한 묶음) 이미 그린 문단을 지우지 않는다
+          const notes = finalNotes.length >= streamed.length ? finalNotes : streamed.map(([, n]) => n);
           const listMs = Date.now() - t0;
           update((s) => {
             const next: Scan = { ...s, kind: toKind(m.kind), kindKnown: true, shopName: m.shop_name, notes, status: s.items.length > 0 ? 'detailing' : s.status, timing: { ...s.timing, listMs } };

@@ -31,7 +31,7 @@ const sanitize = (b: Body) => ({
   items: (Array.isArray(b.items) ? b.items : []).slice(0, MAX_ITEMS).map((it) => ({
     k: str(it?.k, 12), ja: str(it?.ja, 60), ko: str(it?.ko, 60), price: typeof it?.price === 'number' ? it.price : null, desc: str(it?.desc, 60), group: str(it?.group, 12) || null,
   })).filter((it) => it.k && it.ja),
-  notes: (Array.isArray(b.notes) ? b.notes : []).slice(0, 40).map((n) => ({ ja: str(n?.ja, 80), ko: str(n?.ko, 80) })).filter((n) => n.ja),
+  notes: (Array.isArray(b.notes) ? b.notes : []).slice(0, 60).map((n) => ({ ja: str(n?.ja, 300), ko: str(n?.ko, 300) })).filter((n) => n.ja),
   focus: str(b.focus, 12) || null,
   question: str(b.question, MAX_QUESTION),
   history: dropLeadingBot((Array.isArray(b.history) ? b.history : []).slice(-MAX_HISTORY).map((t): { role: 'me' | 'bot'; text: string } => ({ role: t?.role === 'me' ? 'me' : 'bot', text: str(t?.text, 400) })).filter((t) => t.text)),
