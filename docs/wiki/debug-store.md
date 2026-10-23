@@ -12,7 +12,7 @@
 2. 로컬에서 내려받기: `set -a && . ./.env && set +a && python3 scripts/bench/debug_pull.py <scratchpad>/debug_scans`
    → `<id>.json` + `<id>.jpg`. 표준 라이브러리만 쓴다(RESP 직접 구현).
 3. `<id>.jpg` 를 로컬 `pnpm dev` + 헤드리스 Chrome 흐름에 넣어 화면을 재현한다([[architecture]] §검증).
-4. 운용 기준(2026-10-20 결정): **혼자 테스트하는 동안은 켜 둔다**(문제가 난 순간의 스캔이 바로 남아 다시 찍을 필요가 없다). **초대 코드를 다른 사람에게 나눠주기 시작하면 끈다**(타인의 사진을 모르게 보관하지 않기 위해). 끄기: `printf 0 | npx vercel env add DEBUG_STORE production --force` 후 재배포. 내려받은 사진은 scratchpad 밖에 두지 않는다(절대 규칙 4·5).
+4. 운용 기준(2026-10-20 결정): **혼자 테스트하는 동안은 켜 둔다**(문제가 난 순간의 스캔이 바로 남아 다시 찍을 필요가 없다). **초대 코드를 다른 사람에게 나눠주기 시작하면 끈다**(타인의 사진을 모르게 보관하지 않기 위해). 끄기: `printf 0 | npx vercel env add DEBUG_STORE production --force` 후 다음 merge(또는 Vercel 대시보드 Redeploy)로 반영. `npx vercel` 직접 배포는 쓰지 않는다. 내려받은 사진은 scratchpad 밖에 두지 않는다(절대 규칙 4·5).
 
 ## 사례
 

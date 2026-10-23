@@ -21,7 +21,7 @@ drink_set = set(re.findall(r"'([a-z]+)'", drink_icons))
 generic = set(re.findall(r"'([a-z]+)'", re.search(r"const GENERIC = new Set\(\[(.*?)\]\)", ts, re.S).group(1)))
 
 print('# 도트 아이콘 목록 (자동 생성: `python3 scripts/icons_wiki.py > docs/wiki/icons.md`)\n')
-print(f'보유 {len(SPRITES)}종(화면 전용 {len(UI_ONLY)}종 포함: ' + ', '.join(sorted(UI_ONLY)) + '). 격자는 `scripts/px_icons.py`, 규칙은 `src/lib/icons.ts`, 제작 규칙은 `.claude/skills/pixel-icon/SKILL.md`.\n')
+print(f'보유 {len(SPRITES)}종(화면 전용 {len(UI_ONLY)}종 포함: ' + ', '.join(sorted(UI_ONLY)) + '). 격자는 `scripts/px_icons.py`, 규칙은 `src/lib/icons.ts`, 제작 규칙은 `.claude/skills/pixel-icon/SKILL.md`. 화면 UI 글리프(기록 줄의 연필·휴지통 10×10)는 이 목록 밖, `src/components/DotGlyph.tsx`.\n')
 print('## 음료 규칙 (`DRINK_RULES`, 앞 규칙 우선)\n')
 print('음료 칸이거나 모델이 음료 아이콘(`DRINK_ICONS`)을 골랐을 때만 본다. 음식 규칙은 보지 않는다.\n')
 print('| 이름 | 키워드 |\n|---|---|')

@@ -1,6 +1,6 @@
 # 도트 아이콘 목록 (자동 생성: `python3 scripts/icons_wiki.py > docs/wiki/icons.md`)
 
-보유 46종(화면 전용 1종 포함: bubble). 격자는 `scripts/px_icons.py`, 규칙은 `src/lib/icons.ts`, 제작 규칙은 `.claude/skills/pixel-icon/SKILL.md`.
+보유 46종(화면 전용 1종 포함: bubble). 격자는 `scripts/px_icons.py`, 규칙은 `src/lib/icons.ts`, 제작 규칙은 `.claude/skills/pixel-icon/SKILL.md`. 화면 UI 글리프(기록 줄의 연필·휴지통 10×10)는 이 목록 밖, `src/components/DotGlyph.tsx`.
 
 ## 음료 규칙 (`DRINK_RULES`, 앞 규칙 우선)
 

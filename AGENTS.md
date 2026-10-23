@@ -1,6 +1,6 @@
 # MenuLens — 에이전트 라우터
 
-> **Version**: 1.3.0 · **Updated**: 2026-10-21
+> **Version**: 1.4.0 · **Updated**: 2026-10-23
 > **이 파일이 규약의 단일 진입점(SSoT)이다.** 아래 판정표로 작업 유형을 정하고 그 행의 경로만 로드한다.
 > 전체 grep 은 라우팅으로 못 찾을 때의 최후 수단이다. 위키 루트는 `docs/wiki/index.md`.
 
@@ -27,9 +27,13 @@ Vercel Node.js 함수 6개, Upstage OCR → Claude Sonnet(Timely Router) 2단 �
 | 히스토리 파악 | `docs/wiki/log/index.md` → 최신 월 샤드 → `git log` | — |
 | 구조·파이프라인 이해 | [[architecture]] | [[overlay-and-photo]] (화면 좌표·회전·라벨 규칙) |
 | 속도·모델 변경 | [[benchmarks]] (측정 기록과 재현 방법) | `api/_lib/prompt.ts` · `api/analyze.ts` |
-| 배포·환경변수·Redis | [[deploy-and-env]] | 절대 규칙 2·3 |
+| 배포·환경변수·Redis(키·용량) | [[deploy-and-env]] | 절대 규칙 2·3 · 진단 키는 [[debug-store]] |
 | 사용자 실기기 케이스 재현 | [[debug-store]] | 절대 규칙 4 |
-| UI·문구·디자인 결정 | [[design-decisions]] (확정된 것 / 바꾸지 말 것) | [[backlog]] (사용자 결정 대기 항목) |
+| UI·문구·디자인 결정 | [[design-decisions]] (작업 원칙·공통·폐기, 하위 페이지 안내) | 결과 화면이면 [[decisions-result]], 입력·처리·기록이면 [[decisions-input]] · [[backlog]] |
+| 결과 화면(오버레이·카드·주문서·챗·사진 저장) | [[decisions-result]] | [[architecture]] 파일 지도 |
+| 안내문 덮개·정리 영역(요약·번역문·원문) | [[overlay-and-photo]] §안내문 덮개 | `src/lib/coverLayout.ts` · [[decisions-result]] |
+| 입력·여러 장·처리 중·기록 목록·이름 고치기 | [[decisions-input]] | [[architecture]] 파일 지도 |
+| 아이콘 추가·매칭 수정 | [[icons]] | `.claude/skills/pixel-icon` |
 | 남은 과제 착수 | [[backlog]] | 해당 페이지 |
 | 위키 쓰기 (신설·수정) | `docs/wiki/index.md` → 대상 페이지 | 신규 페이지는 인덱스에 등재 |
 

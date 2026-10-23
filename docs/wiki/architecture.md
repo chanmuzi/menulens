@@ -1,12 +1,12 @@
 # 구조와 파이프라인
 
-> 2026-10-21 기준. 변경 시 이 페이지와 [[log/2026-10]] 를 같이 갱신한다.
+> 2026-10-23 기준. 변경 시 이 페이지와 [[log/2026-10]] 를 같이 갱신한다.
 
 ## 흐름
 
 1. **클라이언트** `src/lib/image.ts` — `<img>` 디코딩(EXIF 적용) → 긴 변 1280px JPEG(q0.85) → base64.
 2. **`POST /api/analyze`** (`api/analyze.ts`, Node.js, 도쿄) — NDJSON 스트림으로 아래 이벤트를 순서대로 보낸다.
-   - `ocr` — Upstage Document OCR(`model=ocr`) 결과: 단어 `{id,t,box}`(0~1000 정규화), `rotation`(90° 단위), `tilt`(도), `used`
+   - `ocr` — Upstage Document OCR(`model=ocr`) 결과: 단어 `{id,t,box}`(0~1000 정규화), `rotation`(90° 단위), `tilt`(도), `width`·`height`, `ms`, `used`(실패 시 `error`)
    - `mode` — `ocr`(단어 ≥3) 또는 `image`(폴백: 이미지를 직접 보는 프롬프트), `chunks` 수
    - `kind` — 1단계 출력의 첫 키 `"kind"` 가 스트림에 보이는 즉시(항목보다 먼저, 한 번만). 처리 중 화면이 메뉴판/안내문에 맞는 문구로 바뀐다. 추가 호출 없음
    - `item` — 1단계 LLM 항목이 완성될 때마다 `{key:"묶음:순번", item}`. 단어 60개 초과면 읽기 순서로 최대 4묶음을 **병렬** 호출(`api/_lib/chunk.ts`), 파싱은 서버(`api/_lib/itemStream.ts`)
@@ -20,19 +20,23 @@
 
 4. **`POST /api/chat`** (`api/chat.ts`, `api/_lib/chatPrompt.ts` 의 종류별 `chatSystem(kind)`) — 결과 화면 챗. 입력은 항목·문구 축약 JSON(`src/lib/chat.ts` `chatContext`) + 맥락 항목 + 질문 + 최근 대화 6턴 + (필요 시) 사진. NDJSON `delta`/`done{refs,sawImage}`/`need_image`/`error`. 모델이 `[사진 필요]` 만 내면 서버가 `need_image` 로 끝내고 클라이언트(`ChatPopup`)가 사진을 붙여 다시 묻는다. 답 끝 「참조: k,k」 줄은 서버가 떼어 `done.text`·`refs` 로 보내고, 스트리밍 중에는 클라이언트 `stripRefs` 가 임시로 뗀다.
 
-모델은 `api/_lib/prompt.ts` 의 `MODEL`(현재 `claude-sonnet-5-5`, Timely Router `/v1/messages`). 프롬프트 3종: `STAGE1_SYSTEM`(짧은 구조화), `STAGE2_SYSTEM`(설명), `IMAGE_SYSTEM`(폴백).
+모델은 `api/_lib/prompt.ts` 의 `MODEL`(현재 `claude-sonnet-5-5`, Timely Router `/v1/messages`). 프롬프트 5종(`api/_lib/prompt.ts`): `STAGE1_SYSTEM`(짧은 구조화, 끝에 기록용 `emoji`·`title_ko`), `STAGE2_SYSTEM`(설명), `GROUPS_SYSTEM`(카드 묶음 정리), `SUMMARY_SYSTEM`(안내문 요약), `IMAGE_SYSTEM`(폴백). 챗은 `api/_lib/chatPrompt.ts` 의 `chatSystem(kind)`, 아이콘 생성은 `api/icon.ts`.
 
 ## 파일 지도
 
 ```
 api/            Vercel Functions (Node.js, Web 표준 fetch 핸들러, ESM — 상대 import 에 .js 확장자 필수)
-  analyze.ts    파이프라인 본체        auth.ts 초대 코드     rate.ts 환율     chat.ts 메뉴판 챗     photo.ts Commons 사진(현재 미사용)
-  _lib/         access(초대 코드) ocr chunk itemStream prompt kv(Redis) cache(설명 캐시) debugStore http
+  analyze.ts 파이프라인 본체   chat.ts 결과 화면 챗   icon.ts 도트 아이콘 격자 생성(상위 모델 → 폴백)   auth.ts 초대 코드   rate.ts 환율
+  photo.ts Commons 사진(사진 토글이 비활성이라 호출되지 않음, 경로는 살아 있음)
+  _lib/  access(초대 코드) ocr chunk itemStream prompt chatPrompt kv(Redis) cache(설명 캐시 180일) iconCache(아이콘 365일) debugStore(진단 20건·7일) pixel(서버 팔레트) http
 src/
-  App.tsx       화면 상태 머신 gate → home → processing → result
-  screens/      Gate Home ConfirmBatch Processing Result(Overlay / Cards / ItemSheet / ChatPopup / NoticePanel)
-  components/   NoticeCovers(안내문 문단 덮개·번호) MenuPhoto(회전·기울기·확대·핀치 줌) PixelIcon Segmented ProgressBlocks ItemImage TopBar
-  lib/          image api scan(정규화·unionBox·applyDetails) icons(키워드 우선) kind(종류별 문구) history(기록 목록 묶음·제목·요약) sample(덮개 배경·글자색) coverLayout(덮개/번호 판정·글자 맞춤) money storage photos savePhoto(묶음 전부 공유) version
+  App.tsx       화면 상태 머신 gate → home ⇄ history → confirm(모음·자르기) → processing → result, 스캔 오케스트레이션(runScan·startScans·addScans)
+  screens/      Gate Home History ConfirmBatch Crop Processing Result(OverlayView·CardsView·NoticePanel·ItemSheet·OrderSheet·ChatPopup) LeaveDialog(중단 확인)
+  components/   NoticeCovers(안내문 문단 덮개·번호) MenuPhoto(회전·기울기·확대·핀치 줌) BatchStrip(사진 띠·더 찍기) ScanRow(기록 줄) DotGlyph(연필·휴지통 10×10)
+                ConfirmDialog(지우기 확인) RenameDialog(이름 고치기) ChatFab OrderBar QtyStepper CropBox InstallHint PixelIcon Segmented ProgressBlocks ItemImage TopBar
+  lib/          image api scan(정규화·unionBox·applyDetails) coverLayout(덮개/번호 판정·글자 맞춤) sample(덮개 배경·글자색) icons(키워드 우선) iconStore pixel kind(종류별 문구)
+                history(기록 묶음·제목 규칙) when(날짜·요일·12시간제) storage(저장 큐·이름 고치기·썸네일 채우기) db(IndexedDB) thumb(168px 썸네일) batch(runLimited)
+                groups chat order money crop clipboard drop platform photos savePhoto(묶음 전부 공유) version
   styles/       global.css(토큰·픽셀 프레임·애니메이션) pixel-icons.css(생성: scripts/px_icons.py)
 scripts/bench/  벤치·진단 스크립트        docs/wiki/   이 위키        vite-plugin-dev-api.ts  로컬에서 api/ 실행
 ```
