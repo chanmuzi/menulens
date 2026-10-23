@@ -11,15 +11,16 @@ import { loadOrder, orderLines, saveOrder, withQty, type Order } from '../lib/or
 import { OrderBar } from '../components/OrderBar';
 import { OrderSheet } from './OrderSheet';
 import { KIND_LABEL } from '../lib/kind';
+import { DotGlyph } from '../components/DotGlyph';
 import { BatchStrip } from '../components/BatchStrip';
 import { ChatFab } from '../components/ChatFab';
 import { ChatPopup } from './ChatPopup';
 import { chatTitle } from '../lib/kind';
 
 type View = 'overlay' | 'cards';
-type Props = { readonly scan: Scan; readonly batch: readonly Scan[]; readonly onSwitch: (id: string) => void; readonly onAdd: ((files: readonly File[]) => void) | undefined; readonly rate: Rate | null; readonly mode: ImageMode; readonly onMode: (m: ImageMode) => void; readonly onHome: () => void; /** 묶음 순서대로의 원본 파일(없으면 null → 화면용 사진으로 저장) */ readonly originalFiles: readonly (File | null)[] };
+type Props = { readonly scan: Scan; readonly batch: readonly Scan[]; /** 기록 이름(고친 이름 또는 자동 제목). 누르면 onRename */ readonly title: string; readonly onRename: () => void; readonly onSwitch: (id: string) => void; readonly onAdd: ((files: readonly File[]) => void) | undefined; readonly rate: Rate | null; readonly mode: ImageMode; readonly onMode: (m: ImageMode) => void; readonly onHome: () => void; /** 묶음 순서대로의 원본 파일(없으면 null → 화면용 사진으로 저장) */ readonly originalFiles: readonly (File | null)[] };
 
-export const ResultScreen = ({ scan, batch, onSwitch, onAdd, rate, mode, onMode, onHome, originalFiles }: Props) => {
+export const ResultScreen = ({ scan, batch, title, onRename, onSwitch, onAdd, rate, mode, onMode, onHome, originalFiles }: Props) => {
   const isMenu = scan.kind === 'menu';
   // 안내문·기타는 카드가 의미 없으니 오버레이만 보여준다
   const [view, setView] = useState<View>('overlay');
@@ -82,7 +83,11 @@ export const ResultScreen = ({ scan, batch, onSwitch, onAdd, rate, mode, onMode,
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div className="jp" style={{ fontSize: 20, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{scan.shopName ?? (isMenu ? KIND_LABEL[scan.kind] : (scan.notes[0]?.text_ko ?? KIND_LABEL[scan.kind]))}</div>
+          {/* 기록 이름: 목록과 같은 이름을 보이고, 누르면 이름 고치기 */}
+          <button type="button" onClick={onRename} aria-label={`${title}, 이름 고치기`} style={{ display: 'flex', alignItems: 'center', gap: 6, maxWidth: '100%', background: 'none', border: 0, padding: 0, cursor: 'pointer', color: 'inherit', textAlign: 'left' }}>
+            <span style={{ fontSize: 20, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{title}</span>
+            <DotGlyph name="pencil" />
+          </button>
           {/* 안내문·기타는 「N줄 번역 · 일본어만」 같은 부제를 두지 않는다(불필요하다는 피드백) */}
           {(isMenu || streaming || detailing) && <div className="muted small">
             {isMenu && <>{scan.items.length}개{summary && ` · ${summary}`}{formatRateLine(rate) && ` · ${formatRateLine(rate)}`}</>}

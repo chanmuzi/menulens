@@ -1,6 +1,7 @@
 /** 영속 저장 래퍼. 스캔 기록은 IndexedDB(db.ts), 나머지는 localStorage. 모든 읽기/쓰기는 실패해도 앱이 동작하도록 감싼다. */
 import type { ImageMode, Photo, Rate, Scan } from '../types';
-import { dbClearScans, dbDeleteScan, dbLoadImage, dbLoadScans, dbPutScan } from './db';
+import { dbClearScans, dbDeleteScan, dbLoadImage, dbLoadScans, dbPatchScan, dbPutScan } from './db';
+import { makeThumb } from './thumb';
 
 const KEY = {
   code: 'menulens.accessCode',
@@ -60,13 +61,42 @@ export const loadScans = async (): Promise<readonly Scan[]> => {
 
 /** 저장은 순서대로 한다. 여러 장을 동시에 읽으면 완료가 겹치는데, 병렬로 저장하면 먼저 읽은 목록이 나중에 도착해 한 건이 빠져 보인다 */
 let saveQueue: Promise<unknown> = Promise.resolve();
-export const saveScan = (scan: Scan): Promise<readonly Scan[]> => {
-  const next = saveQueue.then(async () => {
-    try { await dbPutScan(scan); } catch { legacySave(scan); }
-    return mergedList();
-  });
+const enqueue = <T,>(job: () => Promise<T>): Promise<T> => {
+  const next = saveQueue.then(job);
   saveQueue = next.catch(() => undefined);
   return next;
+};
+
+/** 저장할 때 목록 썸네일도 같이 만든다(이미 있으면 그대로). 폴백 저장(localStorage)은 용량이 작아 썸네일을 넣지 않는다 */
+export const saveScan = (scan: Scan): Promise<readonly Scan[]> =>
+  enqueue(async () => {
+    try {
+      const thumb = scan.thumb ?? (await makeThumb(scan.id, scan.imageDataUrl, scan.rotation));
+      await dbPutScan({ ...scan, thumb });
+    } catch { legacySave(scan); }
+    return mergedList();
+  });
+
+/** 묶음의 이름을 바꾼다. null 이면 자동 제목으로 돌아간다 */
+export const renameScans = (ids: readonly string[], userTitle: string | null): Promise<readonly Scan[]> =>
+  enqueue(async () => {
+    await Promise.all(ids.map((id) => dbPatchScan(id, { userTitle }).catch(() => { /* 폴백 저장 기록은 아래에서 */ })));
+    const legacy = legacyLoad();
+    if (legacy.some((s) => ids.includes(s.id))) write(KEY.scans, legacy.map((s) => (ids.includes(s.id) ? { ...s, userTitle } : s)));
+    return mergedList();
+  });
+
+/** 썸네일이 없는 옛 기록에 저장된 사진으로 썸네일을 만들어 채운다. 한 건씩 큐에 넣어(사진은 하나씩만 메모리에) 그 사이 새 스캔 저장·이름 고치기가 끼어들 수 있게 한다 */
+export const backfillThumbs = async (scans: readonly Scan[]): Promise<readonly Scan[]> => {
+  for (const s of scans) {
+    if (s.thumb) continue;
+    await enqueue(async () => {
+      const img = await dbLoadImage(s.id).catch(() => null);
+      const thumb = img ? await makeThumb(s.id, img, s.rotation ?? 0) : null;
+      if (thumb) await dbPatchScan(s.id, { thumb }).catch(() => undefined);
+    });
+  }
+  return enqueue(mergedList);
 };
 
 /** 스캔에 딸린 localStorage 키(주문·대화)를 함께 지운다 */

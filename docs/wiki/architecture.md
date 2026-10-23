@@ -11,7 +11,7 @@
    - `kind` — 1단계 출력의 첫 키 `"kind"` 가 스트림에 보이는 즉시(항목보다 먼저, 한 번만). 처리 중 화면이 메뉴판/안내문에 맞는 문구로 바뀐다. 추가 호출 없음
    - `item` — 1단계 LLM 항목이 완성될 때마다 `{key:"묶음:순번", item}`. 단어 60개 초과면 읽기 순서로 최대 4묶음을 **병렬** 호출(`api/_lib/chunk.ts`), 파싱은 서버(`api/_lib/itemStream.ts`)
    - `note` — 1단계 문구(안내문은 문단 `{role, lines, text_ja, text_ko}`)가 완성될 때마다. 안내문은 첫 문단에서 결과 화면을 열어 덮개가 차례로 뜬다(최종본은 `meta.notes`)
-   - `meta` — 모든 묶음 완료 후 `kind`(menu/sign/other)·`shop_name`·`notes`(비메뉴 문구)
+   - `meta` — 모든 묶음 완료 후 `kind`(menu/sign/other)·`shop_name`·`title`(「이모지 제목」, 기록 목록용 자동 제목)·`notes`(비메뉴 문구)
    - `details` — 2단계 LLM: 10개씩 병렬로 `pron_ko/desc_ko/tags/photo_query`. Redis 캐시 적중분은 `cached:true` 로 먼저 온다
    - `summary` — 안내문·기타일 때 `meta` 뒤 한 번: 문단을 텍스트로 넘겨 `SUMMARY_SYSTEM` 으로 `{summary_ko(사진에 적힌 것만), tips_ko(일반 상식 0~2)}`. 실패하면 생략
    - `groups` — 메뉴판이고 항목 8개 이상일 때만, 2단계와 **병렬**로 한 번 더 LLM 호출(텍스트만, `GROUPS_SYSTEM`): 1단계가 항목마다 붙인 임시 `group` 을 메뉴판 전체 기준 4~8개 `{name, keys}` 로 합친다. 실패·소수 항목이면 안 보내고 클라이언트가 항목 group/category 로 묶는다(`src/lib/groups.ts`). 목록 표시 시간은 변하지 않고 정리는 목록 후 ≈2s

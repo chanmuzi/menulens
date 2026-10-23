@@ -61,6 +61,12 @@ export type Scan = {
   /** 종류가 판정됐는지. 처리 중 화면은 판정 전까지 메뉴판·안내문 어느 쪽도 전제하지 않는 문구를 쓴다 */
   readonly kindKnown: boolean;
   readonly shopName: string | null;
+  /** 기록 목록용 자동 제목(「🍢 야키토리 메뉴판」, 1단계 응답에 함께 온다). 2026-10-23 이전 기록에는 없다 → history.ts 가 옛 규칙으로 짓는다 */
+  readonly autoTitle?: string | null;
+  /** 사용자가 고친 이름. 고친 적 없으면 없음/null */
+  readonly userTitle?: string | null;
+  /** 목록 썸네일(정사각 JPEG data URL, 10KB 안팎). 없으면 목록이 저장된 사진에서 만들어 채운다 */
+  readonly thumb?: string | null;
   readonly sheetQuad: Quad | null;
   readonly words: readonly OcrWord[];
   /** 사진 속 글자가 시계 방향으로 돌아간 각도. 화면에서 되돌려 세운다 */

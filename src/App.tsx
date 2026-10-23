@@ -4,7 +4,7 @@ import { hasFiles } from './lib/drop';
 import { analyzeImage, fetchRate } from './lib/api';
 import { prepareImage } from './lib/image';
 import { applyDetails, insertItem, newScanId, normalizeGroup, toMenuItem, toNote } from './lib/scan';
-import { clearScans, getAccessCode, loadImageMode, loadRate, loadScanImage, loadScans, removeScans, saveImageMode, saveRate, saveScan, setAccessCode } from './lib/storage';
+import { backfillThumbs, clearScans, getAccessCode, loadImageMode, loadRate, loadScanImage, loadScans, removeScans, renameScans, saveImageMode, saveRate, saveScan, setAccessCode } from './lib/storage';
 import { useInstallHint } from './lib/platform';
 import { GateScreen } from './screens/GateScreen';
 import { HomeScreen } from './screens/HomeScreen';
@@ -12,16 +12,17 @@ import { HistoryScreen } from './screens/HistoryScreen';
 import { CropScreen } from './screens/CropScreen';
 import { ConfirmBatchScreen } from './screens/ConfirmBatchScreen';
 import { BATCH_CONCURRENCY, BATCH_MAX, runLimited } from './lib/batch';
-import { groupTitle, type ScanGroup } from './lib/history';
+import { autoGroupTitle, groupScans, groupTitle, type ScanGroup } from './lib/history';
 import { ProcessingScreen } from './screens/ProcessingScreen';
 import { ResultScreen } from './screens/ResultScreen';
 import { LeaveDialog } from './screens/LeaveDialog';
 import { ConfirmDialog } from './components/ConfirmDialog';
+import { RenameDialog } from './components/RenameDialog';
 
 type Route = 'gate' | 'home' | 'history' | 'confirm' | 'processing' | 'result';
 
 const emptyScan = (): Scan => ({
-  id: newScanId(), batchId: null, createdAt: Date.now(), imageDataUrl: '', width: 4, height: 3, kind: 'menu', kindKnown: false, shopName: null, sheetQuad: null,
+  id: newScanId(), batchId: null, createdAt: Date.now(), imageDataUrl: '', width: 4, height: 3, kind: 'menu', kindKnown: false, shopName: null, autoTitle: null, userTitle: null, thumb: null, sheetQuad: null,
   words: [], rotation: 0, tilt: 0, notes: [], summary: null, groups: null, items: [], status: 'preparing', error: null,
   timing: { ocrMs: null, firstItemMs: null, listMs: null, totalMs: null },
 });
@@ -40,7 +41,9 @@ const toKind = (k: string): ScanKind => (k === 'sign' || k === 'other' ? k : 'me
 
 export const App = () => {
   const [route, setRoute] = useState<Route>(() => (getAccessCode() ? 'home' : 'gate'));
-  const [scans, setScans] = useState<readonly Scan[]>([]);
+  const [scans, setRawScans] = useState<readonly Scan[]>([]);
+  /** 저장소에서 온 목록은 언제나 upgrade 를 거쳐 넣는다(옛 기록에 빠진 kind·notes 등을 채워야 목록·제목이 깨지지 않는다) */
+  const setScans = useCallback((list: readonly Scan[]) => setRawScans(list.map(upgrade)), []);
   /** 지금 묶음의 스캔 전부(한 장이면 하나). 처리 중·결과 화면은 currentId 의 것을 보여준다 */
   const [batch, setBatch] = useState<readonly Scan[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -57,6 +60,8 @@ export const App = () => {
   const [mode, setMode] = useState<ImageMode>(() => loadImageMode());
   /** 지우기 확인 중인 기록(최근·전체 목록 공용) */
   const [removing, setRemoving] = useState<ScanGroup | null>(null);
+  /** 이름 고치는 중인 기록(목록·결과 화면 공용) */
+  const [renaming, setRenaming] = useState<ScanGroup | null>(null);
   /** 스캔 id → 그 사진의 중단 컨트롤러. 사진마다 따로 두어 한 장을 더 붙이거나 빼도 나머지는 계속 돈다 */
   const ctrls = useRef(new Map<string, AbortController>());
   /** 아직 「N장 분석하기」를 누르지 않은 미리 읽기 스캔 id. 확정 전에는 기록에 저장하지 않는다 */
@@ -76,7 +81,12 @@ export const App = () => {
   // 기록은 IndexedDB 에서 비동기로 온다 (첫 렌더는 빈 목록)
   useEffect(() => {
     let alive = true;
-    loadScans().then((list) => { if (alive) setScans(list.map(upgrade)); });
+    loadScans().then((list) => {
+      if (!alive) return;
+      setScans(list);
+      // 썸네일이 없는 옛 기록은 저장된 사진으로 뒤에서 채운다(목록은 그동안 도트 아이콘)
+      if (list.some((s) => !s.thumb)) void backfillThumbs(list).then((next) => { if (alive) setScans(next); });
+    });
     return () => { alive = false; };
   }, []);
 
@@ -134,7 +144,7 @@ export const App = () => {
           const notes = finalNotes.length >= streamed.length ? finalNotes : streamed.map(([, n]) => n);
           const listMs = Date.now() - t0;
           update((s) => {
-            const next: Scan = { ...s, kind: toKind(m.kind), kindKnown: true, shopName: m.shop_name, notes, status: s.items.length > 0 ? 'detailing' : s.status, timing: { ...s.timing, listMs } };
+            const next: Scan = { ...s, kind: toKind(m.kind), kindKnown: true, shopName: m.shop_name, autoTitle: m.title, notes, status: s.items.length > 0 ? 'detailing' : s.status, timing: { ...s.timing, listMs } };
             // 목록이 완성되면 먼저 저장해 둔다(설명이 오기 전에 홈으로 가거나 다른 사진으로 넘어가도 기록에 남게). 끝나면 다시 덮어쓴다
             if ((next.items.length > 0 || next.notes.length > 0) && !draft.current.has(id)) void saveScan(next).then(setScans);
             return next;
@@ -263,6 +273,17 @@ export const App = () => {
 
   if (route === 'gate') return <GateScreen onEnter={() => setRoute('home')} />;
   const leaveDialog = leaving && <LeaveDialog busy={busy} detailingOnly={batch.every((s) => s.status === 'detailing' || s.status === 'done' || s.status === 'error')} onStay={() => setLeaving(false)} onLeave={goHome} />;
+  /** 이름 고치기: 기록과 지금 열린 묶음을 함께 바꾼다(열린 묶음이 나중에 다시 저장돼도 이름이 남게) */
+  const rename = (g: ScanGroup, userTitle: string | null) => {
+    const ids = g.scans.map((s) => s.id);
+    setBatch((b) => b.map((s) => (ids.includes(s.id) ? { ...s, userTitle } : s)));
+    void renameScans(ids, userTitle).then(setScans);
+    setRenaming(null);
+  };
+  const renameDialog = renaming && (
+    <RenameDialog current={groupTitle(renaming)} auto={autoGroupTitle(renaming)} edited={renaming.scans.some((s) => s.userTitle)}
+      onCancel={() => setRenaming(null)} onSave={(name) => rename(renaming, name)} />
+  );
   // 결과 화면에서 띠로 실패·대기 중 사진을 고르면 처리 화면(오류·다시 시도·진행 표시)을 보여준다. route 는 그대로 두어 완료된 사진으로 돌아오면 결과가 보인다
   const showProcessing = current !== null && (route === 'processing' || (route === 'result' && (current.status === 'error' || current.status === 'preparing' || current.status === 'reading')));
   if (showProcessing && current) {
@@ -270,7 +291,8 @@ export const App = () => {
   }
   if (route === 'result' && current) {
     // key 로 스캔마다 다시 마운트해 보기 방식·선택·주문서 상태가 사진 사이에 새지 않게 한다
-    return <><ResultScreen key={current.id} scan={current} batch={batch} onSwitch={switchTo} onAdd={addScans} rate={rate} mode={mode} onMode={changeMode} onHome={requestHome} originalFiles={batch.map((s) => files.current.get(s.id) ?? null)} />{leaveDialog}</>;
+    const group = groupScans(batch)[0]!;
+    return <><ResultScreen key={current.id} scan={current} batch={batch} title={groupTitle(group)} onRename={() => setRenaming(group)} onSwitch={switchTo} onAdd={addScans} rate={rate} mode={mode} onMode={changeMode} onHome={requestHome} originalFiles={batch.map((s) => files.current.get(s.id) ?? null)} />{leaveDialog}{renameDialog}</>;
   }
   // 목록에는 사진이 없다. 결과 화면으로 가기 전에 사진 한 건만 읽는다
   // 묶음으로 읽은 스캔은 같은 묶음 전부를 찍은 순서로 띠에 올린다(사진은 띠 썸네일용으로 모두 읽음, 묶음은 최대 BATCH_MAX 장)
@@ -309,7 +331,7 @@ export const App = () => {
     return <><ConfirmBatchScreen files={pending} dropped={dropped} onChange={change} reading={reading} onConfirm={(list) => { setPending([]); void startScans(list); }} onCrop={crop} onCancel={requestHome} />{leaveDialog}</>;
   }
   if (route === 'history') {
-    return <><HistoryScreen scans={scans} installHint={installHint} onBack={() => setRoute('home')} onOpen={openScan} onRemove={setRemoving} onClear={() => void clearScans().then(setScans)} />{removeDialog}</>;
+    return <><HistoryScreen scans={scans} installHint={installHint} onBack={() => setRoute('home')} onOpen={openScan} onRename={setRenaming} onRemove={setRemoving} onClear={() => void clearScans().then(setScans)} />{removeDialog}{renameDialog}</>;
   }
   return (
     <>
@@ -319,9 +341,11 @@ export const App = () => {
         onPick={pick}
         onShowAll={() => setRoute('history')}
         onOpen={openScan}
+        onRename={setRenaming}
         onRemove={setRemoving}
       />
       {removeDialog}
+      {renameDialog}
     </>
   );
 };

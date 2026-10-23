@@ -14,7 +14,7 @@
  *   {"t":"kind","kind":"menu"|"sign"|"other"}               1단계 출력의 첫 키(kind)가 보이는 즉시 (한 번만)
  *   {"t":"item","key":"<묶음>:<순번>","item":{...}}         1단계 항목 하나 완성마다
  *   {"t":"note","key":"<묶음>:<순번>","note":{...}}         1단계 문구(안내문은 문단) 하나 완성마다. meta.notes 가 최종본
- *   {"t":"meta","kind","shop_name","notes":[...]}            1단계 모든 묶음 완료 후
+ *   {"t":"meta","kind","shop_name","title","notes":[...]}    1단계 모든 묶음 완료 후 (title: 「이모지 제목」, 기록 목록용)
  *   {"t":"details","items":[{key,pron_ko,desc_ko,tags,photo_query}],"cached"?}  캐시 적중분 먼저, 이후 2단계 묶음마다
  *   {"t":"groups","groups":[{name,keys:[key,...]}]}           메뉴판 묶음 정리(2단계와 병렬, 메뉴판일 때만)
  *   {"t":"summary","summary_ko","tips_ko":[...]}              안내문·기타 요약(meta 뒤 한 번, 문단이 있을 때만)
@@ -39,7 +39,15 @@ const DETAIL_CHUNK = 10;
 type Body = { image?: string; mediaType?: string };
 type Line = Record<string, unknown>;
 type RawItem = Record<string, unknown>;
-type Stage1 = { kind?: string; shop_name?: string | null; notes?: unknown[] };
+type Stage1 = { kind?: string; shop_name?: string | null; emoji?: string; title_ko?: string; notes?: unknown[] };
+/** 기록 목록용 자동 제목: 이모지와 제목을 한 줄로. 제목이 없으면 null(클라이언트가 옛 규칙으로 짓는다) */
+const autoTitle = (m: Stage1 | null): string | null => {
+  const title = typeof m?.title_ko === 'string' ? m.title_ko.trim().slice(0, 24) : '';
+  if (!title) return null;
+  // 이모지는 글자(그래핌) 하나만: ZWJ 이모지를 코드 유닛으로 자르면 깨지고, 「🍺🍢」처럼 여러 개가 와도 하나만 남긴다
+  const emoji = typeof m?.emoji === 'string' ? ([...new Intl.Segmenter('ko', { granularity: 'grapheme' }).segment(m.emoji.trim())][0]?.segment ?? '') : '';
+  return emoji ? `${emoji} ${title}` : title;
+};
 type Keyed = { key: string; name_ja: string; name_ko: string; group: string };
 
 const enc = new TextEncoder();
@@ -261,7 +269,7 @@ const handler = async (req: Request): Promise<Response> => {
         const results = await Promise.all(chunks.map((c, i) => runStage1Chunk(timelyKey, i, c, image, mediaType, send, i === 0 ? onKind : () => {}, signal)));
         const first = results.find((r) => r.meta)?.meta ?? null;
         const notes = results.flatMap((r) => (Array.isArray(r.meta?.notes) ? r.meta!.notes! : []));
-        send({ t: 'meta', kind: first?.kind ?? 'menu', shop_name: first?.shop_name ?? null, notes });
+        send({ t: 'meta', kind: first?.kind ?? 'menu', shop_name: first?.shop_name ?? null, title: autoTitle(first), notes });
         const all = results.flatMap((r) => r.items);
         // 안내문·기타는 요리 설명(2단계)이 필요 없다. 생략하면 그만큼 빨리 끝난다
         if (all.length > 0 && (first?.kind ?? 'menu') === 'menu') await Promise.all([runStage2(timelyKey, all, send, signal), runGroups(timelyKey, all, send, signal)]);

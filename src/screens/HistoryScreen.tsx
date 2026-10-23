@@ -5,7 +5,7 @@ import { TopBar } from '../components/TopBar';
 import { ScanRow } from '../components/ScanRow';
 import { InstallHint } from '../components/InstallHint';
 import type { InstallHint as Hint } from '../lib/platform';
-import { dayLabel, timeLabel } from '../lib/when';
+import { dayHead, timeLabel, type DayHead } from '../lib/when';
 import { groupScans, type ScanGroup } from '../lib/history';
 
 type Props = {
@@ -13,21 +13,30 @@ type Props = {
   readonly installHint: Hint;
   readonly onBack: () => void;
   readonly onOpen: (group: ScanGroup) => void;
+  readonly onRename: (group: ScanGroup) => void;
   readonly onRemove: (group: ScanGroup) => void;
   readonly onClear: () => void;
 };
 
-type Day = { readonly label: string; readonly groups: readonly ScanGroup[] };
+type Day = { readonly head: DayHead; readonly groups: readonly ScanGroup[] };
 
 /** 최신순 묶음 목록을 날짜 라벨별로 묶는다 (순서 유지) */
 const groupByDay = (groups: readonly ScanGroup[]): readonly Day[] =>
   groups.reduce<readonly Day[]>((acc, g) => {
-    const label = dayLabel(g.at);
+    const head = dayHead(g.at);
     const last = acc[acc.length - 1];
-    return last && last.label === label ? [...acc.slice(0, -1), { label, groups: [...last.groups, g] }] : [...acc, { label, groups: [g] }];
+    return last && last.head.key === head.key ? [...acc.slice(0, -1), { head, groups: [...last.groups, g] }] : [...acc, { head, groups: [g] }];
   }, []);
 
-export const HistoryScreen = ({ scans, installHint, onBack, onOpen, onRemove, onClear }: Props) => {
+/** 날짜 머리말: 날짜는 도트 글꼴, 요일은 본문 글꼴로 바짝 붙이고(도트 글꼴의 괄호·공백은 넓어 벌어져 보인다) 오늘·어제는 채운 배지 */
+const DayHeader = ({ head }: { readonly head: DayHead }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: 8, lineHeight: 1 }}>
+    <span><span className="dot" style={{ fontSize: 14 }}>{head.date}</span><span style={{ fontSize: 13, fontWeight: 600, marginLeft: 3 }}>({head.weekday})</span></span>
+    {head.badge && <span style={{ display: 'inline-flex', alignItems: 'center', height: 20, padding: '0 8px', fontSize: 11, fontWeight: 600, letterSpacing: '.02em', background: head.badge === '오늘' ? 'var(--vermilion)' : 'var(--ink)', color: 'var(--paper-2)' }}>{head.badge}</span>}
+  </div>
+);
+
+export const HistoryScreen = ({ scans, installHint, onBack, onOpen, onRename, onRemove, onClear }: Props) => {
   const [confirming, setConfirming] = useState(false);
   const all = groupScans(scans);
   const days = groupByDay(all);
@@ -44,9 +53,9 @@ export const HistoryScreen = ({ scans, installHint, onBack, onOpen, onRemove, on
       {scans.length === 0 ? (
         <p className="muted" style={{ textAlign: 'center', margin: '40px 0', fontSize: 14 }}>아직 기록이 없어요</p>
       ) : days.map((d) => (
-        <section key={d.label} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div className="dot" style={{ fontSize: 14 }}>{d.label}</div>
-          {d.groups.map((g) => <ScanRow key={g.key} group={g} when={timeLabel(g.at)} onOpen={onOpen} onRemove={onRemove} />)}
+        <section key={d.head.key} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <DayHeader head={d.head} />
+          {d.groups.map((g) => <ScanRow key={g.key} group={g} when={timeLabel(g.at)} onOpen={onOpen} onRename={onRename} onRemove={onRemove} />)}
         </section>
       ))}
 

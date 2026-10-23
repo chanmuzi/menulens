@@ -1,6 +1,6 @@
 /** 기록 목록용 묶음. 한 번에 읽은 사진(batchId 공유)은 한 줄로 보여주고, 열면 그 묶음 전체가 띠에 오른다. */
 import type { Scan } from '../types';
-import { KIND_LABEL, lineSummary } from './kind';
+import { KIND_LABEL } from './kind';
 
 export type ScanGroup = {
   /** batchId 또는 한 장짜리의 scan id */
@@ -26,19 +26,32 @@ export const groupScans = (scans: readonly Scan[]): readonly ScanGroup[] => {
   });
 };
 
-/** 목록 제목: 가게명이 있는 스캔을 우선, 없으면 첫 메뉴·첫 줄 */
-export const groupTitle = (g: ScanGroup): string => {
+/** 가장 많이 나온 분류(옛 메뉴판 기록의 제목용) */
+const topCategory = (scan: Scan): string | null => {
+  const counts = new Map<string, number>();
+  for (const it of scan.items) counts.set(it.category, (counts.get(it.category) ?? 0) + 1);
+  return [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+};
+
+/**
+ * 자동 제목(사용자가 고치지 않았을 때의 이름): 1단계가 지은 「이모지 제목」 → 가게명 → 옛 기록 규칙
+ * (메뉴판은 「가장 많은 분류 + 메뉴판」, 안내문은 첫 문단 번역)
+ */
+export const autoGroupTitle = (g: ScanGroup): string => {
+  const auto = g.scans.find((s) => s.autoTitle)?.autoTitle;
+  if (auto) return auto;
   const shop = g.scans.find((s) => s.shopName)?.shopName;
   if (shop) return shop;
   const first = g.scans[0]!;
-  return first.kind === 'menu' ? (first.items[0]?.name_ja ?? KIND_LABEL.menu) : (first.notes[0]?.text_ko ?? first.items[0]?.name_ko ?? KIND_LABEL[first.kind]);
+  if (first.kind === 'menu') { const top = topCategory(first); return top ? `${top} ${KIND_LABEL.menu}` : KIND_LABEL.menu; }
+  return first.notes[0]?.text_ko ?? first.items[0]?.name_ko ?? KIND_LABEL[first.kind];
 };
 
-/** 목록 부제: 「사진 N장 · 12개 메뉴」. 종류는 첫 장 기준이고 그 종류의 스캔만 센다(섞인 묶음에서 안내문 줄을 메뉴로 세지 않게) */
-export const groupSummary = (g: ScanGroup): string => {
-  const first = g.scans[0]!;
-  const same = g.scans.filter((s) => s.kind === first.kind);
-  const photos = g.scans.length > 1 ? `사진 ${g.scans.length}장 · ` : '';
-  if (first.kind === 'menu') return `${photos}${same.reduce((n, s) => n + s.items.length, 0)}개 메뉴`;
-  return `${photos}${lineSummary(first.kind, same.reduce((n, s) => n + (s.notes.length || s.items.length), 0))}`;
-};
+/** 목록·결과 화면 제목: 사용자가 고친 이름이 있으면 그것 */
+export const groupTitle = (g: ScanGroup): string => g.scans.find((s) => s.userTitle)?.userTitle ?? autoGroupTitle(g);
+
+/** 목록 부제의 종류(첫 장 기준). 개수는 쓰지 않는다(2026-10-23 피드백), 장수는 썸네일 배지로 */
+export const groupKind = (g: ScanGroup): string => KIND_LABEL[g.scans[0]!.kind];
+
+/** 목록 썸네일: 묶음에서 썸네일이 있는 첫 장 */
+export const groupThumb = (g: ScanGroup): string | null => g.scans.find((s) => s.thumb)?.thumb ?? null;
