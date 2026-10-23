@@ -17,6 +17,7 @@ type Props = {
   readonly onPick: (files: readonly File[], source: PickSource) => void;
   readonly onShowAll: () => void;
   readonly onOpen: (group: ScanGroup) => void;
+  readonly onRename: (group: ScanGroup) => void;
   readonly onRemove: (group: ScanGroup) => void;
 };
 
@@ -30,7 +31,7 @@ const HINT_MS = 3000;
 /** 홈에는 최근 몇 묶음만. 나머지는 「전체 보기」 */
 const HOME_RECENT = 5;
 
-export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRemove }: Props) => {
+export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRename, onRemove }: Props) => {
   const cameraRef = useRef<HTMLInputElement>(null);
   const albumRef = useRef<HTMLInputElement>(null);
   // 같은 문구가 연달아 떠도 타이머가 다시 시작되도록 객체로 든다 (같은 문자열은 React 가 갱신을 건너뛴다)
@@ -145,7 +146,7 @@ export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRe
               <button type="button" className="btn btn--quiet" onClick={onShowAll} style={{ minHeight: 32, padding: '0 6px' }}>전체 보기 ({groups.length}) ›</button>
             )}
           </div>
-          {groups.slice(0, HOME_RECENT).map((g) => <ScanRow key={g.key} group={g} when={whenLabel(g.at)} onOpen={onOpen} onRemove={onRemove} />)}
+          {groups.slice(0, HOME_RECENT).map((g) => <ScanRow key={g.key} group={g} when={whenLabel(g.at)} onOpen={onOpen} onRename={onRename} onRemove={onRemove} />)}
         </section>
       )}
 

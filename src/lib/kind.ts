@@ -6,6 +6,3 @@ export const KIND_LABEL: Readonly<Record<ScanKind, string>> = { menu: '메뉴판
 
 /** 챗 버튼·시트 제목. 메뉴판이 아닐 때 「메뉴판에 물어보기」라고 하지 않는다 */
 export const chatTitle = (kind: ScanKind): string => ({ menu: '메뉴판에 물어보기', sign: '안내문에 물어보기', other: '사진에 물어보기' })[kind];
-
-/** 메뉴판이 아닌 스캔의 줄 수 요약: 「안내문 · 3줄」 */
-export const lineSummary = (kind: ScanKind, lines: number): string => `${KIND_LABEL[kind]} · ${lines}줄`;

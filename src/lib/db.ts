@@ -63,6 +63,15 @@ export const dbPutScan = (scan: Scan): Promise<unknown> =>
     return null;
   });
 
+/** 목록 레코드의 일부만 바꾼다(이름 고치기·썸네일 채우기). 읽기와 쓰기를 한 트랜잭션에 묶어 그 사이 다른 저장을 덮지 않는다. 레코드가 없으면 아무것도 안 한다 */
+export const dbPatchScan = (id: string, patch: Partial<Scan>): Promise<unknown> =>
+  run('readwrite', [SCANS], (tx) => {
+    const store = tx.objectStore(SCANS);
+    const get = store.get(id);
+    get.onsuccess = () => { if (get.result) store.put({ ...(get.result as Scan), ...patch, imageDataUrl: '' }); };
+    return null;
+  });
+
 export const dbDeleteScan = (id: string): Promise<unknown> =>
   run('readwrite', [SCANS, IMAGES], (tx) => { tx.objectStore(SCANS).delete(id); tx.objectStore(IMAGES).delete(id); return null; });
 

@@ -12,7 +12,7 @@ export const verifyCode = async (code: string): Promise<boolean> => {
 };
 
 export type OcrEvent = { words: readonly OcrWord[]; width: number; height: number; rotation: 0 | 90 | 180 | 270; tilt: number; ms: number; used: boolean };
-export type MetaEvent = { kind: string; shop_name: string | null; notes: readonly unknown[] };
+export type MetaEvent = { kind: string; shop_name: string | null; title: string | null; notes: readonly unknown[] };
 
 export type AnalyzeHandlers = {
   readonly onOcr: (r: OcrEvent) => void;
@@ -73,7 +73,7 @@ export const analyzeImage = async (base64: string, mediaType: string, h: Analyze
         if (text) h.onSummary({ text, tips });
         break;
       }
-      case 'meta': h.onMeta({ kind: ev.kind, shop_name: ev.shop_name, notes: ev.notes ?? [] }); break;
+      case 'meta': h.onMeta({ kind: ev.kind, shop_name: ev.shop_name, title: typeof ev.title === 'string' && ev.title ? ev.title : null, notes: ev.notes ?? [] }); break;
       case 'details': h.onDetails(ev.items ?? []); break;
       case 'groups': h.onGroups(Array.isArray(ev.groups) ? ev.groups : []); break;
       case 'error': throw new Error(ev.m || '모델 응답 오류');
