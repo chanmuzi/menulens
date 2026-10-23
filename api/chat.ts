@@ -6,6 +6,7 @@
 import { codeFrom, isAllowed } from './_lib/access.js';
 import { errorJson } from './_lib/http.js';
 import { MODEL } from './_lib/prompt.js';
+import { readSse } from './_lib/claude.js';
 import { chatSystem, KIND_KO, NEED_IMAGE_MARK, type ChatKind } from './_lib/chatPrompt.js';
 
 const UPSTREAM = 'https://api.timelyrouter.ai/v1/messages';
@@ -51,30 +52,6 @@ const requestBody = (p: ReturnType<typeof sanitize>): unknown => {
     model: MODEL, stream: true, max_tokens: 700, thinking: { type: 'adaptive' }, output_config: { effort: 'low' }, system: chatSystem(p.kind),
     messages: [...prior, { role: 'user', content: ask }],
   };
-};
-
-/** Anthropic SSE 에서 text_delta 만 뽑는다 (analyze.ts 와 같은 파서) */
-const readSse = async (body: ReadableStream<Uint8Array>, onText: (t: string) => void): Promise<void> => {
-  const reader = body.getReader();
-  const dec = new TextDecoder();
-  let pending = '';
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    pending += dec.decode(value, { stream: true });
-    const lines = pending.split('\n');
-    pending = lines.pop() ?? '';
-    for (const l of lines) {
-      if (!l.startsWith('data:')) continue;
-      const raw = l.slice(5).trim();
-      if (!raw || raw === '[DONE]') continue;
-      try {
-        const ev = JSON.parse(raw) as { type?: string; delta?: { type?: string; text?: string }; error?: { message?: string } };
-        if (ev.type === 'content_block_delta' && ev.delta?.type === 'text_delta' && ev.delta.text) onText(ev.delta.text);
-        else if (ev.type === 'error') throw new Error(ev.error?.message ?? 'upstream error');
-      } catch (e) { if (!(e instanceof SyntaxError)) throw e; }
-    }
-  }
 };
 
 /** 끝의 「참조: …」 줄을 떼어 낸다 */
