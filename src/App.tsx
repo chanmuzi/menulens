@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ImageMode, Note, OcrWord, PickSource, Rate, Scan, ScanKind } from './types';
 import { hasFiles } from './lib/drop';
-import { analyzeImage, fetchRate } from './lib/api';
+import { analyzeImage, checkStoredCode, fetchRate } from './lib/api';
 import { prepareImage } from './lib/image';
 import { applyDetails, insertItem, newScanId, normalizeGroup, toMenuItem, toNote } from './lib/scan';
 import { backfillThumbs, clearScans, getAccessCode, loadImageMode, loadRate, loadScanImage, loadScans, removeScans, renameScans, saveImageMode, saveRate, saveScan, setAccessCode } from './lib/storage';
@@ -87,6 +87,15 @@ export const App = () => {
       // 썸네일이 없는 옛 기록은 저장된 사진으로 뒤에서 채운다(목록은 그동안 도트 아이콘)
       if (list.some((s) => !s.thumb)) void backfillThumbs(list).then((next) => { if (alive) setScans(next); });
     });
+    return () => { alive = false; };
+  }, []);
+
+  // 앱을 열 때 저장된 초대 코드를 한 번 확인한다. 코드가 바뀌었으면(서버가 401) 분석을 시도하기 전에 게이트로 돌린다(LLM 호출 없음)
+  useEffect(() => {
+    const code = getAccessCode();
+    if (!code) return;
+    let alive = true;
+    void checkStoredCode(code).then((r) => { if (alive && r === 'invalid') { setAccessCode(null); setRoute('gate'); } });
     return () => { alive = false; };
   }, []);
 
