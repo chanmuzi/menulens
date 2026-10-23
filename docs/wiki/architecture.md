@@ -21,6 +21,7 @@
 4. **`POST /api/chat`** (`api/chat.ts`, `api/_lib/chatPrompt.ts` 의 종류별 `chatSystem(kind)`) — 결과 화면 챗. 입력은 항목·문구 축약 JSON(`src/lib/chat.ts` `chatContext`) + 맥락 항목 + 질문 + 최근 대화 6턴 + (필요 시) 사진. NDJSON `delta`/`done{refs,sawImage}`/`need_image`/`error`. 모델이 `[사진 필요]` 만 내면 서버가 `need_image` 로 끝내고 클라이언트(`ChatPopup`)가 사진을 붙여 다시 묻는다. 답 끝 「참조: k,k」 줄은 서버가 떼어 `done.text`·`refs` 로 보내고, 스트리밍 중에는 클라이언트 `stripRefs` 가 임시로 뗀다.
 
 5. **`POST /api/stt`** (`api/stt.ts`, `api/_lib/stt.ts`) — 대화 통역 음성 인식. 본문은 녹음 파일 그대로(`content-type: audio/*`, 3MB 상한), 헤더 `x-lang: ko|ja`. Groq `whisper-large-v3-turbo` → 한도(429)·5xx·키 오류면 Gemini `gemini-3.5-transcribe`(Interactions API) → 둘 다 실패면 503 `{error:'stt_unavailable', retryAfter}`. Whisper 는 무음에도 「감사합니다」를 지어내므로 소리가 작거나 짧은 녹음은 클라이언트가 보내지 않는다.
+5-1. **클라이언트 대화 통역** (`src/screens/TalkScreen.tsx`) — 말하기는 `recorder.ts`(MediaRecorder: iPhone audio/mp4, Chrome audio/webm, AnalyserNode 로 소리 크기를 재 말이 끝나고 1.3s 조용하면 끝, 말소리 0.3s 미만이면 보내지 않음) → `/api/stt` → 마디 추가 → `/api/talk` translate 의 `field` 를 받는 대로 `applyFields`(lang 이 ja 면 상대 말로). 마디가 끝날 때마다 `talkStore`(IndexedDB `menulens-talk`, 스캔 DB 와 별개, 실패 시 localStorage 20건)에 저장. 결정은 [[decisions-talk]].
 6. **`POST /api/talk`** (`api/talk.ts`, 프롬프트 `api/_lib/talkPrompt.ts`, 호출 `api/_lib/claude.ts`) — 대화 통역의 글자 쪽. `mode:'translate'` 는 NDJSON `field{k,v}`(값이 닫힌 문자열 필드부터: `lang` → 번역문 `ja`/`ko` → `fixed`(오인식 고친 원문) → `pron`·`kana`·`en`) 뒤 `done{result,via}`, `mode:'ask'`(도우미)는 `delta`/`done`, `mode:'title'` 은 `{title}`. Claude 는 Timely 가 기본이고 402·429·한도 문구면 같은 요청을 Anthropic 직접 키로 한 번 더(`via` 로 구분).
 
 모델은 `api/_lib/prompt.ts` 의 `MODEL`(현재 `claude-sonnet-5-5`, Timely Router `/v1/messages`). 프롬프트 5종(`api/_lib/prompt.ts`): `STAGE1_SYSTEM`(짧은 구조화, 끝에 기록용 `emoji`·`title_ko`), `STAGE2_SYSTEM`(설명), `GROUPS_SYSTEM`(카드 묶음 정리), `SUMMARY_SYSTEM`(안내문 요약), `IMAGE_SYSTEM`(폴백). 챗은 `api/_lib/chatPrompt.ts` 의 `chatSystem(kind)`, 아이콘 생성은 `api/icon.ts`.
@@ -34,13 +35,16 @@ api/            Vercel Functions (Node.js, Web 표준 fetch 핸들러, ESM — �
   _lib/  access(초대 코드) ocr chunk itemStream prompt chatPrompt kv(Redis) cache(설명 캐시 180일) iconCache(아이콘 365일) debugStore(진단 20건·7일) pixel(서버 팔레트) http
          stt(Groq → Gemini) claude(Timely → 한도 시 Anthropic 직접, SSE 읽기) talkPrompt(번역·제목·도우미)
 src/
-  App.tsx       화면 상태 머신 gate → home ⇄ history → confirm(모음·자르기) → processing → result, 스캔 오케스트레이션(runScan·startScans·addScans)
-  screens/      Gate Home History ConfirmBatch Crop Processing Result(OverlayView·CardsView·NoticePanel·ItemSheet·OrderSheet·ChatPopup) LeaveDialog(중단 확인)
+  App.tsx       화면 상태 머신 gate → home ⇄ history → confirm(모음·자르기) → processing → result, home ⇄ talk(대화 통역), 스캔 오케스트레이션(runScan·startScans·addScans), 대화 목록·이름 고치기·지우기
+  screens/      Gate Home(메뉴판·대화 탭) History(메뉴판·대화 탭) ConfirmBatch Crop Processing Result(OverlayView·CardsView·NoticePanel·ItemSheet·OrderSheet·ChatPopup) LeaveDialog(중단 확인)
+                Talk(대화 통역: 말풍선·말하기·글로 쓰기·표시 언어) TalkHelper(도우미 시트)
   components/   NoticeCovers(안내문 문단 덮개·번호) MenuPhoto(회전·기울기·확대·핀치 줌) BatchStrip(사진 띠·더 찍기) ScanRow(기록 줄) DotGlyph(연필·휴지통 10×10)
+                TalkBubble(말풍선 세 줄) ShowBig(크게 보여주기) TalkRow(대화 기록 줄)
                 ConfirmDialog(지우기 확인) RenameDialog(이름 고치기) ChatFab OrderBar QtyStepper CropBox InstallHint PixelIcon Segmented ProgressBlocks ItemImage TopBar
   lib/          image api scan(정규화·unionBox·applyDetails) coverLayout(덮개/번호 판정·글자 맞춤) sample(덮개 배경·글자색) icons(키워드 우선) iconStore pixel kind(종류별 문구)
-                history(기록 묶음·제목 규칙) when(날짜·요일·12시간제) storage(저장 큐·이름 고치기·썸네일 채우기) db(IndexedDB) thumb(168px 썸네일) batch(runLimited)
+                history(기록 묶음·제목 규칙) when(날짜·요일·12시간제) storage(저장 큐·이름 고치기·썸네일 채우기·홈 탭·대화 화면 설정) db(IndexedDB) thumb(168px 썸네일) batch(runLimited)
                 groups chat order money crop clipboard drop platform photos savePhoto(묶음 전부 공유) version
+                talk(마디·말풍선 언어·제목·「말해 볼 문장」) talkApi(/api/stt·/api/talk) talkStore(IndexedDB menulens-talk) ndjson(스트림 줄 읽기: chat·talkApi 공용) recorder(녹음·소리 크기·무음 거르기)
   styles/       global.css(토큰·픽셀 프레임·애니메이션) pixel-icons.css(생성: scripts/px_icons.py)
 scripts/bench/  벤치·진단 스크립트        docs/wiki/   이 위키        vite-plugin-dev-api.ts  로컬에서 api/ 실행
 ```
