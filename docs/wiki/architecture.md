@@ -36,9 +36,9 @@ api/            Vercel Functions (Node.js, Web 표준 fetch 핸들러, ESM — �
          stt(Groq → Gemini) claude(Timely → 한도 시 Anthropic 직접, SSE 읽기) talkPrompt(번역·제목·도우미)
 src/
   App.tsx       화면 상태 머신 gate → home ⇄ history → confirm(모음·자르기) → processing → result, home ⇄ talk(대화 통역), 스캔 오케스트레이션(runScan·startScans·addScans), 대화 목록·이름 고치기·지우기
-  screens/      Gate Home(메뉴판·대화 탭) History(메뉴판·대화 탭) ConfirmBatch Crop Processing Result(OverlayView·CardsView·NoticePanel·ItemSheet·OrderSheet·ChatPopup) LeaveDialog(중단 확인)
+  screens/      Gate Home(사진·대화 탭) History(사진·대화 탭) ConfirmBatch Crop Processing Result(OverlayView·CardsView·NoticePanel·ItemSheet·OrderSheet·ChatPopup) LeaveDialog(중단 확인)
                 Talk(대화 통역: 말풍선·말하기·글로 쓰기·표시 언어) TalkHelper(도우미 시트)
-  components/   NoticeCovers(안내문 문단 덮개·번호) MenuPhoto(회전·기울기·확대·핀치 줌) BatchStrip(사진 띠·더 찍기) ScanRow(기록 줄) DotGlyph(연필·휴지통 10×10)
+  components/   NoticeCovers(안내문 문단 덮개·번호) MenuPhoto(회전·기울기·확대·핀치 줌) BatchStrip(사진 띠·더 찍기) ScanRow(기록 줄) DotGlyph(연필·휴지통·카메라·말풍선 등 10×10, Segmented 의 icon)
                 TalkBubble(말풍선 세 줄) ShowBig(크게 보여주기) TalkRow(대화 기록 줄)
                 ConfirmDialog(지우기 확인) RenameDialog(이름 고치기) ChatFab OrderBar QtyStepper CropBox InstallHint PixelIcon Segmented ProgressBlocks ItemImage TopBar
   lib/          image api scan(정규화·unionBox·applyDetails) coverLayout(덮개/번호 판정·글자 맞춤) sample(덮개 배경·글자색) icons(키워드 우선) iconStore pixel kind(종류별 문구)
