@@ -1,4 +1,4 @@
-/** 작은 도트 글리프(10×10). 기록 줄의 이름 고치기(먹색 연필)·지우기(주홍 휴지통), 대화 통역의 도우미·마이크·키보드·대화 기록에 쓴다. */
+/** 작은 도트 글리프(10×10). 기록 줄의 이름 고치기(먹색 연필)·지우기(주홍 휴지통), 대화 통역의 도우미·마이크·키보드·대화 기록, 홈·기록 탭(카메라·말풍선)에 쓴다. */
 const GLYPHS = {
   pencil: { color: 'var(--ink)', rows: ['.......##.', '......#..#', '.....#.##.', '....#.##..', '...#.##...', '..#.##....', '.#.##.....', '#.##......', '##........', '..........'] },
   trash: { color: 'var(--vermilion)', rows: ['...####...', '##########', '..........', '.########.', '.#.#..#.#.', '.#.#..#.#.', '.#.#..#.#.', '.#.#..#.#.', '.########.', '..........'] },
@@ -6,13 +6,17 @@ const GLYPHS = {
   sparkle: { color: 'var(--vermilion)', rows: ['....#.....', '....#.....', '...###....', '..#####...', '#########.', '..#####...', '...###....', '....#.....', '....#.....', '..........'] },
   mic: { color: 'currentColor', rows: ['...####...', '...#..#...', '...#..#...', '...#..#...', '.#.#..#.#.', '.#.####.#.', '..#....#..', '...####...', '....##....', '..######..'] },
   talk: { color: 'var(--ink)', rows: ['..........', '.########.', '#........#', '#........#', '#.#.#.#..#', '#........#', '.########.', '..##......', '..#.......', '..........'] },
+  /** 홈·기록 탭 「사진」. 탭 글자색을 따른다(눌린 탭은 종이색) */
+  camera: { color: 'currentColor', rows: ['..........', '...##.....', '##########', '#........#', '#...##...#', '#..#..#..#', '#..#..#..#', '#...##...#', '#........#', '##########'] },
   keyboard: { color: 'currentColor', rows: ['..........', '##########', '#........#', '#.#.#.#..#', '#........#', '#..####..#', '#........#', '##########', '..........', '..........'] },
 } as const;
 
 export type GlyphName = keyof typeof GLYPHS;
 
-export const DotGlyph = ({ name, size = 12 }: { readonly name: GlyphName; readonly size?: number }) => {
-  const { color, rows } = GLYPHS[name];
+/** color 를 주면 글리프 기본색 대신 쓴다(탭처럼 눌림 상태에 따라 글자색이 바뀌는 자리) */
+export const DotGlyph = ({ name, size = 12, color: override }: { readonly name: GlyphName; readonly size?: number; readonly color?: string }) => {
+  const { color: base, rows } = GLYPHS[name];
+  const color = override ?? base;
   return (
     <svg width={size} height={size} viewBox="0 0 10 10" shapeRendering="crispEdges" aria-hidden="true" style={{ display: 'block' }}>
       {rows.flatMap((row, y) => [...row].flatMap((c, x) => (c === '#' ? [<rect key={`${x}-${y}`} x={x} y={y} width={1} height={1} fill={color} />] : [])))}

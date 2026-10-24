@@ -141,7 +141,7 @@ export const savePhoto = (query: string, photo: Photo): void => {
 export const loadImageMode = (): ImageMode => read<ImageMode>(KEY.mode) ?? 'art';
 export const saveImageMode = (mode: ImageMode): void => { write(KEY.mode, mode); };
 
-/** 홈 탭(메뉴판 읽기 / 대화 통역). 처음은 메뉴판 */
+/** 홈 탭(사진 읽기 / 대화 통역). 처음은 사진 */
 export type HomeTab = 'menu' | 'talk';
 export const loadHomeTab = (): HomeTab => (read<HomeTab>(KEY.homeTab) === 'talk' ? 'talk' : 'menu');
 export const saveHomeTab = (tab: HomeTab): void => { write(KEY.homeTab, tab); };
