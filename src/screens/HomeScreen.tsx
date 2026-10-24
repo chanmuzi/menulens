@@ -44,7 +44,7 @@ const HINT_MS = 3000;
 const HOME_RECENT = 5;
 
 export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRename, onRemove, talks, onNewTalk, onOpenTalk, onRenameTalk, onRemoveTalk, onShowAllTalks }: Props) => {
-  /** 메뉴판 읽기 / 대화 통역. 마지막으로 고른 탭을 기억한다(대화에서 홈으로 돌아오면 대화 탭) */
+  /** 사진 읽기 / 대화 통역. 마지막으로 고른 탭을 기억한다(대화에서 홈으로 돌아오면 대화 탭) */
   const [tab, setTab] = useState<HomeTab>(loadHomeTab);
   const changeTab = (t: HomeTab) => { saveHomeTab(t); setTab(t); };
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -125,7 +125,7 @@ export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRe
       </header>
 
       <div className="notice-tabs">
-        <Segmented label="기능" value={tab} onChange={changeTab} options={[{ value: 'menu', label: '메뉴판 읽기' }, { value: 'talk', label: '대화 통역' }]} />
+        <Segmented label="기능" value={tab} onChange={changeTab} options={[{ value: 'menu', label: '사진 읽기', icon: 'camera' }, { value: 'talk', label: '대화 통역', icon: 'talk' }]} />
       </div>
 
       {tab === 'talk' ? (

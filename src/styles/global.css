@@ -54,7 +54,7 @@ img { display: block; max-width: 100%; }
 
 .seg { display: inline-flex; border: 2px solid var(--ink); background: var(--paper-2); }
 .seg--shadow { box-shadow: 2px 2px 0 var(--ink); }
-.seg__btn { height: 36px; padding: 0 14px; border: 0; background: transparent; font-family: var(--font-dot); font-size: 14px; letter-spacing: 0.04em; cursor: pointer; }
+.seg__btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 36px; padding: 0 14px; border: 0; background: transparent; font-family: var(--font-dot); font-size: 14px; letter-spacing: 0.04em; cursor: pointer; }
 .seg__btn--small { height: 30px; padding: 0 12px; font-family: var(--font-ui); font-size: 12px; font-weight: 500; }
 .seg__btn[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
 

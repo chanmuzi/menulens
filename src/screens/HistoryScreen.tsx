@@ -1,4 +1,4 @@
-/** 전체 기록. 메뉴판(스캔)·대화 탭으로 나누고, 날짜별로 묶어 보여준다. 개별·전체 삭제(대화는 개별만)와 보관 정책 안내를 둔다. */
+/** 전체 기록. 사진(스캔)·대화 탭으로 나누고, 날짜별로 묶어 보여준다. 개별·전체 삭제(대화는 개별만)와 보관 정책 안내를 둔다. */
 import { useState } from 'react';
 import type { Scan, Talk } from '../types';
 import { TalkRow } from '../components/TalkRow';
@@ -61,7 +61,7 @@ export const HistoryScreen = ({ scans, installHint, onBack, onOpen, onRename, on
       } />
 
       <div className="notice-tabs">
-        <Segmented label="기록 종류" value={tab} onChange={onTab} options={[{ value: 'menu', label: '메뉴판' }, { value: 'talk', label: '대화' }]} />
+        <Segmented label="기록 종류" value={tab} onChange={onTab} options={[{ value: 'menu', label: '사진', icon: 'camera' }, { value: 'talk', label: '대화', icon: 'talk' }]} />
       </div>
 
       {tab === 'talk' ? (

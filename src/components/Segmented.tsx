@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
+import { DotGlyph, type GlyphName } from './DotGlyph';
 
-type Option<T extends string> = { readonly value: T; readonly label: ReactNode; readonly disabled?: boolean };
+/** icon 은 글자 앞의 10×10 도트 글리프. 글자색을 따라가므로 눌린 탭에서도 보인다 */
+type Option<T extends string> = { readonly value: T; readonly label: ReactNode; readonly icon?: GlyphName; readonly disabled?: boolean };
 
 type Props<T extends string> = {
   readonly value: T;
@@ -23,6 +25,7 @@ export const Segmented = <T extends string>({ value, options, onChange, size = '
         onClick={() => onChange(o.value)}
         style={o.disabled ? { color: 'var(--muted)', opacity: 0.6, cursor: 'default' } : undefined}
       >
+        {o.icon && <DotGlyph name={o.icon} size={14} color="currentColor" />}
         {o.label}
       </button>
     ))}
