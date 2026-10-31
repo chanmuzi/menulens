@@ -1,5 +1,7 @@
 import type { NoticeSummary, OcrWord, Photo, Rate, ScanGroup } from '../types';
 import { getAccessCode } from './storage';
+import { dict } from '../i18n';
+import { ApiError, emptyResponseError } from './apiError';
 
 const headers = (): Record<string, string> => ({
   'content-type': 'application/json',
@@ -59,10 +61,10 @@ export const analyzeImage = async (base64: string, mediaType: string, h: Analyze
   });
   if (!res.ok) {
     const data = (await res.json().catch(() => ({}))) as { error?: string };
-    if (res.status === 401) throw new Error('초대 코드가 더 이상 유효하지 않아요');
-    throw new Error(data.error ?? `서버 오류 (${res.status})`);
+    if (res.status === 401 || !data.error) throw new ApiError(res.status);
+    throw new Error(data.error);
   }
-  if (!res.body) throw new Error('응답이 비어 있어요');
+  if (!res.body) throw emptyResponseError();
   const reader = res.body.getReader();
   const dec = new TextDecoder();
   let pending = '';
@@ -84,7 +86,7 @@ export const analyzeImage = async (base64: string, mediaType: string, h: Analyze
       case 'meta': h.onMeta({ kind: ev.kind, shop_name: ev.shop_name, title: typeof ev.title === 'string' && ev.title ? ev.title : null, notes: ev.notes ?? [] }); break;
       case 'details': h.onDetails(ev.items ?? []); break;
       case 'groups': h.onGroups(Array.isArray(ev.groups) ? ev.groups : []); break;
-      case 'error': throw new Error(ev.m || '모델 응답 오류');
+      case 'error': throw new Error(ev.m || dict().lib.modelError);
       default: break;
     }
   };
@@ -101,7 +103,7 @@ export const analyzeImage = async (base64: string, mediaType: string, h: Analyze
 
 export const fetchRate = async (): Promise<Rate> => {
   const res = await fetch('/api/rate');
-  if (!res.ok) throw new Error('환율을 가져오지 못했어요');
+  if (!res.ok) throw new Error(dict().lib.rateFetchFailed);
   return (await res.json()) as Rate;
 };
 

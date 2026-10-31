@@ -1,6 +1,6 @@
 /** 기록 목록용 묶음. 한 번에 읽은 사진(batchId 공유)은 한 줄로 보여주고, 열면 그 묶음 전체가 띠에 오른다. */
-import type { Scan } from '../types';
-import { KIND_LABEL } from './kind';
+import type { Category, Scan } from '../types';
+import { dict } from '../i18n';
 
 export type ScanGroup = {
   /** batchId 또는 한 장짜리의 scan id */
@@ -45,15 +45,16 @@ export const autoGroupTitle = (g: ScanGroup): string => {
   const shop = g.scans.find((s) => s.shopName && HANGUL.test(s.shopName))?.shopName;
   if (shop) return shop;
   const first = g.scans[0]!;
-  if (first.kind === 'menu') { const top = topCategory(first); return top ? `${top} ${KIND_LABEL.menu}` : KIND_LABEL.menu; }
-  return first.notes[0]?.text_ko ?? first.items[0]?.name_ko ?? KIND_LABEL[first.kind];
+  const d = dict();
+  if (first.kind === 'menu') { const top = topCategory(first); return d.lib.oldMenuTitle(top ? d.data.category[top as Category] ?? top : null); }
+  return first.notes[0]?.text_ko ?? first.items[0]?.name_ko ?? d.data.kind[first.kind];
 };
 
 /** 목록·결과 화면 제목: 사용자가 고친 이름이 있으면 그것 */
 export const groupTitle = (g: ScanGroup): string => g.scans.find((s) => s.userTitle)?.userTitle ?? autoGroupTitle(g);
 
 /** 목록 부제의 종류(첫 장 기준). 개수는 쓰지 않는다(2026-10-23 피드백), 장수는 썸네일 배지로 */
-export const groupKind = (g: ScanGroup): string => KIND_LABEL[g.scans[0]!.kind];
+export const groupKind = (g: ScanGroup): string => dict().data.kind[g.scans[0]!.kind];
 
 /** 목록 썸네일: 묶음에서 썸네일이 있는 첫 장 */
 export const groupThumb = (g: ScanGroup): string | null => g.scans.find((s) => s.thumb)?.thumb ?? null;

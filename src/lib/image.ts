@@ -3,6 +3,7 @@
  * EXIF 방향은 <img> 디코딩 경로로 바로잡는다. createImageBitmap 의 imageOrientation 옵션은
  * Safari 에서 신뢰할 수 없어 쓰지 않는다. 모든 최신 브라우저는 <img> → canvas.drawImage 에서 EXIF 를 적용한다.
  */
+import { dict } from '../i18n';
 
 export type PreparedImage = {
   readonly dataUrl: string;
@@ -20,7 +21,7 @@ export const loadImage = (file: File): Promise<HTMLImageElement> =>
     const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('이미지를 읽을 수 없어요. 다른 사진으로 시도해 주세요.')); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error(dict().processing.imageLoadError)); };
     img.src = url;
   });
 
@@ -36,7 +37,7 @@ export const prepareImage = async (file: File): Promise<PreparedImage> => {
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('캔버스를 만들 수 없어요');
+  if (!ctx) throw new Error(dict().processing.canvasError);
   ctx.drawImage(img, 0, 0, width, height);
   const dataUrl = canvas.toDataURL('image/jpeg', QUALITY);
   return { dataUrl, base64: dataUrl.split(',')[1] ?? '', mediaType: 'image/jpeg', width, height };

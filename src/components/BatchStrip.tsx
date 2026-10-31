@@ -3,6 +3,7 @@
 import { useRef, type ChangeEvent } from 'react';
 import type { Scan } from '../types';
 import { BATCH_MAX } from '../lib/batch';
+import { useT } from '../i18n';
 
 type Props = { readonly scans: readonly Scan[]; readonly currentId: string | null; readonly onSwitch: (id: string) => void; readonly onAdd?: (files: readonly File[]) => void };
 
@@ -13,6 +14,7 @@ const statusMark = (s: Scan): { readonly text: string; readonly color: string } 
 };
 
 export const BatchStrip = ({ scans, currentId, onSwitch, onAdd }: Props) => {
+  const t = useT();
   const cameraRef = useRef<HTMLInputElement>(null);
   if (scans.length < 2 && !onAdd) return null;
   const idx = Math.max(0, scans.findIndex((s) => s.id === currentId));
@@ -24,12 +26,12 @@ export const BatchStrip = ({ scans, currentId, onSwitch, onAdd }: Props) => {
   };
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      <div role="group" aria-label="묶음 사진" style={{ display: 'flex', gap: 8, overflowX: 'auto', scrollbarWidth: 'none', padding: 3, margin: -3, minWidth: 0 }}>
+      <div role="group" aria-label={t.confirm.strip.groupAria} style={{ display: 'flex', gap: 8, overflowX: 'auto', scrollbarWidth: 'none', padding: 3, margin: -3, minWidth: 0 }}>
         {scans.map((s, i) => {
           const mark = statusMark(s);
           const active = s.id === currentId;
           return (
-            <button key={s.id} type="button" aria-current={active ? 'true' : undefined} aria-label={`사진 ${i + 1} ${s.status === 'error' ? '실패' : s.status === 'done' || s.status === 'detailing' ? '완료' : '읽는 중'}`} onClick={() => onSwitch(s.id)}
+            <button key={s.id} type="button" aria-current={active ? 'true' : undefined} aria-label={t.confirm.strip.statusAria(i + 1, s.status === 'error' ? t.confirm.strip.failed : s.status === 'done' || s.status === 'detailing' ? t.common.done : t.confirm.batch.reading)} onClick={() => onSwitch(s.id)}
               style={{ position: 'relative', width: 48, height: 48, padding: 0, flexShrink: 0, border: `2px solid ${active ? 'var(--vermilion)' : 'var(--ink)'}`, boxShadow: active ? '2px 2px 0 var(--vermilion)' : 'none', background: 'var(--wood)', cursor: 'pointer', overflow: 'hidden' }}>
               {s.imageDataUrl && <img src={s.imageDataUrl} alt="" draggable={false} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: s.status === 'error' ? 0.5 : 1 }} />}
               {scans.length > 1 && <span className="dot" aria-hidden="true" style={{ position: 'absolute', left: 0, top: 0, minWidth: 16, height: 16, padding: '0 4px', background: active ? 'var(--vermilion)' : 'var(--ink)', color: 'var(--paper)', fontSize: 10, lineHeight: '16px' }}>{i + 1}</span>}
@@ -39,11 +41,11 @@ export const BatchStrip = ({ scans, currentId, onSwitch, onAdd }: Props) => {
         })}
         {onAdd && room > 0 && (
           <>
-            <button type="button" aria-label="사진 더 찍기" onClick={() => cameraRef.current?.click()} className="dot"
+            <button type="button" aria-label={t.confirm.strip.takeMoreAria} onClick={() => cameraRef.current?.click()} className="dot"
               style={{ width: 48, height: 48, padding: 0, flexShrink: 0, border: '2px dashed var(--ink)', background: 'var(--paper-2)', cursor: 'pointer', fontSize: 10, lineHeight: 1.2, color: 'var(--vermilion)' }}>
-              <span style={{ fontSize: 16, display: 'block', lineHeight: 1 }}>+</span>더 찍기
+              <span style={{ fontSize: 16, display: 'block', lineHeight: 1 }}>+</span>{t.confirm.batch.takeMore}
             </button>
-            <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={add} className="sr-only" tabIndex={-1} aria-hidden="true" aria-label="카메라로 더 찍기" />
+            <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={add} className="sr-only" tabIndex={-1} aria-hidden="true" aria-label={t.confirm.batch.cameraMoreAria} />
           </>
         )}
       </div>

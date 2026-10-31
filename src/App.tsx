@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ImageMode, Note, OcrWord, PickSource, Rate, Scan, ScanKind, Talk } from './types';
 import { hasFiles } from './lib/drop';
 import { analyzeImage, checkStoredCode, fetchRate } from './lib/api';
+import { isAccessCodeError } from './lib/apiError';
 import { prepareImage } from './lib/image';
 import { applyDetails, insertItem, newScanId, normalizeGroup, toMenuItem, toNote } from './lib/scan';
 import { backfillThumbs, clearScans, getAccessCode, loadImageMode, loadRate, loadScanImage, loadScans, removeScans, renameScans, saveImageMode, saveRate, saveScan, setAccessCode } from './lib/storage';
@@ -22,6 +23,7 @@ import { TalkScreen } from './screens/TalkScreen';
 import { loadTalks, removeTalk, saveTalk } from './lib/talkStore';
 import { newTalk, talkTitle } from './lib/talk';
 import type { HomeTab } from './lib/storage';
+import { dict, useT } from './i18n';
 
 type Route = 'gate' | 'home' | 'history' | 'confirm' | 'processing' | 'result' | 'talk';
 
@@ -44,6 +46,7 @@ const upgrade = (s: Scan): Scan => ({
 const toKind = (k: string): ScanKind => (k === 'sign' || k === 'other' ? k : 'menu');
 
 export const App = () => {
+  const t = useT();
   const [route, setRoute] = useState<Route>(() => (getAccessCode() ? 'home' : 'gate'));
   const [scans, setRawScans] = useState<readonly Scan[]>([]);
   /** 저장소에서 온 목록은 언제나 upgrade 를 거쳐 넣는다(옛 기록에 빠진 kind·notes 등을 채워야 목록·제목이 깨지지 않는다) */
@@ -186,14 +189,15 @@ export const App = () => {
       const totalMs = Date.now() - t0;
       update((s) => {
         const ok = s.items.length > 0 || s.notes.length > 0;
-        const done: Scan = { ...s, status: ok ? 'done' : 'error', error: ok ? null : '글자를 찾지 못했어요. 더 가까이, 밝게 찍어 주세요.', timing: { ...s.timing, totalMs } };
+        // 오류 문구는 useCallback 안이라 호출 시점 사전(dict)으로 읽는다
+        const done: Scan = { ...s, status: ok ? 'done' : 'error', error: ok ? null : dict().app.noTextFound, timing: { ...s.timing, totalMs } };
         if (ok && !draft.current.has(id)) void saveScan(done).then(setScans); // 사진 모드가 준비되면 여기서 prefetchPhotos(done.items) 를 호출
         return done;
       });
     } catch (e) {
       if (ac.signal.aborted) return;
       const message = e instanceof Error ? e.message : String(e);
-      if (/초대 코드/.test(message)) { setAccessCode(null); setRoute('gate'); return; }
+      if (isAccessCodeError(e)) { setAccessCode(null); setRoute('gate'); return; }
       update((s) => ({ ...s, status: 'error', error: message }));
     }
   }, [updateScan]);
@@ -313,7 +317,7 @@ export const App = () => {
       onCancel={() => setRenamingTalk(null)} onSave={(name) => renameTalk(renamingTalk, name)} />
   );
   const talkRemoveDialog = removingTalk && (
-    <ConfirmDialog title="이 대화를 지울까요?" confirmLabel="지우기" body={`「${talkTitle(removingTalk)}」 대화를 지우면 되돌릴 수 없어요.`}
+    <ConfirmDialog title={t.app.removeTalkTitle} confirmLabel={t.common.remove} body={t.app.removeTalkBody(talkTitle(removingTalk))}
       onCancel={() => setRemovingTalk(null)} onConfirm={() => { void removeTalk(removingTalk.id).then(setTalks); setRemovingTalk(null); }} />
   );
   const openTalk = (t: Talk) => { setCurrentTalk(t); setRoute('talk'); };
@@ -356,8 +360,8 @@ export const App = () => {
   const remove = (g: ScanGroup) => void removeScans(g.scans.map((s) => s.id)).then(setScans);
   // 목록의 「지우기」는 바로 지우지 않고 확인을 받는다(되돌릴 수 없다)
   const removeDialog = removing && (
-    <ConfirmDialog title="이 기록을 지울까요?" confirmLabel="지우기"
-      body={`「${groupTitle(removing)}」${removing.scans.length > 1 ? ` 사진 ${removing.scans.length}장 묶음` : ' 기록'}을 지우면 되돌릴 수 없어요.`}
+    <ConfirmDialog title={t.app.removeScanTitle} confirmLabel={t.common.remove}
+      body={t.app.removeScanBody(groupTitle(removing), removing.scans.length)}
       onCancel={() => setRemoving(null)} onConfirm={() => { remove(removing); setRemoving(null); }} />
   );
   if (route === 'confirm' && cropAt && pending[cropAt.index]) {

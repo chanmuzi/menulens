@@ -5,6 +5,7 @@ import { loadPhoto } from '../lib/storage';
 import { PixelIcon } from './PixelIcon';
 import { PLACEHOLDER_ICON } from '../lib/icons';
 import { useGeneratedIcon } from '../lib/iconStore';
+import { useT } from '../i18n';
 
 type Props = { readonly item: MenuItem; readonly mode: ImageMode; readonly size: number };
 
@@ -21,6 +22,7 @@ const usePhoto = (query: string, enabled: boolean): Photo | null => {
 
 /** 그림(픽셀 아이콘) / 사진 토글에 따라 대표 이미지를 보여준다. 사진이 없거나 로딩 중이면 그림으로 대체. */
 export const ItemImage = ({ item, mode, size }: Props) => {
+  const t = useT();
   const photo = usePhoto(item.photo_query, mode === 'photo');
   // 매칭 안 된 메뉴는 자리표시(로고)를 보여주고 생성 아이콘이 오면 바꾼다
   const generated = useGeneratedIcon(item.name_ja, item.name_ko, item.icon === PLACEHOLDER_ICON);
@@ -34,7 +36,7 @@ export const ItemImage = ({ item, mode, size }: Props) => {
       </div>
     );
   }
-  const caption = mode === 'photo' ? (photo === null ? '사진 찾는 중' : '사진 없음') : null;
+  const caption = mode === 'photo' ? (photo === null ? t.result.photoSearching : t.result.photoNone) : null;
   return (
     <div style={box}>
       <PixelIcon icon={item.icon} grid={generated} size={px} label={item.name_ko} />

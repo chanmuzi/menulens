@@ -1,6 +1,7 @@
 /** 주문 수량과 주문 문구. 메뉴판(kind=menu)에서만 쓴다. 수량은 사진(스캔)별로 localStorage 에 두고(작은 값), 화면에서는 묶음 전체를 합쳐 하나의 주문서로 본다. */
 import type { MenuItem, Rate, Scan } from '../types';
 import { payableJpy } from './money';
+import { dict } from '../i18n';
 
 /** 사진 한 장의 수량: 항목 id → 수량. 항목 id(「묶음:순번」)는 사진마다 겹치므로 사진 밖에서는 BatchOrder 로 다룬다 */
 export type Order = Readonly<Record<string, number>>;
@@ -65,9 +66,11 @@ export type OrderText = { readonly ja: string; readonly pron: string; readonly k
  * first: 첫 주문 · more: 추가 주문 · plain: 항목만(직원이 이미 와 있을 때)
  */
 export type OrderMode = 'first' | 'more' | 'plain';
-export const ORDER_MODES: ReadonlyArray<{ readonly value: OrderMode; readonly label: string }> = [
-  { value: 'first', label: '첫 주문' }, { value: 'more', label: '추가 주문' }, { value: 'plain', label: '항목만' },
-];
+/** 세그먼트 옵션. 라벨은 호출 시점의 앱 언어로 */
+export const orderModes = (): ReadonlyArray<{ readonly value: OrderMode; readonly label: string }> => {
+  const m = dict().order.modes;
+  return [{ value: 'first', label: m.first }, { value: 'more', label: m.more }, { value: 'plain', label: m.plain }];
+};
 /** 앞 인사 · 목록 끝 부호 · 뒤 인사. ja/pron/ko 를 키로 맞춰 순서 실수를 타입이 잡게 한다 */
 type Frame = { readonly head: OrderText; readonly end: OrderText; readonly tail: OrderText };
 const T = (ja: string, pron: string, ko: string): OrderText => ({ ja, pron, ko });

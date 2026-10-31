@@ -2,13 +2,15 @@
 import { useEffect, useState } from 'react';
 import type { Rate } from '../types';
 import { formatJpy, formatPrice } from '../lib/money';
-import { buildOrderText, ORDER_MODES, totalCount, totalJpy, totalKrw, type OrderLine, type OrderMode } from '../lib/order';
+import { buildOrderText, orderModes, totalCount, totalJpy, totalKrw, type OrderLine, type OrderMode } from '../lib/order';
 import { QtyStepper } from '../components/QtyStepper';
 import { Segmented } from '../components/Segmented';
+import { useT } from '../i18n';
 
 type Props = { readonly lines: readonly OrderLine[]; readonly rate: Rate | null; /** 묶음의 사진 수. 2장 이상이면 줄에 「사진 N」 표시 */ readonly photos: number; readonly onQty: (scanId: string, id: string, qty: number) => void; readonly onClear: () => void; readonly onClose: () => void };
 
 export const OrderSheet = ({ lines, rate, photos, onQty, onClear, onClose }: Props) => {
+  const t = useT();
   const [big, setBig] = useState(false);
   const [copied, setCopied] = useState(false);
   // 상황(첫 주문·추가 주문·항목만). 시트를 열 때마다 첫 주문으로 시작한다
@@ -30,21 +32,21 @@ export const OrderSheet = ({ lines, rate, photos, onQty, onClear, onClose }: Pro
   if (big) {
     // 직원에게 보여주는 화면: 일본어만 크게
     return (
-      <div role="dialog" aria-modal="true" aria-label="직원에게 보여주기" style={{ position: 'fixed', inset: 0, zIndex: 30, background: 'var(--paper-2)', display: 'flex', flexDirection: 'column', padding: 'calc(16px + var(--safe-top)) 24px calc(16px + var(--safe-bottom))', gap: 16 }}>
+      <div role="dialog" aria-modal="true" aria-label={t.order.bigAria} style={{ position: 'fixed', inset: 0, zIndex: 30, background: 'var(--paper-2)', display: 'flex', flexDirection: 'column', padding: 'calc(16px + var(--safe-top)) 24px calc(16px + var(--safe-bottom))', gap: 16 }}>
         <div className="jp" style={{ flex: 1, fontSize: 30, lineHeight: 1.5, whiteSpace: 'pre-wrap', overflow: 'auto', display: 'flex', alignItems: 'center' }}>{text.ja}</div>
-        <button type="button" className="btn" onClick={() => setBig(false)}>돌아가기</button>
+        <button type="button" className="btn" onClick={() => setBig(false)}>{t.order.backFromBig}</button>
       </div>
     );
   }
 
   return (
     <div role="dialog" aria-modal="true" aria-labelledby="order-title" style={{ position: 'fixed', inset: 0, zIndex: 25, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <button type="button" aria-label="닫기" onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(42,33,27,.45)', border: 0, cursor: 'pointer' }} />
+      <button type="button" aria-label={t.common.close} onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(42,33,27,.45)', border: 0, cursor: 'pointer' }} />
       <div style={{ position: 'relative', width: '100%', maxWidth: 480, maxHeight: '88dvh', overflow: 'auto', background: 'var(--paper-2)', borderTop: '3px solid var(--ink)', padding: '12px 20px calc(20px + var(--safe-bottom))', display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div aria-hidden="true" style={{ width: 40, height: 4, background: 'var(--paper-dark)', alignSelf: 'center' }} />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-          <div id="order-title" className="dot" style={{ fontSize: 18 }}>주문서 <span className="muted" style={{ fontSize: 13 }}>· {totalCount(lines)}개</span></div>
-          <button type="button" className="btn btn--quiet" onClick={onClear} style={{ minHeight: 32, padding: '0 6px' }}>비우기</button>
+          <div id="order-title" className="dot" style={{ fontSize: 18 }}>{t.order.title} <span className="muted" style={{ fontSize: 13 }}>· {t.order.countSuffix(totalCount(lines))}</span></div>
+          <button type="button" className="btn btn--quiet" onClick={onClear} style={{ minHeight: 32, padding: '0 6px' }}>{t.order.clear}</button>
         </div>
 
         <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -54,7 +56,7 @@ export const OrderSheet = ({ lines, rate, photos, onQty, onClear, onClose }: Pro
                 <div style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name_ko}</div>
                 <div className="jp muted" style={{ fontSize: 12, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name_ja} · {formatPrice(item)}</span>
-                  {photos > 1 && <span className="dot" style={{ flexShrink: 0, fontSize: 10, padding: '0 4px', lineHeight: '16px', background: 'var(--ink)', color: 'var(--paper)' }}>사진 {photo}</span>}
+                  {photos > 1 && <span className="dot" style={{ flexShrink: 0, fontSize: 10, padding: '0 4px', lineHeight: '16px', background: 'var(--ink)', color: 'var(--paper)' }}>{t.order.photoN(photo)}</span>}
                 </div>
               </div>
               <QtyStepper qty={qty} onChange={(q) => onQty(scanId, item.id, q)} label={item.name_ko} size="small" />
@@ -62,7 +64,7 @@ export const OrderSheet = ({ lines, rate, photos, onQty, onClear, onClose }: Pro
           ))}
         </ul>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderTop: '2px dashed var(--ink)', paddingTop: 10 }}>
-          <span className="dot" style={{ fontSize: 14 }}>합계{hasUnknown ? ' (가격 미표기 제외)' : ''}</span>
+          <span className="dot" style={{ fontSize: 14 }}>{t.order.total}{hasUnknown ? ` ${t.order.excludeNoPrice}` : ''}</span>
           <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
             <span className="dot" style={{ fontSize: 20, color: 'var(--vermilion)' }}>{formatJpy(jpy)}</span>
             {krw !== null && <span className="muted" style={{ fontSize: 12 }}>≈ ₩{krw.toLocaleString('ko-KR')}</span>}
@@ -71,8 +73,8 @@ export const OrderSheet = ({ lines, rate, photos, onQty, onClear, onClose }: Pro
 
         <div style={{ background: 'var(--paper-dark)', border: '2px solid var(--ink)', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span className="dot small" style={{ color: 'var(--vermilion)' }}>직원에게 보여주세요</span>
-            <Segmented size="small" label="주문 상황" value={mode} onChange={setMode} options={ORDER_MODES} />
+            <span className="dot small" style={{ color: 'var(--vermilion)' }}>{t.order.showStaff}</span>
+            <Segmented size="small" label={t.order.modeLabel} value={mode} onChange={setMode} options={orderModes()} />
           </div>
           <p className="jp" style={{ margin: 0, fontSize: 17, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{text.ja}</p>
           <p style={{ margin: 0, fontSize: 13, fontWeight: 500, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{text.pron}</p>
@@ -80,10 +82,10 @@ export const OrderSheet = ({ lines, rate, photos, onQty, onClear, onClose }: Pro
         </div>
 
         <div style={{ display: 'flex', gap: 8 }}>
-          <button type="button" className="btn" onClick={() => void copy()} style={{ flex: 1 }}>{copied ? '복사했어요' : '일본어 복사'}</button>
-          <button type="button" className="btn btn--primary" onClick={() => setBig(true)} style={{ flex: 1, fontWeight: 600 }}>크게 보여주기</button>
+          <button type="button" className="btn" onClick={() => void copy()} style={{ flex: 1 }}>{copied ? t.common.copied : t.order.copyPhrase}</button>
+          <button type="button" className="btn btn--primary" onClick={() => setBig(true)} style={{ flex: 1, fontWeight: 600 }}>{t.order.showBig}</button>
         </div>
-        <button type="button" className="btn btn--quiet" onClick={onClose}>닫기</button>
+        <button type="button" className="btn btn--quiet" onClick={onClose}>{t.common.close}</button>
       </div>
     </div>
   );

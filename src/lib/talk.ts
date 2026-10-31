@@ -1,6 +1,7 @@
 /** 대화 통역 모델: 새 대화·새 마디, 말풍선에 보일 글(표시 언어 쌍별), 제목, 서버에 보낼 앞선 대화, 도우미 「말해 볼 문장」 떼기 */
 import type { Talk, TalkPair, TalkTurn, TalkWho } from '../types';
 import { newScanId } from './scan';
+import { dict } from '../i18n';
 
 export const newTalk = (): Talk => {
   const now = Date.now();
@@ -54,9 +55,6 @@ export const bubbleView = (t: TalkTurn, pair: TalkPair, showPron: boolean): Bubb
   return { small, smallLang: pair === 'ko-en' && t.en ? 'en' : 'ja', main: mainLang === 'en' ? t.en : t.ko, mainLang, pron: '' };
 };
 
-export const PAIR_LABEL: Readonly<Record<TalkPair, string>> = { 'ko-ja': '한·日', 'ko-en': '한·EN', 'ja-en': '日·EN' };
-export const PAIR_NAME: Readonly<Record<TalkPair, string>> = { 'ko-ja': '한국어 · 日本語', 'ko-en': '한국어 · English', 'ja-en': '日本語 · English' };
-
 /** 서버에 보낼 앞선 대화(완료된 마디만) */
 export const contextTurns = (turns: readonly TalkTurn[]): ReadonlyArray<{ who: TalkWho; src: string; tr: string }> =>
   turns.filter((t) => t.status === 'done').map((t) => ({ who: t.who, src: turnSource(t), tr: turnTranslation(t) }));
@@ -73,13 +71,13 @@ export const talkTitle = (talk: Talk): string => {
   if (talk.userTitle) return talk.userTitle;
   if (talk.autoTitle) return talk.autoTitle;
   const first = talk.turns[0];
-  return first ? turnSource(first).slice(0, 20) : '새 대화';
+  return first ? turnSource(first).slice(0, 20) : dict().talk.newTalk;
 };
 
 /** 목록 부제용 마지막 한 줄(내가 읽는 언어로) */
 export const lastLine = (talk: Talk): string => {
   const t = talk.turns[talk.turns.length - 1];
-  if (!t) return '아직 나눈 말이 없어요';
+  if (!t) return dict().talk.noTurns;
   return t.who === 'me' ? turnSource(t) : t.ko || t.src;
 };
 

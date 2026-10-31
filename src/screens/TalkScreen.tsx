@@ -6,14 +6,16 @@
  */
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import type { HelperMsg, Talk, TalkPair, TalkTurn } from '../types';
-import { applyFields, bubbleView, contextTurns, needsTitle, newTurn, PAIR_LABEL, PAIR_NAME, talkTitle } from '../lib/talk';
+import { applyFields, bubbleView, contextTurns, needsTitle, newTurn, talkTitle } from '../lib/talk';
 import { fetchTitle, SttUnavailableError, transcribe, translate } from '../lib/talkApi';
+import { isAccessCodeError } from '../lib/apiError';
 import { canRecord, startRecording, type RecorderHandle } from '../lib/recorder';
 import { loadTalkPrefs, saveTalkPrefs, type TalkPrefs } from '../lib/storage';
 import { TalkBubble } from '../components/TalkBubble';
 import { ShowBig } from '../components/ShowBig';
 import { DotGlyph } from '../components/DotGlyph';
 import { TalkHelper } from './TalkHelper';
+import { useT, type Dict } from '../i18n';
 
 type Props = {
   readonly talk: Talk;
@@ -32,19 +34,16 @@ const PAIRS: readonly TalkPair[] = ['ko-ja', 'ko-en', 'ja-en'];
  * 말하기 버튼 색 정책(2026-10-23 사용자): 두 버튼은 같은 모양(너비·글꼴)이고 색은 언제나 다르다. 말풍선과 맞춰 한국어(내 말) = 주홍, 일본어(상대 말) = 먹.
  * 평소: 그 색으로 채움. 녹음 중: 뒤집어 종이 바탕 + 그 색 굵은 테두리·글자 + ● 깜빡임 + 그 색 소리 막대, 눌린 듯 그림자 없음. 다른 쪽은 흐리게.
  */
-const VOICE: Readonly<Record<Lang, { readonly label: string; readonly live: string; readonly status: string; readonly color: string }>> = {
-  ko: { label: '한국어', live: '듣는 중', status: '한국어 듣는 중 · 다 말하면 저절로 끝나요 · 누르면 바로 끝', color: 'var(--vermilion)' },
-  ja: { label: '日本語', live: '聞いています', status: '일본어 듣는 중 · 다 말하면 저절로 끝나요 · 누르면 바로 끝', color: 'var(--ink)' },
-};
+const VOICE_COLOR: Readonly<Record<Lang, string>> = { ko: 'var(--vermilion)', ja: 'var(--ink)' };
 
+type TalkDict = Dict['talk'];
 /** 다시 될 때까지 남은 시간 → 「40초 」「12분 」「2시간 」 */
-const waitLabel = (s: number): string => (s < 60 ? `${s}초` : s < 3600 ? `${Math.ceil(s / 60)}분` : `${Math.ceil(s / 3600)}시간`);
-const sttNotice = (retryAfter: number | null): string =>
-  retryAfter !== null
-    ? `음성 인식 한도에 걸렸어요 · ${waitLabel(retryAfter)} 뒤 다시 돼요 · 글로 쓰기는 지금도 돼요`
-    : '지금은 음성 인식을 쓸 수 없어요 · 관리자에게 문의해 주세요 · 글로 쓰기는 돼요';
+const waitLabel = (t: TalkDict, s: number): string => (s < 60 ? t.wait.seconds(s) : s < 3600 ? t.wait.minutes(Math.ceil(s / 60)) : t.wait.hours(Math.ceil(s / 3600)));
+const sttNotice = (t: TalkDict, retryAfter: number | null): string =>
+  retryAfter !== null ? t.sttLimited(waitLabel(t, retryAfter)) : t.sttUnavailable;
 
 export const TalkScreen = ({ talk: initial, onSave, onHome, onRename }: Props) => {
+  const t = useT();
   const [talk, setTalk] = useState(initial);
   const talkRef = useRef(talk);
   talkRef.current = talk;
@@ -117,7 +116,7 @@ export const TalkScreen = ({ talk: initial, onSave, onHome, onRename }: Props) =
     } catch (e) {
       if (ctrl.signal.aborted) return;
       patchTurn(turn.id, (x) => ({ ...x, status: 'error' }));
-      if (e instanceof Error && /초대 코드/.test(e.message)) setNotice(e.message);
+      if (isAccessCodeError(e)) setNotice((e as Error).message);
     } finally { ctrls.current.delete(ctrl); }
   };
   const start = (turn: TalkTurn) => { addTurn(turn); void translateTurn(turn); };
@@ -133,7 +132,7 @@ export const TalkScreen = ({ talk: initial, onSave, onHome, onRename }: Props) =
     if (hearing || starting.current) return;
     setNotice(null);
     setPicker(false);
-    if (!canRecord()) { setNotice('이 브라우저는 녹음을 지원하지 않아요 · 글로 써 주세요'); setMode('text'); return; }
+    if (!canRecord()) { setNotice(t.talk.noRecorder); setMode('text'); return; }
     let started: Awaited<ReturnType<typeof startRecording>>;
     starting.current = true;
     setOpening(true);
@@ -143,7 +142,7 @@ export const TalkScreen = ({ talk: initial, onSave, onHome, onRename }: Props) =
         setRec((r) => (r && r.level !== step ? { ...r, level: step } : r));
       });
     } catch {
-      setNotice('마이크를 쓸 수 없어요 · 설정에서 이 앱의 마이크 권한을 허용해 주세요');
+      setNotice(t.talk.micDenied);
       return;
     } finally {
       starting.current = false;
@@ -156,18 +155,18 @@ export const TalkScreen = ({ talk: initial, onSave, onHome, onRename }: Props) =
     recRef.current = null;
     if (!r || !alive.current) return;
     setRec(null);
-    if (!r.heard) { setNotice('말소리가 들리지 않았어요 · 다시 눌러 말해 주세요'); return; }
+    if (!r.heard) { setNotice(t.talk.nothingHeard); return; }
     const ctrl = track();
     setHearing(lang);
     try {
       const text = await transcribe(r.blob, lang, ctrl.signal);
       if (ctrl.signal.aborted) return;
-      if (!text) { setNotice('알아듣지 못했어요 · 다시 말해 주세요'); return; }
+      if (!text) { setNotice(t.talk.notUnderstood); return; }
       start(newTurn(lang === 'ko' ? 'me' : 'them', 'voice', text));
     } catch (e) {
       if (ctrl.signal.aborted) return;
-      if (e instanceof SttUnavailableError) { setNotice(sttNotice(e.retryAfter)); setMode('text'); }
-      else setNotice(`음성 인식에 실패했어요 · ${e instanceof Error ? e.message : String(e)}`);
+      if (e instanceof SttUnavailableError) { setNotice(sttNotice(t.talk, e.retryAfter)); setMode('text'); }
+      else setNotice(t.talk.sttFailed(e instanceof Error ? e.message : String(e)));
     } finally {
       ctrls.current.delete(ctrl);
       setHearing(null);
@@ -199,7 +198,7 @@ export const TalkScreen = ({ talk: initial, onSave, onHome, onRename }: Props) =
 
   const recording = (lang: Lang) => rec?.lang === lang;
   const micButton = (lang: Lang) => {
-    const v = VOICE[lang];
+    const v = { ...t.talk.mic[lang], color: VOICE_COLOR[lang] };
     const on = recording(lang);
     const other: Lang = lang === 'ko' ? 'ja' : 'ko';
     return (
@@ -218,37 +217,37 @@ export const TalkScreen = ({ talk: initial, onSave, onHome, onRename }: Props) =
   return (
     <div style={{ height: '100dvh', maxWidth: 480, margin: '0 auto', display: 'flex', flexDirection: 'column' }}>
       <header style={{ flexShrink: 0, padding: 'calc(2px + max(var(--safe-top) + 8px, var(--edge-top))) 12px 8px 6px', borderBottom: '2px solid var(--ink)', display: 'flex', alignItems: 'center', gap: 6 }}>
-        <button type="button" className="btn btn--icon" aria-label="홈으로" onClick={onHome}>◀</button>
-        <button type="button" onClick={() => onRename(talk)} aria-label={`${talkTitle(talk)} 이름 고치기`}
+        <button type="button" className="btn btn--icon" aria-label={t.common.home} onClick={onHome}>◀</button>
+        <button type="button" onClick={() => onRename(talk)} aria-label={t.talk.renameAria(talkTitle(talk))}
           style={{ flex: 1, minWidth: 0, minHeight: 44, textAlign: 'left', background: 'none', border: 0, padding: 0, cursor: 'pointer', color: 'inherit', font: 'inherit', fontSize: 15, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {talkTitle(talk)}
         </button>
         <div style={{ position: 'relative', flexShrink: 0 }}>
-          <button type="button" className="btn" onClick={() => setPicker((p) => !p)} aria-expanded={picker} aria-haspopup="menu" aria-label={`말풍선 언어: ${PAIR_NAME[prefs.pair]}`}
+          <button type="button" className="btn" onClick={() => setPicker((p) => !p)} aria-expanded={picker} aria-haspopup="menu" aria-label={t.talk.pairAria(t.talk.pairName[prefs.pair])}
             style={{ minHeight: 40, minWidth: 64, padding: '0 8px', gap: 4, whiteSpace: 'nowrap', boxShadow: 'none', fontFamily: 'var(--font-dot)', fontSize: 13, background: picker ? 'var(--ink)' : 'var(--paper-2)', color: picker ? 'var(--paper)' : 'var(--ink)' }}>
-            {PAIR_LABEL[prefs.pair]}<span aria-hidden="true" style={{ fontSize: 9 }}>▼</span>
+            {t.talk.pairLabel[prefs.pair]}<span aria-hidden="true" style={{ fontSize: 9 }}>▼</span>
           </button>
           {picker && (
             <>
               <button type="button" tabIndex={-1} aria-hidden="true" onClick={() => setPicker(false)} style={{ position: 'fixed', inset: 0, zIndex: 4, background: 'transparent', border: 0, cursor: 'default' }} />
               <div role="menu" className="frame" style={{ position: 'absolute', right: 0, top: 'calc(100% + 6px)', zIndex: 5, width: 220, boxShadow: '4px 4px 0 var(--ink)', padding: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span className="muted small" style={{ padding: '2px 6px' }}>말풍선에 보일 두 언어</span>
+                <span className="muted small" style={{ padding: '2px 6px' }}>{t.talk.pairMenuTitle}</span>
                 {PAIRS.map((p) => (
                   <button key={p} type="button" role="menuitemradio" aria-checked={p === prefs.pair} onClick={() => { changePrefs({ ...prefs, pair: p }); setPicker(false); }}
                     style={{ minHeight: 40, padding: '0 8px', border: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', font: 'inherit', fontSize: 14, background: p === prefs.pair ? 'var(--ink)' : 'transparent', color: p === prefs.pair ? 'var(--paper)' : 'var(--ink)' }}>
-                    <span>{PAIR_NAME[p]}</span>{p === 'ko-ja' && <span style={{ fontSize: 11 }}>기본</span>}
+                    <span>{t.talk.pairName[p]}</span>{p === 'ko-ja' && <span style={{ fontSize: 11 }}>{t.talk.pairDefault}</span>}
                   </button>
                 ))}
                 <div style={{ height: 2, background: 'var(--paper-dark)', margin: '2px 0' }} />
                 <button type="button" role="menuitemcheckbox" aria-checked={prefs.pron} onClick={() => changePrefs({ ...prefs, pron: !prefs.pron })}
                   style={{ minHeight: 40, padding: '0 8px', border: 0, background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', font: 'inherit', fontSize: 14, color: 'var(--ink)' }}>
-                  <span>일본어 발음 보기</span><span className="dot" style={{ fontSize: 13, color: prefs.pron ? 'var(--vermilion)' : 'var(--muted)' }}>{prefs.pron ? '켬' : '끔'}</span>
+                  <span>{t.talk.pronToggle}</span><span className="dot" style={{ fontSize: 13, color: prefs.pron ? 'var(--vermilion)' : 'var(--muted)' }}>{prefs.pron ? t.talk.on : t.talk.off}</span>
                 </button>
               </div>
             </>
           )}
         </div>
-        <button type="button" className="btn" onClick={() => { setPicker(false); setHelperOpen(true); }} aria-label="도우미에게 묻기" title="도우미"
+        <button type="button" className="btn" onClick={() => { setPicker(false); setHelperOpen(true); }} aria-label={t.talk.helperAsk} title={t.talk.helperTitle}
           style={{ flexShrink: 0, width: 40, minHeight: 40, padding: 0 }}>
           <DotGlyph name="sparkle" size={20} />
         </button>
@@ -257,17 +256,17 @@ export const TalkScreen = ({ talk: initial, onSave, onHome, onRename }: Props) =
       <div ref={listRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '6px 14px 16px' }}>
         {talk.turns.length === 0 && !hearing && (
           <p className="muted" style={{ margin: '24px 4px', fontSize: 14, lineHeight: 1.65 }}>
-            「한국어」를 누르고 말하면 일본어로 바꿔 보여줘요. 상대가 말할 땐 「日本語」를 눌러 주세요. 다 말하고 조용해지면 저절로 끝나요.
+            {t.talk.intro}
           </p>
         )}
-        {hasMine && <p className="muted" style={{ margin: '6px 0 0', textAlign: 'center', fontSize: 11 }}>내 말풍선을 누르면 상대에게 크게 보여줘요</p>}
+        {hasMine && <p className="muted" style={{ margin: '6px 0 0', textAlign: 'center', fontSize: 11 }}>{t.talk.tapToShow}</p>}
         {talk.turns.map((t, i) => (
           <TalkBubble key={t.id} turn={t} pair={prefs.pair} showPron={prefs.pron} joined={i > 0 && talk.turns[i - 1]!.who === t.who} onShow={showTurn} onRetry={retry} />
         ))}
         {hearing && (
           <div style={{ display: 'flex', justifyContent: hearing === 'ko' ? 'flex-end' : 'flex-start', marginTop: 16 }}>
-            <div style={{ padding: '8px 12px', border: `2px dashed ${VOICE[hearing].color}`, background: 'var(--paper-2)', fontSize: 14, color: 'var(--body)' }}>
-              {hearing === 'ko' ? '한국어 받아 적는 중' : '일본어 받아 적는 중'}<span className="blink">▌</span>
+            <div style={{ padding: '8px 12px', border: `2px dashed ${VOICE_COLOR[hearing]}`, background: 'var(--paper-2)', fontSize: 14, color: 'var(--body)' }}>
+              {t.talk.mic[hearing].hearing}<span className="blink">▌</span>
             </div>
           </div>
         )}
@@ -275,12 +274,12 @@ export const TalkScreen = ({ talk: initial, onSave, onHome, onRename }: Props) =
 
       <div style={{ flexShrink: 0, borderTop: '2px solid var(--ink)', padding: '8px 14px calc(14px + var(--safe-bottom))', display: 'flex', flexDirection: 'column', gap: 8 }}>
         {/* 녹음 중이면 그 언어 색으로 상태 한 줄, 아니면 안내(오류 등) */}
-        <div role="status" style={{ fontSize: 12, lineHeight: 1.5, fontWeight: rec ? 600 : 400, color: rec ? VOICE[rec.lang].color : 'var(--vermilion-dark)', display: rec || notice ? 'block' : 'none' }}>
-          {rec ? <><span className="blink" aria-hidden="true">● </span>{VOICE[rec.lang].status}</> : notice}
+        <div role="status" style={{ fontSize: 12, lineHeight: 1.5, fontWeight: rec ? 600 : 400, color: rec ? VOICE_COLOR[rec.lang] : 'var(--vermilion-dark)', display: rec || notice ? 'block' : 'none' }}>
+          {rec ? <><span className="blink" aria-hidden="true">● </span>{t.talk.mic[rec.lang].status}</> : notice}
         </div>
         {mode === 'voice' ? (
           <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" className="btn" onClick={() => setMode('text')} aria-label="글로 쓰기" disabled={rec !== null} style={{ width: 52, minHeight: 60, padding: 0, boxShadow: 'none' }}>
+            <button type="button" className="btn" onClick={() => setMode('text')} aria-label={t.talk.writeMode} disabled={rec !== null} style={{ width: 52, minHeight: 60, padding: 0, boxShadow: 'none' }}>
               <DotGlyph name="keyboard" size={22} />
             </button>
             {micButton('ko')}
@@ -288,12 +287,12 @@ export const TalkScreen = ({ talk: initial, onSave, onHome, onRename }: Props) =
           </div>
         ) : (
           <form onSubmit={send} style={{ display: 'flex', gap: 6 }}>
-            <button type="button" className="btn" onClick={() => setMode('voice')} aria-label="말하기로 돌아가기" style={{ width: 48, minHeight: 48, padding: 0, boxShadow: 'none' }}>
+            <button type="button" className="btn" onClick={() => setMode('voice')} aria-label={t.talk.backToVoice} style={{ width: 48, minHeight: 48, padding: 0, boxShadow: 'none' }}>
               <DotGlyph name="mic" size={20} />
             </button>
-            <input ref={inputRef} value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="한국어나 일본어로 쓰기" aria-label="번역할 글" enterKeyHint="send" maxLength={500}
+            <input ref={inputRef} value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={t.talk.inputPlaceholder} aria-label={t.talk.inputAria} enterKeyHint="send" maxLength={500}
               style={{ flex: 1, minWidth: 0, minHeight: 48, padding: '0 10px', border: '2px solid var(--ink)', background: 'var(--paper-2)', fontSize: 16, fontFamily: 'inherit', color: 'var(--ink)' }} />
-            <button type="submit" className="btn btn--primary" disabled={!draft.trim()} aria-label="번역해서 보내기" style={{ minHeight: 48, padding: '0 16px' }}>▶</button>
+            <button type="submit" className="btn btn--primary" disabled={!draft.trim()} aria-label={t.talk.sendTranslate} style={{ minHeight: 48, padding: '0 16px' }}>▶</button>
           </form>
         )}
       </div>

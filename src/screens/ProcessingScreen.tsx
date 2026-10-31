@@ -6,28 +6,27 @@ import { PixelIcon } from '../components/PixelIcon';
 import { MenuPhoto } from '../components/MenuPhoto';
 import { BatchStrip } from '../components/BatchStrip';
 import { pickSignTip, pickTip } from '../data/tips';
+import { useT, type Dict } from '../i18n';
 
 type Props = { readonly scan: Scan; readonly batch: readonly Scan[]; readonly onSwitch: (id: string) => void; readonly onAdd: ((files: readonly File[]) => void) | undefined; readonly onCancel: () => void; readonly onPeek: () => void; readonly onRetry: () => void };
 
 const EXPECTED_BLOCKS = 8;
 
-/** 종류 판정 전(unknown)·후의 상단 제목. 판정 전에는 메뉴판·안내문 어느 쪽도 전제하지 않는다 */
-const TITLE: Readonly<Record<ScanKind | 'unknown', string>> = { unknown: '읽는 중', menu: '메뉴판 읽는 중', sign: '안내문 읽는 중', other: '글자 읽는 중' };
-
 /** 3단계(묶어 번역) 문구. 메뉴판은 찾은 개수를, 안내문은 줄 단위 번역임을 알린다 */
-const translateStep = (kind: ScanKind | 'unknown', found: number, lines: number, done: boolean): string => {
-  if (kind === 'menu') return found === 0 ? '메뉴로 묶어 번역하는 중' : `메뉴 ${found}개 찾았어요`;
-  if (kind === 'sign') return done ? `안내문 ${lines}줄 번역했어요` : '안내문이에요 · 줄마다 번역하는 중';
-  if (kind === 'other') return done ? `${lines}줄 번역했어요` : '사진 속 글자예요 · 번역하는 중';
-  return '무슨 글인지 보고 묶는 중';
+const translateStep = (p: Dict['processing'], kind: ScanKind | 'unknown', found: number, lines: number, done: boolean): string => {
+  if (kind === 'menu') return found === 0 ? p.translateMenuGrouping : p.translateMenuFound(found);
+  if (kind === 'sign') return done ? p.translateSignDone(lines) : p.translateSignBusy;
+  if (kind === 'other') return done ? p.translateOtherDone(lines) : p.translateOtherBusy;
+  return p.translateUnknown;
 };
 
 export const ProcessingScreen = ({ scan, batch, onSwitch, onAdd, onCancel, onPeek, onRetry }: Props) => {
+  const t = useT();
   const kind: ScanKind | 'unknown' = scan.kindKnown ? scan.kind : 'unknown';
   // 판정 전(unknown)에도 팁·진행 블록은 메뉴판 기준으로 보여준다(대부분 메뉴판). 아이콘만은 확정된 메뉴판에서만 라멘
   const assumeMenu = kind === 'menu' || kind === 'unknown';
-  // 안내문을 읽는 동안 이자카야 상식은 어울리지 않으니 표기 상식으로 바꾼다
-  const tip = useMemo(() => (assumeMenu ? pickTip(scan.createdAt) : pickSignTip(scan.createdAt)), [scan.createdAt, assumeMenu]);
+  // 안내문을 읽는 동안 식당 상식은 어울리지 않으니 표기 상식으로 바꾼다. 언어가 바뀌면(t) 그 언어의 팁으로
+  const tip = useMemo(() => (assumeMenu ? pickTip(scan.createdAt) : pickSignTip(scan.createdAt)), [scan.createdAt, assumeMenu, t]);
   const found = scan.items.length;
   const reading = scan.status === 'reading';
   const streaming = scan.status === 'streaming';
@@ -35,12 +34,12 @@ export const ProcessingScreen = ({ scan, batch, onSwitch, onAdd, onCancel, onPee
   const failed = scan.status === 'error';
   const recent = scan.items.slice(-4);
   const wordsRead = scan.words.length;
-  const title = TITLE[kind];
+  const title = t.processing.title[kind];
 
   return (
     <div className="app">
-      <TopBar onBack={onCancel} backLabel="취소하고 홈으로" center={
-        <div className="dot" style={{ fontSize: 16 }}>{failed ? '읽지 못했어요' : title}</div>
+      <TopBar onBack={onCancel} backLabel={t.processing.cancelHome} center={
+        <div className="dot" style={{ fontSize: 16 }}>{failed ? t.processing.failedTitle : title}</div>
       } />
       <BatchStrip scans={batch} currentId={scan.id} onSwitch={onSwitch} onAdd={onAdd} />
 
@@ -69,7 +68,7 @@ export const ProcessingScreen = ({ scan, batch, onSwitch, onAdd, onCancel, onPee
       </div>
 
       {/* 안내문은 항목이 흐르지 않고 끝에 줄 목록이 한 번에 오므로 개수 대신 진행 중임만 보여준다 */}
-      <ProgressBlocks filled={assumeMenu ? found : 0} total={EXPECTED_BLOCKS} active={busy} label={assumeMenu ? `메뉴 ${found}개 찾음` : '번역하는 중'} />
+      <ProgressBlocks filled={assumeMenu ? found : 0} total={EXPECTED_BLOCKS} active={busy} label={assumeMenu ? t.processing.progressMenuAria(found) : t.processing.progressTranslating} />
 
       <div className="frame frame--double" style={{ display: 'flex', gap: 14, padding: '16px 16px 16px 14px' }}>
         <div style={{ position: 'relative', width: 64, height: 64, flexShrink: 0 }} aria-hidden="true">
@@ -82,17 +81,17 @@ export const ProcessingScreen = ({ scan, batch, onSwitch, onAdd, onCancel, onPee
           </>}
         </div>
         <div className="dot" style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 14, lineHeight: 1.3, flex: 1 }} aria-live="polite">
-          <Step done={scan.status !== 'preparing'} active={scan.status === 'preparing'}>사진 정리{scan.status === 'preparing' ? '하는 중' : '했어요'}</Step>
+          <Step done={scan.status !== 'preparing'} active={scan.status === 'preparing'}>{scan.status === 'preparing' ? t.processing.prepareBusy : t.processing.prepareDone}</Step>
           {failed ? (
-            <Step active fail>{scan.error ?? '알 수 없는 오류'}</Step>
+            <Step active fail>{scan.error ?? t.processing.unknownError}</Step>
           ) : (
             <>
               <Step active={reading} done={!reading && scan.status !== 'preparing'} todo={scan.status === 'preparing'}>
-                {reading ? '글자를 찾는 중' : wordsRead > 0 ? `단어 ${wordsRead}개 읽었어요` : '글자 읽기 건너뜀'}
+                {reading ? t.processing.ocrBusy : wordsRead > 0 ? t.processing.ocrDone(wordsRead) : t.processing.ocrSkipped}
                 {reading && <span className="blink">▌</span>}
               </Step>
               <Step active={streaming} done={scan.status === 'done'} todo={!streaming && scan.status !== 'done'}>
-                {translateStep(kind, found, scan.notes.length, scan.status === 'done')}
+                {translateStep(t.processing, kind, found, scan.notes.length, scan.status === 'done')}
                 {streaming && <span className="blink">▌</span>}
               </Step>
             </>
@@ -101,15 +100,15 @@ export const ProcessingScreen = ({ scan, batch, onSwitch, onAdd, onCancel, onPee
       </div>
 
       <div style={{ background: 'var(--paper-dark)', border: '2px solid var(--ink)', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <div className="dot" style={{ fontSize: 12, color: 'var(--vermilion)' }}>기다리는 동안 한 가지</div>
+        <div className="dot" style={{ fontSize: 12, color: 'var(--vermilion)' }}>{t.processing.tipHeading}</div>
         <p style={{ margin: 0, fontSize: 13, lineHeight: 1.55, color: '#3E352D' }}>{tip}</p>
       </div>
 
       <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'center' }}>
         {failed ? (
-          <button type="button" className="btn btn--primary" onClick={onRetry}>다시 시도</button>
+          <button type="button" className="btn btn--primary" onClick={onRetry}>{t.common.retry}</button>
         ) : found > 0 ? (
-          <button type="button" className="btn btn--quiet" onClick={onPeek}>먼저 찾은 것부터 보기 <span className="dot" style={{ color: 'var(--vermilion)' }}>▶</span></button>
+          <button type="button" className="btn btn--quiet" onClick={onPeek}>{t.processing.peek} <span className="dot" style={{ color: 'var(--vermilion)' }}>▶</span></button>
         ) : null}
       </div>
     </div>

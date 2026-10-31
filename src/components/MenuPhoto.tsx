@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState, type ReactNode, type TouchEvent } from 'react';
 import type { Box, OcrWord } from '../types';
+import { useT } from '../i18n';
 
 export type Fit = { readonly boxH: number; readonly transform: string; readonly angle: number; readonly scale: number };
 /** 마커 레이어에 넘겨주는 값. markerScale 을 마커 transform 에 곱하면 화면상 크기가 일정해진다 */
@@ -73,6 +74,7 @@ type Zoom = { z: number; tx: number; ty: number };
 const dist = (a: { clientX: number; clientY: number }, b: { clientX: number; clientY: number }) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
 
 export const MenuPhoto = ({ src, width, height, words, rotation = 0, tilt = 0, maxHeight, dim = false, zoomable = false, children, overlay }: Props) => {
+  const t = useT();
   const ref = useRef<HTMLDivElement>(null);
   const [W, setW] = useState(0);
   const [zoom, setZoom] = useState<Zoom>({ z: 1, tx: 0, ty: 0 });
@@ -149,7 +151,7 @@ export const MenuPhoto = ({ src, width, height, words, rotation = 0, tilt = 0, m
       {zoomable && zoom.z > 1 && (
         <button type="button" onClick={() => setZoom({ z: 1, tx: 0, ty: 0 })}
           style={{ position: 'absolute', left: 8, bottom: 8, zIndex: 6, height: 32, padding: '0 10px', background: 'var(--paper-2)', color: 'var(--ink)', border: '2px solid var(--ink)', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>
-          원래대로 ({zoom.z.toFixed(1)}×)
+          {t.result.resetZoom(zoom.z.toFixed(1))}
         </button>
       )}
       {fit && (

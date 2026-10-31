@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Rate, Scan } from '../types';
 import { Segmented } from '../components/Segmented';
 import { formatKrw, splitYen } from '../lib/money';
+import { useT } from '../i18n';
 
 type Tab = 'sum' | 'ko' | 'ja';
 type Props = {
@@ -27,6 +28,7 @@ const WithKrw = ({ text, rate }: { text: string; rate: Rate | null }) => (
 );
 
 export const NoticePanel = ({ scan, rate, selected, onSelect, badges }: Props) => {
+  const t = useT();
   const pending = scan.status !== 'done' && scan.status !== 'error';
   const hasSummary = scan.summary !== null || pending;
   const [tab, setTab] = useState<Tab>(hasSummary ? 'sum' : 'ko');
@@ -45,12 +47,12 @@ export const NoticePanel = ({ scan, rate, selected, onSelect, badges }: Props) =
   const current: Tab = tab === 'sum' && !hasSummary ? 'ko' : tab;
   const allJa = scan.notes.map((n) => n.text_ja).join('\n');
   const copy = async () => { try { await navigator.clipboard.writeText(allJa); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* 불가: 길게 눌러 선택 */ } };
-  const options = [...(hasSummary ? [{ value: 'sum' as const, label: '요약' }] : []), { value: 'ko' as const, label: '번역문' }, { value: 'ja' as const, label: '원문' }];
+  const options = [...(hasSummary ? [{ value: 'sum' as const, label: t.result.tabSummary }] : []), { value: 'ko' as const, label: t.result.tabTranslation }, { value: 'ja' as const, label: t.result.tabOriginal }];
 
   return (
-    <section aria-label="안내문 정리" className="frame frame--flat" style={{ display: 'flex', flexDirection: 'column' }}>
+    <section aria-label={t.result.noticeSectionAria} className="frame frame--flat" style={{ display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: 8, borderBottom: '2px solid var(--ink)', display: 'flex' }}>
-        <div className="notice-tabs" style={{ flex: 1 }}><Segmented label="정리 보기" size="small" value={current} onChange={setTab} options={options} /></div>
+        <div className="notice-tabs" style={{ flex: 1 }}><Segmented label={t.result.noticeTabsLabel} size="small" value={current} onChange={setTab} options={options} /></div>
       </div>
       <div ref={listRef} style={{ position: 'relative', padding: '12px 14px', maxHeight: '46vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10, fontSize: 15, lineHeight: 1.65 }}>
         {current === 'sum' && (scan.summary
@@ -58,12 +60,12 @@ export const NoticePanel = ({ scan, rate, selected, onSelect, badges }: Props) =
               <p style={{ margin: 0 }}><WithKrw text={scan.summary.text} rate={rate} /></p>
               {scan.summary.tips.length > 0 && (
                 <div style={{ border: '2px dashed var(--muted)', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <div className="dot small" style={{ color: 'var(--muted)' }}>참고 · 사진에 없는 일반 정보</div>
+                  <div className="dot small" style={{ color: 'var(--muted)' }}>{t.result.tipsHeading}</div>
                   {scan.summary.tips.map((t, i) => <p key={i} className="muted" style={{ margin: 0, fontSize: 14 }}>{t}</p>)}
                 </div>
               )}
             </>
-          : <p className="muted" style={{ margin: 0 }}>요약 쓰는 중<span className="blink">▌</span></p>)}
+          : <p className="muted" style={{ margin: 0 }}>{t.result.writingSummary}<span className="blink">▌</span></p>)}
         {current === 'ko' && scan.notes.map((n, i) => {
           const badge = badges.get(i);
           const on = selected === i;
@@ -81,7 +83,7 @@ export const NoticePanel = ({ scan, rate, selected, onSelect, badges }: Props) =
         })}
         {current === 'ja' && <>
           <p lang="ja" style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'var(--font-jp)', fontSize: 15 }}>{allJa}</p>
-          <button type="button" className="btn" onClick={() => void copy()} style={{ alignSelf: 'flex-start', minHeight: 36 }}>{copied ? '복사했어요' : '원문 복사'}</button>
+          <button type="button" className="btn" onClick={() => void copy()} style={{ alignSelf: 'flex-start', minHeight: 36 }}>{copied ? t.common.copied : t.result.copyOriginal}</button>
         </>}
       </div>
     </section>
