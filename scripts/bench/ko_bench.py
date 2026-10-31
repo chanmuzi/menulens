@@ -37,10 +37,10 @@ def run(path):
                 rec['words'] = ev.get('words', [])
             elif ev['t'] == 'mode': rec['mode'] = {'mode': ev.get('mode'), 'chunks': ev.get('chunks')}
             elif ev['t'] == 'kind': rec['kind_at'] = t
-            elif ev['t'] == 'item': rec['items'].append(ev.get('item'))
+            elif ev['t'] == 'item': rec['items'].append(ev.get('item'))  # 항목 키: name/tr/price/price_tax/category/group/icon
             elif ev['t'] == 'note': rec['notes'].append(ev.get('note'))
             elif ev['t'] == 'meta': rec['meta'] = {k: v for k, v in ev.items() if k != 't'}; rec['list_at'] = t
-            elif ev['t'] == 'details': rec.setdefault('details', []).extend(ev.get('details', []))
+            elif ev['t'] == 'details': rec.setdefault('details', []).extend(ev.get('items', []))
             elif ev['t'] == 'summary': rec['summary'] = ev.get('summary')
             elif ev['t'] == 'groups': rec['groups'] = ev.get('groups')
             elif ev['t'] == 'error': rec['error'] = ev.get('error')

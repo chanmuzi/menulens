@@ -67,9 +67,9 @@ export const OverlayView = ({ scan, selectedId, onSelect, selectedNote, onNote, 
   const onBadges = useCallback((b: ReadonlyMap<string, number>) => setCoverBadges(b), []);
   const noteBadges = new Map([...coverBadges].flatMap(([k, n]) => (k.startsWith('n') ? [[Number(k.slice(1)), n] as const] : [])));
   const blocks: CoverBlock[] = isMenu ? [] : [
-    ...scan.notes.flatMap((n, i) => (n.bbox ? [{ key: `n${i}`, text: n.text_ko, lines: n.lines?.length ? n.lines : [n.bbox], title: n.role === 'title', badgeLabel: (k: number) => String(k), selected: selectedNote === i, onClick: () => onNote(i), colors: colors.get(`n${i}`) }] : [])),
+    ...scan.notes.flatMap((n, i) => (n.bbox ? [{ key: `n${i}`, text: n.tr, lines: n.lines?.length ? n.lines : [n.bbox], title: n.role === 'title', badgeLabel: (k: number) => String(k), selected: selectedNote === i, onClick: () => onNote(i), colors: colors.get(`n${i}`) }] : [])),
     // 안내문에 상품명 같은 항목이 잡힌 경우: 덮개로 쓰고, 안 들어가면 점 배지(누르면 상세)
-    ...scan.items.flatMap((it) => (it.bbox ? [{ key: `i${it.id}`, text: it.name_ko, lines: [it.bbox], title: false, badgeLabel: () => null, selected: it.id === selectedId, onClick: () => onSelect(it), colors: colors.get(it.id) }] : [])),
+    ...scan.items.flatMap((it) => (it.bbox ? [{ key: `i${it.id}`, text: it.tr, lines: [it.bbox], title: false, badgeLabel: () => null, selected: it.id === selectedId, onClick: () => onSelect(it), colors: colors.get(it.id) }] : [])),
   ];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -90,7 +90,7 @@ export const OverlayView = ({ scan, selectedId, onSelect, selectedNote, onNote, 
               if (badges) {
                 const size = sizes?.get(it.id) ?? BADGE_MAX;
                 return (
-                  <button key={it.id} type="button" onClick={() => onSelect(it)} aria-pressed={selected} aria-label={t.result.badgeAria(i + 1, it.name_ko, formatPriceOrBlank(it))}
+                  <button key={it.id} type="button" onClick={() => onSelect(it)} aria-pressed={selected} aria-label={t.result.badgeAria(i + 1, it.tr, formatPriceOrBlank(it))}
                     className="dot"
                     style={{ position: 'absolute', left: `${cx / 10}%`, top: `${(y0 + y1) / 2 / 10}%`, transform: `translate(-50%, -50%) rotate(${rot}deg) scale(${ms})`, width: size, height: size, padding: 0, cursor: 'pointer',
                       background: selected ? 'var(--vermilion)' : 'var(--ink)', color: 'var(--paper)', border: '2px solid var(--paper-2)', boxShadow: '2px 2px 0 rgba(42,33,27,.6)', fontSize: Math.max(9, size / 2), lineHeight: 1, zIndex: selected ? 3 : 1 }}>
@@ -102,10 +102,10 @@ export const OverlayView = ({ scan, selectedId, onSelect, selectedNote, onNote, 
               const top = vertical ? Math.min(y0 + 40 + lane * 95, 900) : Math.min(y1, 960);
               const align = cx < 200 ? 'translateX(-20%)' : cx > 800 ? 'translateX(-80%)' : 'translateX(-50%)';
               return (
-                <button key={it.id} type="button" onClick={() => onSelect(it)} aria-pressed={selected} aria-label={`${it.name_ko} ${formatPriceOrBlank(it)}`}
+                <button key={it.id} type="button" onClick={() => onSelect(it)} aria-pressed={selected} aria-label={`${it.tr} ${formatPriceOrBlank(it)}`}
                   style={{ position: 'absolute', left: `${cx / 10}%`, top: `${top / 10}%`, transform: `${align} rotate(${rot}deg) scale(${ms})`, transformOrigin: 'top center', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1, padding: '4px 7px', cursor: 'pointer',
                     background: selected ? 'var(--vermilion)' : 'var(--paper-2)', color: selected ? 'var(--paper-2)' : 'var(--ink)', border: '2px solid var(--ink)', boxShadow: '3px 3px 0 var(--ink)', maxWidth: vertical ? '33%' : '46%', textAlign: 'left', zIndex: selected ? 3 : 1 }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{shortName(it.name_ko)}</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{shortName(it.tr)}</span>
                   {payableJpy(it) !== null && <span className="dot" style={{ fontSize: 11, lineHeight: 1 }}>{formatJpy(payableJpy(it))}</span>}
                 </button>
               );
@@ -121,7 +121,7 @@ export const OverlayView = ({ scan, selectedId, onSelect, selectedNote, onNote, 
             <li key={it.id}>
               <button type="button" onClick={() => onSelect(it)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 0, padding: '4px 0', cursor: 'pointer', textAlign: 'left', color: 'inherit' }}>
                 <span className="dot" style={{ width: 22, height: 22, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: it.id === selectedId ? 'var(--vermilion)' : 'var(--ink)', color: 'var(--paper)', fontSize: 12 }}>{i + 1}</span>
-                <span style={{ fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{shortName(it.name_ko)}</span>
+                <span style={{ fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{shortName(it.tr)}</span>
                 <span className="dot muted" style={{ fontSize: 11, marginLeft: 'auto', flexShrink: 0 }}>{formatPriceOrBlank(it)}</span>
               </button>
             </li>

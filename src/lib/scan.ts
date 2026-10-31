@@ -49,26 +49,26 @@ const boxOf = (r: Record<string, unknown>, words: readonly OcrWord[]): Box | nul
 export const toMenuItem = (raw: unknown, key: string, words: readonly OcrWord[]): MenuItem | null => {
   if (typeof raw !== 'object' || raw === null) return null;
   const r = raw as Record<string, unknown>;
-  const name_ja = str(r, 'name_ja');
-  if (!name_ja) return null;
+  const name = str(r, 'name');
+  if (!name) return null;
   const category = normalizeCategory(r.category);
   const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? Math.round(v) : null);
-  const price = num(r.price_jpy);
-  const tax = num(r.price_tax_jpy);
+  const price = num(r.price);
+  const tax = num(r.price_tax);
   return {
     id: key,
-    name_ja,
-    name_ko: str(r, 'name_ko') || name_ja,
-    price_jpy: price,
-    price_tax_jpy: tax !== null && tax !== price ? tax : null,
+    name,
+    tr: str(r, 'tr') || name,
+    price: price,
+    price_tax: tax !== null && tax !== price ? tax : null,
     category,
     group: normalizeGroup(str(r, 'group')),
-    icon: category === '기타' ? 'dish' : resolveIcon(name_ja, str(r, 'icon') || undefined, category),
+    icon: category === '기타' ? 'dish' : resolveIcon(name, str(r, 'icon') || undefined, category),
     bbox: boxOf(r, words),
-    pron_ko: str(r, 'pron_ko'),
-    desc_ko: str(r, 'desc_ko'),
+    pron: str(r, 'pron'),
+    desc: str(r, 'desc'),
     tags: Array.isArray(r.tags) ? r.tags.filter((t): t is string => typeof t === 'string').slice(0, 4) : [],
-    photo_query: str(r, 'photo_query') || name_ja,
+    photo_query: str(r, 'photo_query') || name,
     detailed: false,
   };
 };
@@ -94,8 +94,8 @@ export const applyDetails = (items: readonly MenuItem[], details: readonly unkno
     if (!d) return it;
     return {
       ...it,
-      pron_ko: str(d, 'pron_ko') || it.pron_ko,
-      desc_ko: str(d, 'desc_ko') || it.desc_ko,
+      pron: str(d, 'pron') || it.pron,
+      desc: str(d, 'desc') || it.desc,
       tags: Array.isArray(d.tags) ? d.tags.filter((t): t is string => typeof t === 'string').slice(0, 4) : it.tags,
       photo_query: str(d, 'photo_query') || it.photo_query,
       detailed: true,
@@ -115,11 +115,11 @@ const linesOf = (r: Record<string, unknown>, words: readonly OcrWord[]): Box[] =
 export const toNote = (raw: unknown, words: readonly OcrWord[]): Note | null => {
   if (typeof raw !== 'object' || raw === null) return null;
   const r = raw as Record<string, unknown>;
-  const text_ja = str(r, 'text_ja');
-  if (!text_ja) return null;
+  const text = str(r, 'text');
+  if (!text) return null;
   const lines = linesOf(r, words);
   const role = ROLES.find((x) => x === r.role);
-  const base = { text_ja, text_ko: str(r, 'text_ko') || text_ja };
+  const base = { text, tr: str(r, 'tr') || text };
   if (lines.length === 0) return { ...base, bbox: boxOf(r, words), ...(role ? { role } : {}) };
   return { ...base, bbox: [Math.min(...lines.map((b) => b[0])), Math.min(...lines.map((b) => b[1])), Math.max(...lines.map((b) => b[2])), Math.max(...lines.map((b) => b[3]))], lines, ...(role ? { role } : {}) };
 };

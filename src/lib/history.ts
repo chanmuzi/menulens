@@ -47,7 +47,7 @@ export const autoGroupTitle = (g: ScanGroup): string => {
   const first = g.scans[0]!;
   const d = dict();
   if (first.kind === 'menu') { const top = topCategory(first); return d.lib.oldMenuTitle(top ? d.data.category[top as Category] ?? top : null); }
-  return first.notes[0]?.text_ko ?? first.items[0]?.name_ko ?? d.data.kind[first.kind];
+  return first.notes[0]?.tr ?? first.items[0]?.tr ?? d.data.kind[first.kind];
 };
 
 /** 목록·결과 화면 제목: 사용자가 고친 이름이 있으면 그것 */

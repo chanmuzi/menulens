@@ -24,24 +24,9 @@ import { loadTalks, removeTalk, saveTalk } from './lib/talkStore';
 import { newTalk, talkTitle } from './lib/talk';
 import type { HomeTab } from './lib/storage';
 import { dict, useT } from './i18n';
+import { emptyScan, upgrade } from './lib/upgrade';
 
 type Route = 'gate' | 'home' | 'history' | 'confirm' | 'processing' | 'result' | 'talk';
-
-const emptyScan = (): Scan => ({
-  id: newScanId(), batchId: null, createdAt: Date.now(), imageDataUrl: '', width: 4, height: 3, kind: 'menu', kindKnown: false, shopName: null, autoTitle: null, userTitle: null, thumb: null, sheetQuad: null,
-  words: [], rotation: 0, tilt: 0, notes: [], summary: null, groups: null, items: [], status: 'preparing', error: null,
-  timing: { ocrMs: null, firstItemMs: null, listMs: null, totalMs: null },
-});
-
-/** 이전 버전에 저장된 스캔도 열리도록 빠진 필드를 채운다 */
-const upgrade = (s: Scan): Scan => ({
-  ...emptyScan(), ...s, batchId: s.batchId ?? null,
-  // 설명 도중 저장된 스캔은 다시 열 때 「설명 쓰는 중」이 영원히 깜빡이지 않도록 완료로 본다
-  status: s.status === 'error' ? 'error' : 'done',
-  words: s.words ?? [], rotation: s.rotation ?? 0, tilt: s.tilt ?? 0, kind: s.kind ?? 'menu', kindKnown: true, sheetQuad: s.sheetQuad ?? null, notes: s.notes ?? [], summary: s.summary ?? null, groups: s.groups ?? null,
-  items: (s.items ?? []).map((it) => ({ ...it, price_tax_jpy: it.price_tax_jpy ?? null, group: it.group ?? null, pron_ko: it.pron_ko ?? '', desc_ko: it.desc_ko ?? '', tags: it.tags ?? [], photo_query: it.photo_query ?? it.name_ja, detailed: it.detailed ?? true })),
-  timing: { ...emptyScan().timing, ...(s.timing ?? {}) },
-});
 
 const toKind = (k: string): ScanKind => (k === 'sign' || k === 'other' ? k : 'menu');
 

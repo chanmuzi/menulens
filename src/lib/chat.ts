@@ -56,8 +56,8 @@ const perPhoto = (max: number, photos: number): number => (photos > 1 ? Math.flo
 
 export type ChatContext = {
   readonly shop: string | null; readonly kind: ScanKind; readonly photos: number;
-  readonly items: ReadonlyArray<{ k: string; ja: string; ko: string; price: number | null; desc: string; group: string | null; p?: number }>;
-  readonly notes: ReadonlyArray<{ ja: string; ko: string; p?: number }>;
+  readonly items: ReadonlyArray<{ k: string; src: string; tr: string; price: number | null; desc: string; group: string | null; p?: number }>;
+  readonly notes: ReadonlyArray<{ src: string; tr: string; p?: number }>;
 };
 /** 묶음 전체의 결과를 서버에 보낼 축약 JSON 으로. 설명은 60자까지. 묶음이면 항목·글줄에 사진 번호 p */
 export const chatContext = (batch: readonly Scan[], kind: ScanKind): ChatContext => {
@@ -65,8 +65,8 @@ export const chatContext = (batch: readonly Scan[], kind: ScanKind): ChatContext
   const p = (i: number) => (photos > 1 ? { p: i + 1 } : {});
   return {
     shop: batch.find((s) => s.shopName)?.shopName ?? null, kind, photos,
-    items: batch.flatMap((s, i) => s.items.slice(0, perPhoto(MAX_ITEMS, photos)).map((it) => ({ k: itemKey(i + 1, it.id, photos), ja: it.name_ja, ko: it.name_ko, price: it.price_jpy, desc: it.desc_ko.slice(0, 60), group: it.group, ...p(i) }))),
-    notes: batch.flatMap((s, i) => s.notes.slice(0, perPhoto(MAX_NOTES, photos)).map((n) => ({ ja: n.text_ja, ko: n.text_ko, ...p(i) }))),
+    items: batch.flatMap((s, i) => s.items.slice(0, perPhoto(MAX_ITEMS, photos)).map((it) => ({ k: itemKey(i + 1, it.id, photos), src: it.name, tr: it.tr, price: it.price, desc: it.desc.slice(0, 60), group: it.group, ...p(i) }))),
+    notes: batch.flatMap((s, i) => s.notes.slice(0, perPhoto(MAX_NOTES, photos)).map((n) => ({ src: n.text, tr: n.tr, ...p(i) }))),
   };
 };
 

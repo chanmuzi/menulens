@@ -74,21 +74,21 @@ export const CardsView = ({ scan, rate, mode, onMode, onSelect, order, onQty }: 
           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6, alignSelf: 'stretch' }}>
           <button type="button" onClick={() => onSelect(it)} style={{ display: 'flex', flexDirection: 'column', gap: 4, background: 'none', border: 0, padding: 0, textAlign: 'left', cursor: 'pointer' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-              <span className="jp" style={{ fontSize: 17 }}>{it.name_ja}</span>
+              <span className="jp" style={{ fontSize: 17 }}>{it.name}</span>
               <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0 }}>
                 {(payableJpy(it) !== null || it.category !== '기타') && <span className="dot" style={{ fontSize: 15, color: 'var(--vermilion)', whiteSpace: 'nowrap' }}>{formatPrice(it)}</span>}
-                {formatKrw(payableJpy(it), rate) && <span className="muted" style={{ fontSize: 10 }}>{formatKrw(payableJpy(it), rate)}{it.price_tax_jpy !== null ? ` ${t.result.taxIncluded}` : ''}</span>}
+                {formatKrw(payableJpy(it), rate) && <span className="muted" style={{ fontSize: 10 }}>{formatKrw(payableJpy(it), rate)}{it.price_tax !== null ? ` ${t.result.taxIncluded}` : ''}</span>}
               </span>
             </div>
-            <span style={{ fontSize: 14, fontWeight: 600 }}>{it.name_ko}</span>
-            {it.desc_ko
-              ? <span style={{ fontSize: 12, color: 'var(--body)', lineHeight: 1.45 }}>{it.desc_ko}</span>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>{it.tr}</span>
+            {it.desc
+              ? <span style={{ fontSize: 12, color: 'var(--body)', lineHeight: 1.45 }}>{it.desc}</span>
               : !it.detailed && scan.status !== 'done' && <span className="muted" style={{ fontSize: 12 }}>{t.result.writingDesc}<span className="blink">▌</span></span>}
           </button>
           {scan.kind === 'menu' && it.category !== '기타' && (
             // 카드 오른쪽 아래. 태그 줄이 사라져 이 줄이 본문 바로 아래에 붙는다
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'auto' }}>
-              <QtyStepper qty={order[it.id] ?? 0} onChange={(q) => onQty(it.id, q)} label={it.name_ko} size="small" />
+              <QtyStepper qty={order[it.id] ?? 0} onChange={(q) => onQty(it.id, q)} label={it.tr} size="small" />
             </div>
           )}
           </div>

@@ -123,7 +123,7 @@ export const ChatPopup = ({ batch, scan, open, focus, onClearFocus, onOpenItem, 
           <button type="button" className="btn btn--quiet" onClick={onClose} aria-label={t.common.close} style={{ minHeight: 36, minWidth: 36, padding: '0 8px', fontSize: 16, color: 'var(--ink)' }}>✕</button>
         </div>
         {focus && (
-          <span className="chip" style={{ alignSelf: 'flex-start', gap: 6 }}>{t.chat.focusPrefix}<span className="jp">{focus.name_ja}</span>
+          <span className="chip" style={{ alignSelf: 'flex-start', gap: 6 }}>{t.chat.focusPrefix}<span className="jp">{focus.name}</span>
             <button type="button" aria-label={t.chat.clearFocus} onClick={onClearFocus} style={{ border: 0, background: 'transparent', padding: '6px 8px', margin: '-6px -8px -6px 0', cursor: 'pointer', color: 'var(--muted)', fontSize: 12, minHeight: 32 }}>✕</button>
           </span>
         )}
@@ -140,7 +140,7 @@ export const ChatPopup = ({ batch, scan, open, focus, onClearFocus, onOpenItem, 
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', fontSize: 11, color: 'var(--muted)' }}>
                   <span>{m.sawImage ? t.chat.sawPhoto(photoNo(m.sawScan)) : t.chat.textOnly}</span>
                   {refChips(m.refs).map((r) => (
-                    <button key={r.key} type="button" className="chip chip--accent" onClick={() => onOpenItem(r.scanId, r.item)} style={{ cursor: 'pointer', minHeight: 28, padding: '2px 8px' }}>{r.item.name_ko}{photos > 1 && r.photo !== currentPhoto ? ` · ${t.chat.photoN(r.photo)}` : ''} ›</button>
+                    <button key={r.key} type="button" className="chip chip--accent" onClick={() => onOpenItem(r.scanId, r.item)} style={{ cursor: 'pointer', minHeight: 28, padding: '2px 8px' }}>{r.item.tr}{photos > 1 && r.photo !== currentPhoto ? ` · ${t.chat.photoN(r.photo)}` : ''} ›</button>
                   ))}
                 </div>
               )}

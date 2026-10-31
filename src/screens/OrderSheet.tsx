@@ -53,13 +53,13 @@ export const OrderSheet = ({ lines, rate, photos, onQty, onClear, onClose }: Pro
           {lines.map(({ scanId, photo, item, qty }) => (
             <li key={`${scanId}/${item.id}`} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name_ko}</div>
+                <div style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.tr}</div>
                 <div className="jp muted" style={{ fontSize: 12, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name_ja} · {formatPrice(item)}</span>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name} · {formatPrice(item)}</span>
                   {photos > 1 && <span className="dot" style={{ flexShrink: 0, fontSize: 10, padding: '0 4px', lineHeight: '16px', background: 'var(--ink)', color: 'var(--paper)' }}>{t.order.photoN(photo)}</span>}
                 </div>
               </div>
-              <QtyStepper qty={qty} onChange={(q) => onQty(scanId, item.id, q)} label={item.name_ko} size="small" />
+              <QtyStepper qty={qty} onChange={(q) => onQty(scanId, item.id, q)} label={item.tr} size="small" />
             </li>
           ))}
         </ul>

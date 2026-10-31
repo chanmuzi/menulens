@@ -20,7 +20,7 @@ export const getGeneratedIcon = (nameJa: string): readonly string[] | null => st
 
 /** 실패한 이름은 세션 동안 다시 묻지 않는다 */
 const failed = new Set<string>();
-const pending = new Map<string, { name_ko: string; hint: string }>();
+const pending = new Map<string, { tr: string; hint: string }>();
 let timer: number | null = null;
 
 const flush = async () => {
@@ -29,7 +29,7 @@ const flush = async () => {
   batch.forEach(([k]) => pending.delete(k));
   if (batch.length === 0) return;
   try {
-    const res = await fetchIcons(batch.map(([name_ja, v]) => ({ name_ja, name_ko: v.name_ko, hint: v.hint })));
+    const res = await fetchIcons(batch.map(([name, v]) => ({ name, tr: v.tr, hint: v.hint })));
     const next: Store = { ...store };
     for (const [name, grid] of Object.entries(res.icons)) if (isGrid(grid)) next[name] = grid;
     for (const name of res.failed) failed.add(name);
@@ -43,7 +43,7 @@ const flush = async () => {
 
 export const requestIcon = (nameJa: string, nameKo: string, hint = ''): void => {
   if (store[nameJa] || failed.has(nameJa) || pending.has(nameJa)) return;
-  pending.set(nameJa, { name_ko: nameKo, hint });
+  pending.set(nameJa, { tr: nameKo, hint });
   if (timer === null) timer = window.setTimeout(() => void flush(), 300);
 };
 

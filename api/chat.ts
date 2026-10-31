@@ -23,8 +23,9 @@ const MAX_QUESTION = 300;
 /** 사진 base64 상한(≈2.2MB). 클라이언트는 1280px JPEG 라 보통 수백 KB */
 const MAX_IMAGE_B64 = 3_000_000;
 
-type Item = { k: string; ja: string; ko: string; price: number | null; desc: string; group: string | null; p?: number };
-type Note = { ja: string; ko: string; p?: number };
+/** 항목·글줄: src 는 원문, tr 은 번역(클라이언트 src/lib/chat.ts 의 ChatContext 와 같은 키) */
+type Item = { k: string; src: string; tr: string; price: number | null; desc: string; group: string | null; p?: number };
+type Note = { src: string; tr: string; p?: number };
 type Turn = { role: 'me' | 'bot'; text: string };
 type Body = { shop?: string | null; kind?: string; photos?: number; items?: Item[]; notes?: Note[]; focus?: string | null; question?: string; history?: Turn[]; image?: { data: string; mediaType: string } | null; imagePhoto?: number | null };
 
@@ -50,10 +51,10 @@ const sanitize = (b: Body) => {
   kind: toKind(b.kind),
   photos,
   items: capPerPhoto((Array.isArray(b.items) ? b.items : []).map((it) => ({
-    k: str(it?.k, 12), ja: str(it?.ja, 60), ko: str(it?.ko, 60), price: typeof it?.price === 'number' ? it.price : null, desc: str(it?.desc, 60), group: str(it?.group, 12) || null,
+    k: str(it?.k, 12), src: str(it?.src, 60), tr: str(it?.tr, 60), price: typeof it?.price === 'number' ? it.price : null, desc: str(it?.desc, 60), group: str(it?.group, 12) || null,
     ...(photoNo(it?.p) !== null ? { p: photoNo(it?.p)! } : {}),
-  })).filter((it) => it.k && it.ja), MAX_ITEMS, photos),
-  notes: capPerPhoto((Array.isArray(b.notes) ? b.notes : []).map((n) => ({ ja: str(n?.ja, 300), ko: str(n?.ko, 300), ...(photoNo(n?.p) !== null ? { p: photoNo(n?.p)! } : {}) })).filter((n) => n.ja), MAX_NOTES, photos),
+  })).filter((it) => it.k && it.src), MAX_ITEMS, photos),
+  notes: capPerPhoto((Array.isArray(b.notes) ? b.notes : []).map((n) => ({ src: str(n?.src, 300), tr: str(n?.tr, 300), ...(photoNo(n?.p) !== null ? { p: photoNo(n?.p)! } : {}) })).filter((n) => n.src), MAX_NOTES, photos),
   focus: str(b.focus, 12) || null,
   question: str(b.question, MAX_QUESTION),
   history: dropLeadingBot((Array.isArray(b.history) ? b.history : []).slice(-MAX_HISTORY).map((t): { role: 'me' | 'bot'; text: string } => ({ role: t?.role === 'me' ? 'me' : 'bot', text: str(t?.text, 400) })).filter((t) => t.text)),

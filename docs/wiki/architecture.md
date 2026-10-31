@@ -10,10 +10,10 @@
    - `mode` — `ocr`(단어 ≥3) 또는 `image`(폴백: 이미지를 직접 보는 프롬프트), `chunks` 수
    - `kind` — 1단계 출력의 첫 키 `"kind"` 가 스트림에 보이는 즉시(항목보다 먼저, 한 번만). 처리 중 화면이 메뉴판/안내문에 맞는 문구로 바뀐다. 추가 호출 없음
    - `item` — 1단계 LLM 항목이 완성될 때마다 `{key:"묶음:순번", item}`. 단어 60개 초과면 읽기 순서로 최대 4묶음을 **병렬** 호출(`api/_lib/chunk.ts`), 파싱은 서버(`api/_lib/itemStream.ts`)
-   - `note` — 1단계 문구(안내문은 문단 `{role, lines, text_ja, text_ko}`)가 완성될 때마다. 안내문은 첫 문단에서 결과 화면을 열어 덮개가 차례로 뜬다(최종본은 `meta.notes`)
+   - `note` — 1단계 문구(안내문은 문단 `{role, lines, text, tr}`)가 완성될 때마다. 안내문은 첫 문단에서 결과 화면을 열어 덮개가 차례로 뜬다(최종본은 `meta.notes`)
    - `meta` — 모든 묶음 완료 후 `kind`(menu/sign/other)·`shop_name`·`title`(「이모지 제목」, 기록 목록용 자동 제목)·`notes`(비메뉴 문구)
-   - `details` — 2단계 LLM: 10개씩 병렬로 `pron_ko/desc_ko/tags/photo_query`. Redis 캐시 적중분은 `cached:true` 로 먼저 온다
-   - `summary` — 안내문·기타일 때 `meta` 뒤 한 번: 문단을 텍스트로 넘겨 `SUMMARY_SYSTEM` 으로 `{summary_ko(사진에 적힌 것만), tips_ko(일반 상식 0~2)}`. 실패하면 생략
+   - `details` — 2단계 LLM: 10개씩 병렬로 `pron/desc/tags/photo_query`. Redis 캐시 적중분은 `cached:true` 로 먼저 온다
+   - `summary` — 안내문·기타일 때 `meta` 뒤 한 번: 문단을 텍스트로 넘겨 `SUMMARY_SYSTEM` 으로 `{summary(사진에 적힌 것만), tips(일반 상식 0~2)}`. 실패하면 생략
    - `groups` — 메뉴판이고 항목 8개 이상일 때만, 2단계와 **병렬**로 한 번 더 LLM 호출(텍스트만, `GROUPS_SYSTEM`): 1단계가 항목마다 붙인 임시 `group` 을 메뉴판 전체 기준 4~8개 `{name, keys}` 로 합친다. 실패·소수 항목이면 안 보내고 클라이언트가 항목 group/category 로 묶는다(`src/lib/groups.ts`). 목록 표시 시간은 변하지 않고 정리는 목록 후 ≈2s
    - `done` / `error`
 3. **클라이언트** `src/App.tsx` — 촬영·앨범 여러 장은 모음 화면(`ConfirmBatchScreen`, 더 찍기·순서)을 거친다. 촬영은 모음 화면에 있는 동안 첫 장을 미리 읽기 시작하고(`prewarm`), 「N장 분석하기」가 그 스캔을 이어받는다(`startScans` 가 batch 에 있는 스캔을 재사용, 빠진 것은 중단). 스캔마다 `AbortController` 를 따로 두어 결과 화면에서 사진을 더 붙여도(`addScans`) 나머지는 계속 돈다. 사진 묶음(`batch: Scan[]`, 한 장이면 하나)을 들고 `currentId` 의 스캔을 보여준다. 여러 장은 `runLimited`(`src/lib/batch.ts`, 동시 3)로 사진마다 `/api/analyze` 스트림을 따로 연다. `kind` 로 `scan.kind`·`kindKnown` 을 먼저 채우고, 항목을 읽기 순서로 끼워 넣고(`insertItem`), `meta` 가 오면 결과 화면으로 전환(`detailing`), `details` 로 카드를 채우고 `groups` 로 카드 묶음을 바꾼다. 완료 스캔은 IndexedDB(`src/lib/db.ts`, 목록 `scans` + 사진 `images` 두 저장소, 사진은 결과 화면을 열 때만 읽음)에 건수 제한 없이 저장하고(목록 레코드에는 168px 썸네일 `thumb`·자동 제목 `autoTitle`·고친 이름 `userTitle` 이 함께 들고, 옛 기록 썸네일은 앱을 열 때 `backfillThumbs` 가 채운다. 제목 규칙은 `src/lib/history.ts`), 홈에는 최근 5건·전체는 `HistoryScreen` 에서 본다. IndexedDB 를 못 쓰는 환경만 localStorage 5건 폴백.
@@ -24,7 +24,7 @@
 5-1. **클라이언트 대화 통역** (`src/screens/TalkScreen.tsx`) — 말하기는 `recorder.ts`(MediaRecorder: iPhone audio/mp4, Chrome audio/webm, AnalyserNode 로 소리 크기를 재 말이 끝나고 1.3s 조용하면 끝, 말소리 0.3s 미만이면 보내지 않음) → `/api/stt` → 마디 추가 → `/api/talk` translate 의 `field` 를 받는 대로 `applyFields`(lang 이 ja 면 상대 말로). 마디가 끝날 때마다 `talkStore`(IndexedDB `menulens-talk`, 스캔 DB 와 별개, 실패 시 localStorage 20건)에 저장. 결정은 [[decisions-talk]].
 6. **`POST /api/talk`** (`api/talk.ts`, 프롬프트 `api/_lib/talkPrompt.ts`, 호출 `api/_lib/claude.ts`) — 대화 통역의 글자 쪽. `mode:'translate'` 는 NDJSON `field{k,v}`(값이 닫힌 문자열 필드부터: `lang` → 번역문 `ja`/`ko` → `fixed`(오인식 고친 원문) → `pron`·`kana`·`en`) 뒤 `done{result,via}`, `mode:'ask'`(도우미)는 `delta`/`done`, `mode:'title'` 은 `{title}`. Claude 는 Timely 가 기본이고 402·429·한도 문구면 같은 요청을 Anthropic 직접 키로 한 번 더(`via` 로 구분).
 
-모델은 `api/_lib/prompt.ts` 의 `MODEL`(현재 `claude-sonnet-5-5`, Timely Router `/v1/messages`). 프롬프트 5종(`api/_lib/prompt.ts`): `STAGE1_SYSTEM`(짧은 구조화, 끝에 기록용 `emoji`·`title_ko`), `STAGE2_SYSTEM`(설명), `GROUPS_SYSTEM`(카드 묶음 정리), `SUMMARY_SYSTEM`(안내문 요약), `IMAGE_SYSTEM`(폴백). 챗은 `api/_lib/chatPrompt.ts` 의 `chatSystem(kind)`, 아이콘 생성은 `api/icon.ts`.
+모델은 `api/_lib/prompt.ts` 의 `MODEL`(현재 `claude-sonnet-5-5`, Timely Router `/v1/messages`). 프롬프트 5종(`api/_lib/prompt.ts`): `STAGE1_SYSTEM`(짧은 구조화, 끝에 기록용 `emoji`·`title`), `STAGE2_SYSTEM`(설명), `GROUPS_SYSTEM`(카드 묶음 정리), `SUMMARY_SYSTEM`(안내문 요약), `IMAGE_SYSTEM`(폴백). 챗은 `api/_lib/chatPrompt.ts` 의 `chatSystem(kind)`, 아이콘 생성은 `api/icon.ts`.
 
 ## 파일 지도
 
@@ -42,7 +42,7 @@ src/
                 TalkBubble(말풍선 세 줄) ShowBig(크게 보여주기) TalkRow(대화 기록 줄)
                 ConfirmDialog(지우기 확인) RenameDialog(이름 고치기) ChatFab OrderBar QtyStepper CropBox InstallHint PixelIcon Segmented ProgressBlocks ItemImage TopBar
   lib/          image api scan(정규화·unionBox·applyDetails) coverLayout(덮개/번호 판정·글자 맞춤) sample(덮개 배경·글자색) icons(키워드 우선) iconStore pixel kind(종류별 문구)
-                history(기록 묶음·제목 규칙) when(날짜·요일·12시간제) storage(저장 큐·이름 고치기·썸네일 채우기·홈 탭·대화 화면 설정) db(IndexedDB) thumb(168px 썸네일) batch(runLimited)
+                upgrade(빈 스캔 기본값·옛 기록 변환: 2026-10-31 필드 중립화 이전 키 name_ja 등을 name/tr 로) history(기록 묶음·제목 규칙) when(날짜·요일·12시간제) storage(저장 큐·이름 고치기·썸네일 채우기·홈 탭·대화 화면 설정) db(IndexedDB) thumb(168px 썸네일) batch(runLimited)
                 groups chat order(묶음 전체 수량 BatchOrder·주문 문구) money crop clipboard drop platform photos savePhoto(묶음 전부 공유) version
                 talk(마디·말풍선 언어·제목·「말해 볼 문장」) talkApi(/api/stt·/api/talk) talkStore(IndexedDB menulens-talk) ndjson(스트림 줄 읽기: chat·talkApi 공용) recorder(녹음·소리 크기·무음 거르기)
   styles/       global.css(토큰·픽셀 프레임·애니메이션) pixel-icons.css(생성: scripts/px_icons.py)

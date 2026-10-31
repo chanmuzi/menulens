@@ -47,7 +47,7 @@ type Event =
   | { t: 'kind'; kind: string }
   | { t: 'item'; key: string; item: unknown }
   | { t: 'note'; key: string; note: unknown }
-  | { t: 'summary'; summary_ko?: unknown; tips_ko?: unknown }
+  | { t: 'summary'; summary?: unknown; tips?: unknown }
   | ({ t: 'meta' } & MetaEvent)
   | { t: 'details'; items: unknown[] }
   | { t: 'groups'; groups: ScanGroup[] }
@@ -78,8 +78,8 @@ export const analyzeImage = async (base64: string, mediaType: string, h: Analyze
       case 'item': h.onItem(ev.key, ev.item); break;
       case 'note': h.onNote(ev.key, ev.note); break;
       case 'summary': {
-        const text = typeof ev.summary_ko === 'string' ? ev.summary_ko.trim() : '';
-        const tips = Array.isArray(ev.tips_ko) ? ev.tips_ko.filter((t): t is string => typeof t === 'string') : [];
+        const text = typeof ev.summary === 'string' ? ev.summary.trim() : '';
+        const tips = Array.isArray(ev.tips) ? ev.tips.filter((t): t is string => typeof t === 'string') : [];
         if (text) h.onSummary({ text, tips });
         break;
       }
@@ -114,7 +114,7 @@ export const fetchPhoto = async (query: string): Promise<Photo> => {
 };
 
 /** 매칭 안 된 메뉴의 도트 아이콘 생성 요청 (서버 캐시 적중이면 즉시) */
-export const fetchIcons = async (items: ReadonlyArray<{ name_ja: string; name_ko: string; hint?: string }>): Promise<{ icons: Record<string, readonly string[]>; failed: readonly string[] }> => {
+export const fetchIcons = async (items: ReadonlyArray<{ name: string; tr: string; hint?: string }>): Promise<{ icons: Record<string, readonly string[]>; failed: readonly string[] }> => {
   const res = await fetch('/api/icon', { method: 'POST', headers: headers(), body: JSON.stringify({ items }) });
   if (!res.ok) throw new Error(`icon ${res.status}`);
   const data = (await res.json()) as { icons?: Record<string, readonly string[]>; failed?: readonly string[] };
