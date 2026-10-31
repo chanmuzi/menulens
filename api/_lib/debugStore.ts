@@ -12,6 +12,8 @@ const MAX_IMAGE_CHARS = 900_000; // base64 기준 ≈ 650KB
 
 export type DebugRecord = {
   readonly at: string;
+  /** 번역 방향(2026-10-31 이후). 없으면 일→한 */
+  readonly lang?: { readonly src: string; readonly dst: string };
   readonly mode: 'ocr' | 'image';
   readonly width: number;
   readonly height: number;

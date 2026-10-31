@@ -7,7 +7,7 @@ import { OverlayView } from './OverlayView';
 import { CardsView } from './CardsView';
 import { ItemSheet } from './ItemSheet';
 import { formatRateLine } from '../lib/money';
-import { batchLines, clearedBatchOrder, loadBatchOrder, saveBatchOrder, withBatchQty, type BatchOrder } from '../lib/order';
+import { batchLines, canOrderScan, clearedBatchOrder, loadBatchOrder, saveBatchOrder, type BatchOrder, withBatchQty } from '../lib/order';
 import { OrderBar } from '../components/OrderBar';
 import { OrderSheet } from './OrderSheet';
 import { DotGlyph } from '../components/DotGlyph';
@@ -65,6 +65,8 @@ export const ResultScreen = ({ scan, batch, view, onView, showMarks, onShowMarks
   const currentOrder = order[scan.id] ?? {};
   const lines = batchLines(batch, order);
   const hasMenu = batch.some((s) => s.kind === 'menu');
+  /** 주문 UI 를 보일지(order.ts 의 주문서 기준과 같다) */
+  const canOrder = canOrderScan(scan);
   const streaming = scan.status === 'streaming' || scan.status === 'reading';
   const detailing = scan.status === 'detailing';
   const counts: Record<string, number> = {};
@@ -104,7 +106,7 @@ export const ResultScreen = ({ scan, batch, view, onView, showMarks, onShowMarks
           </button>
           {/* 안내문·기타는 「N줄 번역 · 일본어만」 같은 부제를 두지 않는다(불필요하다는 피드백) */}
           {(isMenu || streaming || detailing) && <div className="muted small">
-            {isMenu && <>{t.result.itemCount(scan.items.length)}{summary && ` · ${summary}`}{formatRateLine(rate) && ` · ${formatRateLine(rate)}`}</>}
+            {isMenu && <>{t.result.itemCount(scan.items.length)}{summary && ` · ${summary}`}{formatRateLine(rate, scan.currency) && ` · ${formatRateLine(rate, scan.currency)}`}</>}
             {streaming && <span className="blink">{isMenu ? ' ' : ''}▌</span>}
             {detailing && <span>{isMenu ? ` · ${t.result.writingDesc}` : t.result.writingNotice}<span className="blink">▌</span></span>}
           </div>}
@@ -118,7 +120,7 @@ export const ResultScreen = ({ scan, batch, view, onView, showMarks, onShowMarks
 
       {overlayShown
         ? <OverlayView key={scan.id} scan={scan} selectedId={selectedItem?.id ?? null} onSelect={select} selectedNote={selectedNote} onNote={toggleNote} rate={rate} showMarks={showMarks} />
-        : <CardsView key={scan.id} scan={scan} rate={rate} mode={mode} onMode={onMode} onSelect={select} order={currentOrder} onQty={setQty} />}
+        : <CardsView key={scan.id} scan={scan} rate={rate} mode={mode} onMode={onMode} onSelect={select} order={currentOrder} onQty={canOrder ? setQty : undefined} />}
 
       {/* 아래 여백: 주문서 바(실측) + 말풍선 버튼 자리. 마지막 카드의 스테퍼가 버튼에 가려지지 않게 */}
       <div aria-hidden="true" style={{ height: fabBottom(barHeight) + FAB_SIZE + 16 }} />
@@ -126,7 +128,7 @@ export const ResultScreen = ({ scan, batch, view, onView, showMarks, onShowMarks
       {orderOpen && <OrderSheet lines={lines} rate={rate} photos={batch.length} onQty={setQtyOf} onClear={() => { setOrder(clearedBatchOrder); setOrderOpen(false); }} onClose={() => setOrderOpen(false)} />}
       {!orderOpen && !selectedItem && !chatOpen && <ChatFab title={chatTitle(scan.kind)} buttonRef={fabRef} unread={unread} barHeight={barHeight} onClick={openChat} />}
       {chatMounted && <ChatPopup batch={batch} scan={scan} open={chatOpen} focus={chatFocus} onClearFocus={() => setChatFocus(null)} onOpenItem={jumpTo} onClose={closeChat} onAnswered={() => { if (!chatOpenRef.current) setUnread((n) => n + 1); }} />}
-      {selectedItem && <ItemSheet item={selectedItem} rate={rate} mode={mode} onClose={() => setSelected(null)} qty={isMenu ? (currentOrder[selectedItem.id] ?? 0) : null} onQty={(q) => setQty(selectedItem.id, q)} pending={scan.status !== 'done' && scan.status !== 'error'} onAsk={openChat} />}
+      {selectedItem && <ItemSheet item={selectedItem} rate={rate} currency={scan.currency} srcLang={scan.lang.src} mode={mode} onClose={() => setSelected(null)} qty={isMenu && canOrder ? (currentOrder[selectedItem.id] ?? 0) : null} onQty={(q) => setQty(selectedItem.id, q)} pending={scan.status !== 'done' && scan.status !== 'error'} onAsk={openChat} />}
     </div>
   );
 };

@@ -1,6 +1,6 @@
 /** 주문 수량과 주문 문구. 메뉴판(kind=menu)에서만 쓴다. 수량은 사진(스캔)별로 localStorage 에 두고(작은 값), 화면에서는 묶음 전체를 합쳐 하나의 주문서로 본다. */
-import type { MenuItem, Rate, Scan } from '../types';
-import { payableJpy } from './money';
+import type { Currency, MenuItem, Scan } from '../types';
+import { payable } from './money';
 import { dict } from '../i18n';
 
 /** 사진 한 장의 수량: 항목 id → 수량. 항목 id(「묶음:순번」)는 사진마다 겹치므로 사진 밖에서는 BatchOrder 로 다룬다 */
@@ -8,7 +8,7 @@ export type Order = Readonly<Record<string, number>>;
 /** 묶음 전체의 수량: 사진(스캔) id → Order. 1번 사진에서 담은 것과 2번 사진에서 담은 것이 한 주문서가 된다 */
 export type BatchOrder = Readonly<Record<string, Order>>;
 /** 주문서 한 줄. photo 는 묶음 안 사진 번호(1부터, 띠의 번호와 같다) */
-export type OrderLine = { readonly scanId: string; readonly photo: number; readonly item: MenuItem; readonly qty: number };
+export type OrderLine = { readonly scanId: string; readonly photo: number; readonly item: MenuItem; readonly qty: number; readonly currency: Currency };
 
 const KEY = (scanId: string) => `menulens.order.${scanId}`;
 
@@ -35,21 +35,25 @@ export const withBatchQty = (bo: BatchOrder, scanId: string, itemId: string, qty
 /** 전부 비우기. 키는 남겨 두어 저장 시 각 사진의 저장 값도 지워지게 한다 */
 export const clearedBatchOrder = (bo: BatchOrder): BatchOrder => Object.fromEntries(Object.keys(bo).map((id) => [id, {}]));
 
-/** 묶음 전체의 주문서 줄: 사진 순서대로, 사진 안에서는 메뉴 순서대로. 메뉴판이 아닌 사진은 건너뛴다 */
+/** 주문할 수 있는 사진: 메뉴판이고, 주문 문구가 아직 일본어 전용이라 일본어 원문일 때(한국어 주문서는 후속 PR). 화면과 주문서가 같은 기준을 쓴다 */
+export const canOrderScan = (scan: Pick<Scan, 'kind' | 'lang'>): boolean => scan.kind === 'menu' && scan.lang.src === 'ja';
+
+/** 묶음 전체의 주문서 줄: 사진 순서대로, 사진 안에서는 메뉴 순서대로. 주문할 수 없는 사진은 건너뛴다 */
 export const batchLines = (batch: readonly Scan[], bo: BatchOrder): readonly OrderLine[] =>
   batch.flatMap((scan, i) => {
-    if (scan.kind !== 'menu') return [];
+    if (!canOrderScan(scan)) return [];
     const order = bo[scan.id] ?? {};
-    return scan.items.flatMap((item) => (order[item.id] ? [{ scanId: scan.id, photo: i + 1, item, qty: order[item.id]! }] : []));
+    return scan.items.flatMap((item) => (order[item.id] ? [{ scanId: scan.id, photo: i + 1, item, qty: order[item.id]!, currency: scan.currency }] : []));
   });
 
 export const totalCount = (lines: readonly OrderLine[]): number => lines.reduce((n, l) => n + l.qty, 0);
 /** 가격 미표기 항목은 합계에서 뺀다. 그런 항목이 있으면 두 번째 값이 true */
-export const totalJpy = (lines: readonly OrderLine[]): readonly [number, boolean] => [
-  lines.reduce((n, l) => n + (payableJpy(l.item) ?? 0) * l.qty, 0),
-  lines.some((l) => payableJpy(l.item) === null),
+export const total = (lines: readonly OrderLine[]): readonly [number, boolean] => [
+  lines.reduce((n, l) => n + (payable(l.item) ?? 0) * l.qty, 0),
+  lines.some((l) => payable(l.item) === null),
 ];
-export const totalKrw = (jpy: number, rate: Rate | null): number | null => (rate ? Math.round(jpy * rate.krwPerJpy) : null);
+/** 주문서의 통화: 묶음은 같은 나라 사진이므로 첫 줄의 것. 비어 있으면 엔화 */
+export const linesCurrency = (lines: readonly OrderLine[]): Currency => lines[0]?.currency ?? 'JPY';
 
 /** 일본어 개수 세기(ひとつ…とお), 11 이상은 N個 */
 const COUNT_JA = ['', 'ひとつ', 'ふたつ', 'みっつ', 'よっつ', 'いつつ', 'むっつ', 'ななつ', 'やっつ', 'ここのつ', 'とお'];

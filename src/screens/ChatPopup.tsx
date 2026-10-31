@@ -123,7 +123,7 @@ export const ChatPopup = ({ batch, scan, open, focus, onClearFocus, onOpenItem, 
           <button type="button" className="btn btn--quiet" onClick={onClose} aria-label={t.common.close} style={{ minHeight: 36, minWidth: 36, padding: '0 8px', fontSize: 16, color: 'var(--ink)' }}>✕</button>
         </div>
         {focus && (
-          <span className="chip" style={{ alignSelf: 'flex-start', gap: 6 }}>{t.chat.focusPrefix}<span className="jp">{focus.name}</span>
+          <span className="chip" style={{ alignSelf: 'flex-start', gap: 6 }}>{t.chat.focusPrefix}<span lang={scan.lang.src} className={scan.lang.src === 'ja' ? 'jp' : undefined}>{focus.name}</span>
             <button type="button" aria-label={t.chat.clearFocus} onClick={onClearFocus} style={{ border: 0, background: 'transparent', padding: '6px 8px', margin: '-6px -8px -6px 0', cursor: 'pointer', color: 'var(--muted)', fontSize: 12, minHeight: 32 }}>✕</button>
           </span>
         )}

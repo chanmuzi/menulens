@@ -4,9 +4,9 @@
  * 덮개와 번역문 줄은 같은 선택을 공유한다: 한쪽을 누르면 다른 쪽이 강조되고, 다시 누르면 해제된다.
  */
 import { useEffect, useRef, useState } from 'react';
-import type { Rate, Scan } from '../types';
+import type { Currency, Rate, Scan } from '../types';
 import { Segmented } from '../components/Segmented';
-import { formatKrw, splitYen } from '../lib/money';
+import { formatConverted, splitMoney } from '../lib/money';
 import { useT } from '../i18n';
 
 type Tab = 'sum' | 'ko' | 'ja';
@@ -19,11 +19,11 @@ type Props = {
   readonly badges: ReadonlyMap<number, number>;
 };
 
-/** 요약 속 엔화 옆에 원화 환산을 흐리게 붙인다(모델이 아니라 앱 환율로) */
-const WithKrw = ({ text, rate }: { text: string; rate: Rate | null }) => (
-  <>{splitYen(text).map((p, i) => {
-    const krw = p.jpy === null ? null : formatKrw(p.jpy, rate);
-    return <span key={i}>{p.text}{krw && <span className="muted small"> ({krw})</span>}</span>;
+/** 요약 속 금액 옆에 다른 통화 환산을 흐리게 붙인다(모델이 아니라 앱 환율로) */
+const WithConverted = ({ text, currency, rate }: { text: string; currency: Currency; rate: Rate | null }) => (
+  <>{splitMoney(text, currency).map((p, i) => {
+    const conv = p.amount === null ? null : formatConverted(p.amount, currency, rate);
+    return <span key={i}>{p.text}{conv && <span className="muted small"> ({conv})</span>}</span>;
   })}</>
 );
 
@@ -57,7 +57,7 @@ export const NoticePanel = ({ scan, rate, selected, onSelect, badges }: Props) =
       <div ref={listRef} style={{ position: 'relative', padding: '12px 14px', maxHeight: '46vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10, fontSize: 15, lineHeight: 1.65 }}>
         {current === 'sum' && (scan.summary
           ? <>
-              <p style={{ margin: 0 }}><WithKrw text={scan.summary.text} rate={rate} /></p>
+              <p style={{ margin: 0 }}><WithConverted text={scan.summary.text} currency={scan.currency} rate={rate} /></p>
               {scan.summary.tips.length > 0 && (
                 <div style={{ border: '2px dashed var(--muted)', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <div className="dot small" style={{ color: 'var(--muted)' }}>{t.result.tipsHeading}</div>
@@ -82,7 +82,7 @@ export const NoticePanel = ({ scan, rate, selected, onSelect, badges }: Props) =
           );
         })}
         {current === 'ja' && <>
-          <p lang="ja" style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'var(--font-jp)', fontSize: 15 }}>{allJa}</p>
+          <p lang={scan.lang.src} style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: scan.lang.src === 'ja' ? 'var(--font-jp)' : undefined, fontSize: 15 }}>{allJa}</p>
           <button type="button" className="btn" onClick={() => void copy()} style={{ alignSelf: 'flex-start', minHeight: 36 }}>{copied ? t.common.copied : t.result.copyOriginal}</button>
         </>}
       </div>
