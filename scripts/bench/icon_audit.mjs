@@ -17,9 +17,9 @@ const seen = new Map();
 for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.json')).sort()) {
   const d = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
   for (const it of d.items ?? []) {
-    if (seen.has(it.name_ja)) continue;
-    seen.set(it.name_ja, [f.slice(0, 13), it.category, it.icon, resolveIcon(it.name_ja, it.icon, it.category), it.name_ja, it.name_ko]);
+    if (seen.has(it.name)) continue;
+    seen.set(it.name, [f.slice(0, 13), it.category, it.icon, resolveIcon(it.name, it.icon, it.category), it.name, it.tr]);
   }
 }
-console.log(['scan', 'category', 'model', 'icon', 'name_ja', 'name_ko'].join('\t'));
+console.log(['scan', 'category', 'model', 'icon', 'name', 'tr'].join('\t'));
 for (const r of seen.values()) console.log(r.join('\t'));
