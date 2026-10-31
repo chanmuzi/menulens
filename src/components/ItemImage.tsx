@@ -25,21 +25,21 @@ export const ItemImage = ({ item, mode, size }: Props) => {
   const t = useT();
   const photo = usePhoto(item.photo_query, mode === 'photo');
   // 매칭 안 된 메뉴는 자리표시(로고)를 보여주고 생성 아이콘이 오면 바꾼다
-  const generated = useGeneratedIcon(item.name_ja, item.name_ko, item.icon === PLACEHOLDER_ICON);
+  const generated = useGeneratedIcon(item.name, item.tr, item.icon === PLACEHOLDER_ICON);
   const box = { width: size, height: size, background: 'var(--paper-dark)', border: '2px solid var(--ink)', flexShrink: 0, position: 'relative' as const, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' };
   const px = Math.max(2, Math.floor((size - 16) / 16));
 
   if (mode === 'photo' && photo?.url) {
     return (
       <div style={box}>
-        <img src={photo.url} alt={item.name_ko} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <img src={photo.url} alt={item.tr} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       </div>
     );
   }
   const caption = mode === 'photo' ? (photo === null ? t.result.photoSearching : t.result.photoNone) : null;
   return (
     <div style={box}>
-      <PixelIcon icon={item.icon} grid={generated} size={px} label={item.name_ko} />
+      <PixelIcon icon={item.icon} grid={generated} size={px} label={item.tr} />
       {caption && <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, background: 'var(--ink)', color: 'var(--paper)', fontSize: 9, textAlign: 'center', padding: '2px 0' }}>{caption}</div>}
     </div>
   );

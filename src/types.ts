@@ -13,22 +13,29 @@ export type OcrWord = { readonly id: number; readonly t: string; readonly box: B
 
 export type ScanKind = 'menu' | 'sign' | 'other';
 
+/** 사진 원문 언어(src)와 번역 대상 언어(dst). 2026-10-31 이전 기록에는 없고 일→한으로 본다 */
+export type ScanLang = { readonly src: 'ja' | 'ko'; readonly dst: 'ko' | 'ja' };
+export type Currency = 'JPY' | 'KRW';
+
 export type MenuItem = {
   readonly id: string;
-  readonly name_ja: string;
-  readonly name_ko: string;
-  readonly price_jpy: number | null;
+  /** 사진에 적힌 원문 이름 */
+  readonly name: string;
+  /** 번역한 짧은 이름(앱 언어) */
+  readonly tr: string;
+  /** 가격(통화는 Scan.currency). 없으면 null */
+  readonly price: number | null;
   /** 괄호 안 세금 포함 가격 (¥380(¥418) 의 418). 없으면 null. 실제 지불액은 payableJpy() */
-  readonly price_tax_jpy: number | null;
+  readonly price_tax: number | null;
   readonly category: Category;
   /** 메뉴판 섹션(모델이 원문 제목을 옮기거나 즉석에서 지은 짧은 한국어). 없으면 null → 카드 뷰는 category 로 묶는다 */
   readonly group: string | null;
   readonly icon: string;
   /** OCR 단어 상자의 합집합(정확) 또는 모델 추정(폴백). 없으면 null */
   readonly bbox: Box | null;
-  /** 2단계에서 채워지는 상세. 도착 전에는 빈 문자열/빈 배열 */
-  readonly pron_ko: string;
-  readonly desc_ko: string;
+  /** 2단계에서 채워지는 상세. 도착 전에는 빈 문자열/빈 배열. pron 은 원문의 발음을 앱 언어 글자로 적은 것 */
+  readonly pron: string;
+  readonly desc: string;
   readonly tags: readonly string[];
   readonly photo_query: string;
   readonly detailed: boolean;
@@ -44,7 +51,8 @@ export type NoteRole = 'title' | 'body' | 'label';
  * 메뉴 항목이 아닌 문구 (제목, 안내문). 안내문은 문단 하나가 Note 하나다.
  * lines 는 문단을 이루는 줄 상자(원문을 줄마다 지운다). 2026-10-23 이전 기록·메뉴판 문구·이미지 폴백에는 없고 bbox 하나뿐이다.
  */
-export type Note = { readonly text_ja: string; readonly text_ko: string; readonly bbox: Box | null; readonly lines?: readonly Box[]; readonly role?: NoteRole };
+/** text 는 원문, tr 은 번역(앱 언어) */
+export type Note = { readonly text: string; readonly tr: string; readonly bbox: Box | null; readonly lines?: readonly Box[]; readonly role?: NoteRole };
 
 /** 안내문 요약: 사진에 적힌 내용(text)과 사진에 없는 일반 상식(tips)을 나눠 둔다 */
 export type NoticeSummary = { readonly text: string; readonly tips: readonly string[] };
@@ -62,6 +70,9 @@ export type Scan = {
   readonly kind: ScanKind;
   /** 종류가 판정됐는지. 처리 중 화면은 판정 전까지 메뉴판·안내문 어느 쪽도 전제하지 않는 문구를 쓴다 */
   readonly kindKnown: boolean;
+  /** 원문·번역 언어와 가격 통화. 지금은 일→한·JPY 고정, 역방향 PR 에서 서버가 채운다 */
+  readonly lang: ScanLang;
+  readonly currency: Currency;
   readonly shopName: string | null;
   /** 기록 목록용 자동 제목(「🍢 야키토리 메뉴판」, 1단계 응답에 함께 온다). 2026-10-23 이전 기록에는 없다 → history.ts 가 옛 규칙으로 짓는다 */
   readonly autoTitle?: string | null;

@@ -52,7 +52,7 @@ export const ProcessingScreen = ({ scan, batch, onSwitch, onAdd, onCancel, onPee
               <div style={{ position: 'absolute', left: 14, right: 14, bottom: 14, display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-end' }}>
                 {recent.map((it) => (
                   <div key={it.id} className="pop" style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--paper-2)', border: '2px solid var(--ink)', padding: '4px 8px', fontSize: 12, fontWeight: 600 }}>
-                    <span className="dot" style={{ color: 'var(--vermilion)' }}>✓</span>{it.name_ko}
+                    <span className="dot" style={{ color: 'var(--vermilion)' }}>✓</span>{it.tr}
                   </div>
                 ))}
               </div>

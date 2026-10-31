@@ -45,7 +45,7 @@ export const NoticePanel = ({ scan, rate, selected, onSelect, badges }: Props) =
     });
   }, [selected]);
   const current: Tab = tab === 'sum' && !hasSummary ? 'ko' : tab;
-  const allJa = scan.notes.map((n) => n.text_ja).join('\n');
+  const allJa = scan.notes.map((n) => n.text).join('\n');
   const copy = async () => { try { await navigator.clipboard.writeText(allJa); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* 불가: 길게 눌러 선택 */ } };
   const options = [...(hasSummary ? [{ value: 'sum' as const, label: t.result.tabSummary }] : []), { value: 'ko' as const, label: t.result.tabTranslation }, { value: 'ja' as const, label: t.result.tabOriginal }];
 
@@ -75,8 +75,8 @@ export const NoticePanel = ({ scan, rate, selected, onSelect, badges }: Props) =
                 background: on ? 'color-mix(in srgb, var(--vermilion) 14%, transparent)' : 'transparent', fontWeight: n.role === 'title' ? 700 : 400 }}>
               {badge !== undefined && <span className="dot" style={{ flexShrink: 0, minWidth: 20, height: 20, padding: '0 4px', background: on ? 'var(--vermilion)' : 'var(--ink)', color: 'var(--paper-2)', fontSize: 11, lineHeight: '20px', textAlign: 'center' }}>{badge}</span>}
               <span style={{ minWidth: 0 }}>
-                {n.text_ko}
-                {n.role === 'label' && <span className="muted small"> {n.text_ja}</span>}
+                {n.tr}
+                {n.role === 'label' && <span className="muted small"> {n.text}</span>}
               </span>
             </button>
           );

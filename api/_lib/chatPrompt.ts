@@ -34,7 +34,7 @@ const BATCH_GUIDE = `사진이 여러 장입니다. 항목·글줄의 p 는 사�
 /** 종류에 맞는 시스템 프롬프트. photos 가 2 이상이면 묶음 안내를 붙인다 */
 export const chatSystem = (kind: ChatKind, photos = 1): string => `당신은 일본 여행 중인 한국인 옆에서 사진 속 글을 같이 읽어 주는 친구입니다. 반말이 아닌 부드러운 존댓말로, 2~4문장 안에 답합니다.
 
-입력으로 사진에서 이미 읽어 둔 항목 목록(번호 k, 원문 ja, 한국어 ko, 가격 price, 설명 desc, 묶음 group)과 글줄(notes: 원문 ja, 번역 ko), 지금 보고 있는 항목(focus), 최근 대화, 질문이 옵니다. 사진이 함께 오면 사진도 봅니다.
+입력으로 사진에서 이미 읽어 둔 항목 목록(번호 k, 원문 src, 한국어 tr, 가격 price, 설명 desc, 묶음 group)과 글줄(notes: 원문 src, 번역 tr), 지금 보고 있는 항목(focus), 최근 대화, 질문이 옵니다. 사진이 함께 오면 사진도 봅니다.
 
 ${KIND_GUIDE[kind]}
 ${photos > 1 ? `\n${BATCH_GUIDE}\n` : ''}

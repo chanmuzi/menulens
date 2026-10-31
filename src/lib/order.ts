@@ -57,7 +57,7 @@ const COUNT_KO = ['', '히토츠', '후타츠', '밋츠', '욧츠', '이츠츠',
 const countJa = (n: number): string => COUNT_JA[n] ?? `${n}個`;
 const countKo = (n: number): string => COUNT_KO[n] ?? `${n}코`;
 
-const pronOf = (it: MenuItem): string => it.pron_ko || it.name_ko.replace(/\s*[(（].*?[)）]\s*$/, '');
+const pronOf = (it: MenuItem): string => it.pron || it.tr.replace(/\s*[(（].*?[)）]\s*$/, '');
 
 export type OrderText = { readonly ja: string; readonly pron: string; readonly ko: string };
 
@@ -85,8 +85,8 @@ const join = (head: string, body: string, tail: string): string => [head, body, 
 /** 직원에게 보여줄 일본어 · 읽을 수 있는 한글 발음 · 뜻 */
 export const buildOrderText = (lines: readonly OrderLine[], mode: OrderMode = 'first'): OrderText => {
   const f = FRAMES[mode];
-  const ja = join(f.head.ja, `${lines.map((l) => `${l.item.name_ja} ${countJa(l.qty)}`).join('、\n')}${f.end.ja}`, f.tail.ja);
+  const ja = join(f.head.ja, `${lines.map((l) => `${l.item.name} ${countJa(l.qty)}`).join('、\n')}${f.end.ja}`, f.tail.ja);
   const pron = join(f.head.pron, `${lines.map((l) => `${pronOf(l.item)} ${countKo(l.qty)}`).join(',\n')}${f.end.pron}`, f.tail.pron);
-  const ko = join(f.head.ko, `${lines.map((l) => `${l.item.name_ko} ${l.qty}개`).join(',\n')}${f.end.ko}`, f.tail.ko);
+  const ko = join(f.head.ko, `${lines.map((l) => `${l.item.tr} ${l.qty}개`).join(',\n')}${f.end.ko}`, f.tail.ko);
   return { ja, pron, ko };
 };

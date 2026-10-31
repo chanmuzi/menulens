@@ -14,14 +14,14 @@ export const formatRateLine = (rate: Rate | null): string | null =>
   rate ? `1¥ ≈ ${rate.krwPerJpy.toFixed(1)}₩` : null;
 
 /** 실제로 내는 금액: 세금 포함가가 따로 있으면 그것 */
-export const payableJpy = (it: Pick<MenuItem, 'price_jpy' | 'price_tax_jpy'>): number | null => it.price_tax_jpy ?? it.price_jpy;
+export const payableJpy = (it: Pick<MenuItem, 'price' | 'price_tax'>): number | null => it.price_tax ?? it.price;
 
 /** 메뉴판 표기 그대로: ¥380 (¥418). 세금 포함가가 없으면 ¥380, 가격이 없으면 '가격 미표기' */
-export const formatPrice = (it: Pick<MenuItem, 'price_jpy' | 'price_tax_jpy'>): string =>
-  it.price_jpy === null ? formatJpy(it.price_tax_jpy) : it.price_tax_jpy !== null ? `${formatJpy(it.price_jpy)} (${formatJpy(it.price_tax_jpy)})` : formatJpy(it.price_jpy);
+export const formatPrice = (it: Pick<MenuItem, 'price' | 'price_tax'>): string =>
+  it.price === null ? formatJpy(it.price_tax) : it.price_tax !== null ? `${formatJpy(it.price)} (${formatJpy(it.price_tax)})` : formatJpy(it.price);
 
 /** 목록·배지용: 가격이 없으면 빈칸 (「가격 미표기」가 제목급 항목에서 어색하다) */
-export const formatPriceOrBlank = (it: Pick<MenuItem, 'price_jpy' | 'price_tax_jpy'>): string => (payableJpy(it) === null ? '' : formatPrice(it));
+export const formatPriceOrBlank = (it: Pick<MenuItem, 'price' | 'price_tax'>): string => (payableJpy(it) === null ? '' : formatPrice(it));
 
 /**
  * 글 속 엔화 금액을 찾아 조각으로 나눈다(「1만 엔」「598엔」「¥598」「1,000円」). 요약 옆에 원화 환산을 붙일 때 쓴다.

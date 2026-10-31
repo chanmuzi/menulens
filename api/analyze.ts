@@ -15,9 +15,9 @@
  *   {"t":"item","key":"<묶음>:<순번>","item":{...}}         1단계 항목 하나 완성마다
  *   {"t":"note","key":"<묶음>:<순번>","note":{...}}         1단계 문구(안내문은 문단) 하나 완성마다. meta.notes 가 최종본
  *   {"t":"meta","kind","shop_name","title","notes":[...]}    1단계 모든 묶음 완료 후 (title: 「이모지 제목」, 기록 목록용)
- *   {"t":"details","items":[{key,pron_ko,desc_ko,tags,photo_query}],"cached"?}  캐시 적중분 먼저, 이후 2단계 묶음마다
+ *   {"t":"details","items":[{key,pron,desc,tags,photo_query}],"cached"?}  캐시 적중분 먼저, 이후 2단계 묶음마다
  *   {"t":"groups","groups":[{name,keys:[key,...]}]}           메뉴판 묶음 정리(2단계와 병렬, 메뉴판일 때만)
- *   {"t":"summary","summary_ko","tips_ko":[...]}              안내문·기타 요약(meta 뒤 한 번, 문단이 있을 때만)
+ *   {"t":"summary","summary","tips":[...]}              안내문·기타 요약(meta 뒤 한 번, 문단이 있을 때만)
  *   {"t":"error","m":"..."}
  *   {"t":"done"}
  */
@@ -40,16 +40,16 @@ const DETAIL_CHUNK = 10;
 type Body = { image?: string; mediaType?: string };
 type Line = Record<string, unknown>;
 type RawItem = Record<string, unknown>;
-type Stage1 = { kind?: string; shop_name?: string | null; emoji?: string; title_ko?: string; notes?: unknown[] };
+type Stage1 = { kind?: string; shop_name?: string | null; emoji?: string; title?: string; notes?: unknown[] };
 /** 기록 목록용 자동 제목: 이모지와 제목을 한 줄로. 제목이 없으면 null(클라이언트가 옛 규칙으로 짓는다) */
 const autoTitle = (m: Stage1 | null): string | null => {
-  const title = typeof m?.title_ko === 'string' ? m.title_ko.trim().slice(0, 24) : '';
+  const title = typeof m?.title === 'string' ? m.title.trim().slice(0, 24) : '';
   if (!title) return null;
   // 이모지는 글자(그래핌) 하나만: ZWJ 이모지를 코드 유닛으로 자르면 깨지고, 「🍺🍢」처럼 여러 개가 와도 하나만 남긴다
   const emoji = typeof m?.emoji === 'string' ? ([...new Intl.Segmenter('ko', { granularity: 'grapheme' }).segment(m.emoji.trim())][0]?.segment ?? '') : '';
   return emoji ? `${emoji} ${title}` : title;
 };
-type Keyed = { key: string; name_ja: string; name_ko: string; group: string };
+type Keyed = { key: string; name: string; tr: string; group: string };
 
 const enc = new TextEncoder();
 const line = (obj: Line): Uint8Array => enc.encode(JSON.stringify(obj) + '\n');
@@ -67,18 +67,18 @@ const stage1Body = (words: readonly OcrWord[] | null, image: string, mediaType: 
   }],
 });
 
-const stage2Body = (chunk: ReadonlyArray<{ i: number; name_ja: string; name_ko: string }>): unknown => ({
+const stage2Body = (chunk: ReadonlyArray<{ i: number; name: string; tr: string }>): unknown => ({
   ...llm, stream: false, max_tokens: 2500, system: STAGE2_SYSTEM,
   messages: [{ role: 'user', content: JSON.stringify(chunk) }],
 });
 
-const groupsBody = (items: ReadonlyArray<{ i: number; name_ja: string; name_ko: string; g: string }>): unknown => ({
+const groupsBody = (items: ReadonlyArray<{ i: number; name: string; tr: string; g: string }>): unknown => ({
   // 메뉴판 전체를 한 번에 받으므로 한도는 항목 수에 비례(번호 배열 ≈ 항목당 5토큰 + 생각 토큰). 잘리면 묶음 정리가 조용히 빠진다
   ...llm, stream: false, max_tokens: Math.min(4000, 1500 + items.length * 15), system: GROUPS_SYSTEM,
   messages: [{ role: 'user', content: JSON.stringify(items) }],
 });
 
-const summaryBody = (notes: ReadonlyArray<{ ja: string; ko: string }>): unknown => ({
+const summaryBody = (notes: ReadonlyArray<{ text: string; tr: string }>): unknown => ({
   ...llm, stream: false, max_tokens: 1500, system: SUMMARY_SYSTEM,
   messages: [{ role: 'user', content: JSON.stringify(notes) }],
 });
@@ -112,7 +112,7 @@ const runStage1Chunk = async (key: string, chunkIndex: number, words: readonly O
       if (typeof raw !== 'object' || raw === null) continue;
       const it = raw as RawItem;
       const k = `${chunkIndex}:${items.length}`;
-      items.push({ key: k, name_ja: typeof it.name_ja === 'string' ? it.name_ja : '', name_ko: typeof it.name_ko === 'string' ? it.name_ko : '', group: typeof it.group === 'string' ? it.group : '' });
+      items.push({ key: k, name: typeof it.name === 'string' ? it.name : '', tr: typeof it.tr === 'string' ? it.tr : '', group: typeof it.group === 'string' ? it.group : '' });
       rawItems.push({ ...it, key: k });
       send({ t: 'item', key: k, item: it });
     }
@@ -128,7 +128,7 @@ const runStage1Chunk = async (key: string, chunkIndex: number, words: readonly O
 const runSummary = async (key: string, notes: readonly unknown[], send: (o: Line) => void, signal: AbortSignal): Promise<void> => {
   const payload = notes.flatMap((n) => {
     const r = (typeof n === 'object' && n !== null ? n : {}) as Record<string, unknown>;
-    return typeof r.text_ja === 'string' && r.text_ja ? [{ ja: r.text_ja, ko: typeof r.text_ko === 'string' ? r.text_ko : '' }] : [];
+    return typeof r.text === 'string' && r.text ? [{ text: r.text, tr: typeof r.tr === 'string' ? r.tr : '' }] : [];
   });
   if (payload.length === 0) return;
   try {
@@ -136,27 +136,27 @@ const runSummary = async (key: string, notes: readonly unknown[], send: (o: Line
     if (!res.ok) return;
     const data = (await res.json()) as { content?: Array<{ type: string; text?: string }>; stop_reason?: string };
     if (data.stop_reason === 'max_tokens') console.warn(`summary: 출력이 한도에서 잘림 (notes=${payload.length})`);
-    const parsed = parseLoose((data.content ?? []).filter((c) => c.type === 'text').map((c) => c.text ?? '').join('')) as { summary_ko?: unknown; tips_ko?: unknown };
-    const summary = typeof parsed.summary_ko === 'string' ? parsed.summary_ko.trim() : '';
-    const tips = Array.isArray(parsed.tips_ko) ? parsed.tips_ko.filter((t): t is string => typeof t === 'string' && t.trim() !== '').slice(0, 2) : [];
-    if (summary) send({ t: 'summary', summary_ko: summary, tips_ko: tips });
+    const parsed = parseLoose((data.content ?? []).filter((c) => c.type === 'text').map((c) => c.text ?? '').join('')) as { summary?: unknown; tips?: unknown };
+    const summary = typeof parsed.summary === 'string' ? parsed.summary.trim() : '';
+    const tips = Array.isArray(parsed.tips) ? parsed.tips.filter((t): t is string => typeof t === 'string' && t.trim() !== '').slice(0, 2) : [];
+    if (summary) send({ t: 'summary', summary: summary, tips: tips });
   } catch { /* 요약 없이 끝낸다 */ }
 };
 
-const DETAIL_FIELDS = ['pron_ko', 'desc_ko', 'tags', 'photo_query'] as const;
+const DETAIL_FIELDS = ['pron', 'desc', 'tags', 'photo_query'] as const;
 const pickDetail = (d: Record<string, unknown>): Record<string, unknown> => Object.fromEntries(DETAIL_FIELDS.filter((f) => f in d).map((f) => [f, d[f]]));
 
 const runStage2 = async (key: string, items: readonly Keyed[], send: (o: Line) => void, signal: AbortSignal): Promise<void> => {
   // 캐시에 있는 메뉴는 즉시 보내고, 나머지만 LLM 에 묻는다
-  const cached = await cacheGetMany(items.filter((x) => x.name_ja).map((x) => x.name_ja));
-  const hits = items.filter((x) => cached.has(x.name_ja)).map((x) => ({ ...cached.get(x.name_ja)!, key: x.key }));
+  const cached = await cacheGetMany(items.filter((x) => x.name).map((x) => x.name));
+  const hits = items.filter((x) => cached.has(x.name)).map((x) => ({ ...cached.get(x.name)!, key: x.key }));
   if (hits.length > 0) send({ t: 'details', items: hits, cached: true });
-  const named = items.filter((x) => x.name_ja && !cached.has(x.name_ja));
+  const named = items.filter((x) => x.name && !cached.has(x.name));
   const chunks: Keyed[][] = [];
   for (let i = 0; i < named.length; i += DETAIL_CHUNK) chunks.push(named.slice(i, i + DETAIL_CHUNK));
   await Promise.all(chunks.map(async (chunk) => {
     try {
-      const payload = chunk.map((x, i) => ({ i, name_ja: x.name_ja, name_ko: x.name_ko }));
+      const payload = chunk.map((x, i) => ({ i, name: x.name, tr: x.tr }));
       const res = await fetch(UPSTREAM, { signal, method: 'POST', headers: headers(key), body: JSON.stringify(stage2Body(payload)) });
       if (!res.ok) return;
       const data = (await res.json()) as { content?: Array<{ type: string; text?: string }> };
@@ -165,9 +165,9 @@ const runStage2 = async (key: string, items: readonly Keyed[], send: (o: Line) =
       if (!Array.isArray(parsed.details)) return;
       const out = parsed.details
         .filter((d) => typeof d.i === 'number' && chunk[d.i as number])
-        .map((d) => ({ ...pickDetail(d), key: chunk[d.i as number]!.key, name_ja: chunk[d.i as number]!.name_ja }));
+        .map((d) => ({ ...pickDetail(d), key: chunk[d.i as number]!.key, name: chunk[d.i as number]!.name }));
       send({ t: 'details', items: out });
-      await cacheSetMany(out.map((d) => [d.name_ja, pickDetail(d)] as const));
+      await cacheSetMany(out.map((d) => [d.name, pickDetail(d)] as const));
     } catch { /* 이 묶음의 설명은 비워 둔다 */ }
   }));
 };
@@ -179,7 +179,7 @@ const MIN_ITEMS_FOR_GROUPS = 8;
 const runGroups = async (key: string, items: readonly Keyed[], send: (o: Line) => void, signal: AbortSignal): Promise<void> => {
   if (items.length < MIN_ITEMS_FOR_GROUPS) return;
   try {
-    const payload = items.map((x, i) => ({ i, name_ja: x.name_ja, name_ko: x.name_ko, g: x.group }));
+    const payload = items.map((x, i) => ({ i, name: x.name, tr: x.tr, g: x.group }));
     const res = await fetch(UPSTREAM, { signal, method: 'POST', headers: headers(key), body: JSON.stringify(groupsBody(payload)) });
     if (!res.ok) return;
     const data = (await res.json()) as { content?: Array<{ type: string; text?: string }>; stop_reason?: string };

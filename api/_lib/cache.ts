@@ -7,6 +7,12 @@ const PREFIX = 'menulens:detail:v1:';
 /** 메뉴명 정규화: 전각·반각 통일, 공백 제거 */
 export const cacheKey = (nameJa: string): string => PREFIX + nameJa.normalize('NFKC').replace(/\s+/g, '');
 
+/** 2026-10-31 이전에 저장된 값은 pron_ko/desc_ko 키다. 읽을 때 지금 키로 바꿔 캐시를 버리지 않는다 */
+const upgradeDetail = (d: Record<string, unknown>): Record<string, unknown> => {
+  const { pron_ko, desc_ko, ...rest } = d;
+  return { ...rest, ...(pron_ko !== undefined && rest.pron === undefined ? { pron: pron_ko } : {}), ...(desc_ko !== undefined && rest.desc === undefined ? { desc: desc_ko } : {}) };
+};
+
 export const cacheGetMany = async (names: readonly string[]): Promise<Map<string, Record<string, unknown>>> => {
   const out = new Map<string, Record<string, unknown>>();
   if (names.length === 0) return out;
@@ -16,7 +22,7 @@ export const cacheGetMany = async (names: readonly string[]): Promise<Map<string
     const values = await c.mGet(names.map(cacheKey));
     values.forEach((v: string | null, i: number) => {
       if (typeof v !== 'string') return;
-      try { out.set(names[i]!, JSON.parse(v) as Record<string, unknown>); } catch { /* 깨진 값은 무시 */ }
+      try { out.set(names[i]!, upgradeDetail(JSON.parse(v) as Record<string, unknown>)); } catch { /* 깨진 값은 무시 */ }
     });
   } catch { /* 캐시 실패는 무시 */ }
   return out;
