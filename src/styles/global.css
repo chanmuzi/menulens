@@ -14,6 +14,8 @@
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
+/* 일본어 UI: 가나·한자는 IBM Plex Sans KR 에 없어 JP 판을 앞에 둔다(글리프 없는 글자만 다음 폰트로 떨어진다) */
+html[lang="ja"] { --font-ui: 'IBM Plex Sans JP', 'IBM Plex Sans KR', system-ui, sans-serif; --font-dot: 'DotGothic16', 'IBM Plex Sans JP', sans-serif; }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--font-ui); -webkit-font-smoothing: antialiased; }

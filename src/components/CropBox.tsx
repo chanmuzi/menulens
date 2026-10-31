@@ -4,6 +4,7 @@
  */
 import { useRef, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { normalizeRect, type CropRect } from '../lib/crop';
+import { useT } from '../i18n';
 
 type Handle = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'move';
 
@@ -29,6 +30,7 @@ const applyDrag = (start: CropRect, h: Handle, dx: number, dy: number): CropRect
 const HANDLE_PX = 22;
 
 export const CropBox = ({ rect, onChange }: Props) => {
+  const t = useT();
   const rootRef = useRef<HTMLDivElement>(null);
   const drag = useRef<{ h: Handle; x: number; y: number; start: CropRect } | null>(null);
 
@@ -47,7 +49,7 @@ export const CropBox = ({ rect, onChange }: Props) => {
 
   const pct = (n: number) => `${n * 100}%`;
   const handle = (h: Handle, style: CSSProperties) => (
-    <div key={h} role="slider" aria-label={`영역 ${h}`} tabIndex={-1} onPointerDown={onDown(h)} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}
+    <div key={h} role="slider" aria-label={t.confirm.crop.handleAria(h)} tabIndex={-1} onPointerDown={onDown(h)} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}
       style={{ position: 'absolute', width: HANDLE_PX, height: HANDLE_PX, cursor: CURSOR[h], touchAction: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', ...style }}>
       <div style={{ width: h.length === 2 ? 12 : 8, height: h.length === 2 ? 12 : 8, background: 'var(--vermilion)', border: '2px solid var(--paper-2)', boxShadow: '0 0 0 1px var(--ink)' }} />
     </div>
@@ -55,7 +57,7 @@ export const CropBox = ({ rect, onChange }: Props) => {
   const half = -HANDLE_PX / 2;
 
   return (
-    <div ref={rootRef} aria-label="영역 지정" style={{ position: 'absolute', inset: 0, touchAction: 'none' }}>
+    <div ref={rootRef} aria-label={t.confirm.crop.boxAria} style={{ position: 'absolute', inset: 0, touchAction: 'none' }}>
       {/* 바깥 어둡게: 네 조각 */}
       <div style={{ position: 'absolute', left: 0, top: 0, right: 0, height: pct(rect.y0), background: 'rgba(42,33,27,.55)', pointerEvents: 'none' }} />
       <div style={{ position: 'absolute', left: 0, bottom: 0, right: 0, height: pct(1 - rect.y1), background: 'rgba(42,33,27,.55)', pointerEvents: 'none' }} />

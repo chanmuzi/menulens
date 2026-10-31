@@ -1,6 +1,7 @@
 import type { MenuItem, Rate } from '../types';
+import { dict } from '../i18n';
 
-export const formatJpy = (v: number | null): string => (v === null ? '가격 미표기' : `¥${v.toLocaleString('ja-JP')}`);
+export const formatJpy = (v: number | null): string => (v === null ? dict().data.noPrice : `¥${v.toLocaleString('ja-JP')}`);
 
 /** 원화 환산. 100원 단위로 반올림해 "대략" 느낌을 유지한다. */
 export const formatKrw = (jpy: number | null, rate: Rate | null): string | null => {

@@ -6,6 +6,7 @@ import type { MenuItem, Scan } from '../types';
 import { PixelIcon } from '../components/PixelIcon';
 import { askMenu, chatContext, imagePart, itemKey, loadBatchChat, loadChat, photoInQuestion, refFromKey, resolveRef, saveChat, wantsImage, type ChatMsg } from '../lib/chat';
 import { chatTitle } from '../lib/kind';
+import { dict, useT } from '../i18n';
 
 type Props = {
   /** 묶음 전부(한 장이면 하나). 맥락은 이 전체 */
@@ -33,6 +34,7 @@ const bubble = (mine: boolean) => ({
 const MAX_IMAGES_PER_ASK = 2;
 
 export const ChatPopup = ({ batch, scan, open, focus, onClearFocus, onOpenItem, onClose, onAnswered }: Props) => {
+  const t = useT();
   const photos = batch.length;
   const currentPhoto = Math.max(1, batch.findIndex((s) => s.id === scan.id) + 1);
   // 대화 저장 키: 마운트 때 묶음에서 완료된(기록에 저장되는) 첫 사진. 실패한 사진은 기록에 남지 않아 그 키로 저장하면 다시 열 때 대화가 사라진다. 한 번 정하면 바꾸지 않는다(바뀌면 정리 effect 가 진행 중인 답을 끊는다)
@@ -50,7 +52,7 @@ export const ChatPopup = ({ batch, scan, open, focus, onClearFocus, onOpenItem, 
   useEffect(() => { saveChat(chatKey, msgs); }, [chatKey, msgs]);
   useEffect(() => { listRef.current?.scrollTo({ top: listRef.current.scrollHeight }); }, [msgs, live]);
   // 화면을 떠나(홈) 끊기면 질문만 남지 않게 끊김 표시를 남긴다
-  useEffect(() => () => { if (ac.current && !ac.current.signal.aborted) { ac.current.abort(); const saved = loadChat(chatKey); if (saved[saved.length - 1]?.role === 'me') saveChat(chatKey, [...saved, { role: 'bot', text: '(화면을 떠나서 답이 끊겼어요. 다시 물어봐 주세요)', refs: [], sawImage: false, at: Date.now() }]); } }, [chatKey]);
+  useEffect(() => () => { if (ac.current && !ac.current.signal.aborted) { ac.current.abort(); const saved = loadChat(chatKey); if (saved[saved.length - 1]?.role === 'me') saveChat(chatKey, [...saved, { role: 'bot', text: dict().chat.disconnected, refs: [], sawImage: false, at: Date.now() }]); } }, [chatKey]);
   // 열리면 포커스를 팝업 안으로(입력칸 자동 포커스는 iOS 키보드를 띄우니 피한다)
   useEffect(() => { if (open) boxRef.current?.focus(); }, [open]);
   useEffect(() => {
@@ -86,8 +88,8 @@ export const ChatPopup = ({ batch, scan, open, focus, onClearFocus, onOpenItem, 
       let r = await run(photo);
       while (r.kind === 'need_image') {
         const want = r.photo ?? currentPhoto;
-        if (tried.has(want) || tried.size >= MAX_IMAGES_PER_ASK) throw new Error('사진을 봐도 찾지 못했어요');
-        if (!imageOf(want)) throw new Error('사진이 없어서 답할 수 없어요');
+        if (tried.has(want) || tried.size >= MAX_IMAGES_PER_ASK) throw new Error(t.chat.notFoundWithPhoto);
+        if (!imageOf(want)) throw new Error(t.chat.noPhoto);
         tried.add(want);
         photo = want;
         setLive({ text: '', photo });
@@ -108,8 +110,8 @@ export const ChatPopup = ({ batch, scan, open, focus, onClearFocus, onOpenItem, 
 
   /** 참조 키를 묶음 전체에서 찾는다(최대 4). 다른 사진의 항목이면 칩에 사진 번호를 붙인다 */
   const refChips = (refs: readonly string[]) => [...new Set(refs)].flatMap((ref) => { const r = resolveRef(batch, ref); return r ? [{ key: ref, ...r, photo: batch.findIndex((s) => s.id === r.scanId) + 1 }] : []; }).slice(0, 4);
-  /** 「2번 사진을」: 묶음이고 그 사진이 띠에 있을 때만 번호를 붙인다 */
-  const photoLabel = (scanId: string | null | undefined) => { const n = scanId ? batch.findIndex((s) => s.id === scanId) + 1 : 0; return photos > 1 && n > 0 ? `${n}번 사진을` : '사진을'; };
+  /** 「2번 사진을」: 묶음이고 그 사진이 띠에 있을 때만 번호를 붙인다(아니면 null → 「사진을」) */
+  const photoNo = (scanId: string | null | undefined): number | null => { const n = scanId ? batch.findIndex((s) => s.id === scanId) + 1 : 0; return photos > 1 && n > 0 ? n : null; };
 
   return (
     <div role="dialog" aria-modal="true" aria-label={chatTitle(scan.kind)} hidden={!open} style={{ position: 'fixed', inset: 0, zIndex: 21, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
@@ -117,28 +119,28 @@ export const ChatPopup = ({ batch, scan, open, focus, onClearFocus, onOpenItem, 
       {/* 화면 바닥에 붙는 시트(주문서 바가 있어도 그 위에 덮는다 — 배경막이 바를 가리므로 띄울 이유가 없고, 입력칸이 키보드 바로 위에 와야 한다) */}
       <div ref={boxRef} tabIndex={-1} aria-busy={live !== null} style={{ position: 'relative', outline: 'none', width: '100%', maxWidth: 480, maxHeight: '72dvh', background: 'var(--paper-2)', borderTop: '3px solid var(--ink)', display: 'flex', flexDirection: 'column', gap: 10, padding: '10px 14px calc(12px + var(--safe-bottom))' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-          <span className="dot" style={{ fontSize: 14 }}>{chatTitle(scan.kind)}{photos > 1 && <span className="muted" style={{ fontSize: 11, marginLeft: 6 }}>사진 {photos}장</span>}</span>
-          <button type="button" className="btn btn--quiet" onClick={onClose} aria-label="닫기" style={{ minHeight: 36, minWidth: 36, padding: '0 8px', fontSize: 16, color: 'var(--ink)' }}>✕</button>
+          <span className="dot" style={{ fontSize: 14 }}>{chatTitle(scan.kind)}{photos > 1 && <span className="muted" style={{ fontSize: 11, marginLeft: 6 }}>{t.chat.photoCount(photos)}</span>}</span>
+          <button type="button" className="btn btn--quiet" onClick={onClose} aria-label={t.common.close} style={{ minHeight: 36, minWidth: 36, padding: '0 8px', fontSize: 16, color: 'var(--ink)' }}>✕</button>
         </div>
         {focus && (
-          <span className="chip" style={{ alignSelf: 'flex-start', gap: 6 }}>지금 보는: <span className="jp">{focus.name_ja}</span>
-            <button type="button" aria-label="맥락 지우기" onClick={onClearFocus} style={{ border: 0, background: 'transparent', padding: '6px 8px', margin: '-6px -8px -6px 0', cursor: 'pointer', color: 'var(--muted)', fontSize: 12, minHeight: 32 }}>✕</button>
+          <span className="chip" style={{ alignSelf: 'flex-start', gap: 6 }}>{t.chat.focusPrefix}<span className="jp">{focus.name_ja}</span>
+            <button type="button" aria-label={t.chat.clearFocus} onClick={onClearFocus} style={{ border: 0, background: 'transparent', padding: '6px 8px', margin: '-6px -8px -6px 0', cursor: 'pointer', color: 'var(--muted)', fontSize: 12, minHeight: 32 }}>✕</button>
           </span>
         )}
         {/* 스크린리더용: 완료된 마지막 답만 읽는다(조각마다 읽히지 않게) */}
         <div className="sr-only" role="status">{msgs.length > 0 && msgs[msgs.length - 1]!.role === 'bot' ? msgs[msgs.length - 1]!.text : ''}</div>
         <div ref={listRef} style={{ display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto', overscrollBehavior: 'contain', minHeight: 0, flex: 1 }}>
           {msgs.length === 0 && !live && (
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', color: 'var(--muted)', fontSize: 13 }}><PixelIcon icon="bubble" size={2} />{photos > 1 ? `사진 ${photos}장에서 읽어 둔 글로 먼저 답하고, ` : '읽어 둔 글로 먼저 답하고, '}사진을 다시 봐야 하면 그렇게 표시할게요.</div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', color: 'var(--muted)', fontSize: 13 }}><PixelIcon icon="bubble" size={2} />{t.chat.intro(photos)}</div>
           )}
           {msgs.map((m, i) => (
             <div key={`${m.at}-${i}`} style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: m.role === 'me' ? 'flex-end' : 'flex-start' }}>
               <div style={bubble(m.role === 'me')}>{m.text}</div>
               {m.role === 'bot' && (
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', fontSize: 11, color: 'var(--muted)' }}>
-                  <span>{m.sawImage ? `${photoLabel(m.sawScan)} 다시 봤어요` : '글자만 보고 답함'}</span>
+                  <span>{m.sawImage ? t.chat.sawPhoto(photoNo(m.sawScan)) : t.chat.textOnly}</span>
                   {refChips(m.refs).map((r) => (
-                    <button key={r.key} type="button" className="chip chip--accent" onClick={() => onOpenItem(r.scanId, r.item)} style={{ cursor: 'pointer', minHeight: 28, padding: '2px 8px' }}>{r.item.name_ko}{photos > 1 && r.photo !== currentPhoto ? ` · 사진 ${r.photo}` : ''} ›</button>
+                    <button key={r.key} type="button" className="chip chip--accent" onClick={() => onOpenItem(r.scanId, r.item)} style={{ cursor: 'pointer', minHeight: 28, padding: '2px 8px' }}>{r.item.name_ko}{photos > 1 && r.photo !== currentPhoto ? ` · ${t.chat.photoN(r.photo)}` : ''} ›</button>
                   ))}
                 </div>
               )}
@@ -146,15 +148,15 @@ export const ChatPopup = ({ batch, scan, open, focus, onClearFocus, onOpenItem, 
           ))}
           {live && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
-              <div style={bubble(false)}>{live.text || <span style={{ opacity: .7 }}>{live.photo ? `${photoLabel(batch[live.photo - 1]?.id)} 다시 보는 중` : '생각 중'}</span>}<span className="blink">▌</span></div>
+              <div style={bubble(false)}>{live.text || <span style={{ opacity: .7 }}>{live.photo ? t.chat.rePhoto(photoNo(batch[live.photo - 1]?.id)) : t.chat.thinking}</span>}<span className="blink">▌</span></div>
             </div>
           )}
           {error && <div role="alert" style={{ fontSize: 12, color: 'var(--vermilion)' }}>{error}</div>}
         </div>
         <form onSubmit={submit} style={{ display: 'flex', gap: 6 }}>
-          <input ref={inputRef} value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={msgs.length ? '더 물어보기' : '궁금한 걸 물어보세요'} aria-label="질문"
+          <input ref={inputRef} value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={msgs.length ? t.chat.placeholderMore : t.chat.placeholderFirst} aria-label={t.chat.inputAria}
             enterKeyHint="send" style={{ flex: 1, minWidth: 0, minHeight: 40, padding: '0 10px', border: '2px solid var(--ink)', background: 'var(--paper)', fontSize: 14, fontFamily: 'inherit' }} />
-          <button type="submit" className="btn btn--primary" disabled={!draft.trim() || live !== null} aria-label="보내기" style={{ minHeight: 40, padding: '0 14px' }}>▶</button>
+          <button type="submit" className="btn btn--primary" disabled={!draft.trim() || live !== null} aria-label={t.chat.send} style={{ minHeight: 40, padding: '0 14px' }}>▶</button>
         </form>
       </div>
     </div>

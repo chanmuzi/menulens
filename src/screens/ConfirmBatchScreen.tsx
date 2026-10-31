@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { TopBar } from '../components/TopBar';
 import { BATCH_MAX } from '../lib/batch';
+import { useT } from '../i18n';
 
 type Props = {
   readonly files: readonly File[];
@@ -34,6 +35,7 @@ const addTile = { ...tile, background: 'var(--paper-2)', border: '2px dashed var
 const barBtn = (enabled: boolean) => ({ border: 0, background: 'transparent', padding: '0 10px', minHeight: 32, fontSize: 12, cursor: enabled ? 'pointer' : 'default', opacity: enabled ? 1 : 0.3, color: 'var(--ink)' });
 
 export const ConfirmBatchScreen = ({ files, dropped, onChange, reading, onConfirm, onCrop, onCancel }: Props) => {
+  const t = useT();
   const [urls, setUrls] = useState<readonly string[]>([]);
   const cameraRef = useRef<HTMLInputElement>(null);
   const albumRef = useRef<HTMLInputElement>(null);
@@ -52,50 +54,50 @@ export const ConfirmBatchScreen = ({ files, dropped, onChange, reading, onConfir
 
   return (
     <div className="app">
-      <TopBar onBack={onCancel} backLabel="그만두기" center={
+      <TopBar onBack={onCancel} backLabel={t.confirm.batch.quit} center={
         <div style={{ textAlign: 'center' }}>
-          <div className="dot" style={{ fontSize: 16 }}>{files.length}장 모았어요</div>
-          <div className="muted" style={{ fontSize: 11 }}>사진을 누르면 영역을 잘라요</div>
+          <div className="dot" style={{ fontSize: 16 }}>{t.confirm.batch.collected(files.length)}</div>
+          <div className="muted" style={{ fontSize: 11 }}>{t.confirm.batch.tapToCrop}</div>
         </div>
       } />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
         {files.map((f, i) => (
           <div key={fileKey(f)} className="frame" style={tile}>
-            <button type="button" aria-label={`사진 ${i + 1} 영역 자르기`} onClick={() => onCrop(i)} style={{ display: 'block', width: '100%', height: '100%', padding: 0, border: 0, background: 'transparent', cursor: 'pointer' }}>
+            <button type="button" aria-label={t.confirm.batch.cropPhotoAria(i + 1)} onClick={() => onCrop(i)} style={{ display: 'block', width: '100%', height: '100%', padding: 0, border: 0, background: 'transparent', cursor: 'pointer' }}>
               {urls[i] && <img src={urls[i]} alt="" draggable={false} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
             </button>
             <span className="dot" aria-hidden="true" style={{ position: 'absolute', left: 0, top: 0, padding: '1px 6px', background: 'var(--ink)', color: 'var(--paper)', fontSize: 11, pointerEvents: 'none' }}>{i + 1}</span>
             {many && (
-              <button type="button" aria-label={`사진 ${i + 1} 빼기`} onClick={() => onChange(files.filter((_, j) => j !== i))} style={{ position: 'absolute', top: 0, right: 0, width: 32, height: 32, padding: 0, background: 'var(--paper-2)', border: 0, borderLeft: '2px solid var(--ink)', borderBottom: '2px solid var(--ink)', cursor: 'pointer', fontSize: 13 }}>✕</button>
+              <button type="button" aria-label={t.confirm.batch.removePhotoAria(i + 1)} onClick={() => onChange(files.filter((_, j) => j !== i))} style={{ position: 'absolute', top: 0, right: 0, width: 32, height: 32, padding: 0, background: 'var(--paper-2)', border: 0, borderLeft: '2px solid var(--ink)', borderBottom: '2px solid var(--ink)', cursor: 'pointer', fontSize: 13 }}>✕</button>
             )}
-            {reading === f && <span className="dot" style={{ position: 'absolute', left: 0, right: 0, bottom: 34, textAlign: 'center', fontSize: 10, background: 'rgba(251,245,232,.9)', padding: '1px 0', pointerEvents: 'none' }}>읽는 중<span className="blink">▌</span></span>}
+            {reading === f && <span className="dot" style={{ position: 'absolute', left: 0, right: 0, bottom: 34, textAlign: 'center', fontSize: 10, background: 'rgba(251,245,232,.9)', padding: '1px 0', pointerEvents: 'none' }}>{t.confirm.batch.reading}<span className="blink">▌</span></span>}
             <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--paper-2)', borderTop: '2px solid var(--ink)' }}>
-              <button type="button" aria-label={`사진 ${i + 1} 앞으로`} disabled={i === 0} onClick={() => onChange(swap(files, i, i - 1))} className="dot" style={barBtn(i > 0)}>◀</button>
-              <button type="button" aria-label={`사진 ${i + 1} 자르기`} onClick={() => onCrop(i)} style={{ ...barBtn(true), padding: '0 4px', fontWeight: 500 }}>자르기</button>
-              <button type="button" aria-label={`사진 ${i + 1} 뒤로`} disabled={i === files.length - 1} onClick={() => onChange(swap(files, i, i + 1))} className="dot" style={barBtn(i < files.length - 1)}>▶</button>
+              <button type="button" aria-label={t.confirm.batch.moveForwardAria(i + 1)} disabled={i === 0} onClick={() => onChange(swap(files, i, i - 1))} className="dot" style={barBtn(i > 0)}>◀</button>
+              <button type="button" aria-label={t.confirm.batch.cropAria(i + 1)} onClick={() => onCrop(i)} style={{ ...barBtn(true), padding: '0 4px', fontWeight: 500 }}>{t.confirm.batch.crop}</button>
+              <button type="button" aria-label={t.confirm.batch.moveBackAria(i + 1)} disabled={i === files.length - 1} onClick={() => onChange(swap(files, i, i + 1))} className="dot" style={barBtn(i < files.length - 1)}>▶</button>
             </div>
           </div>
         ))}
         {room > 0 && (
           <>
             <button type="button" onClick={() => cameraRef.current?.click()} style={addTile}>
-              <span className="dot" style={{ fontSize: 26, color: 'var(--vermilion)', lineHeight: 1 }}>+</span>더 찍기
+              <span className="dot" style={{ fontSize: 26, color: 'var(--vermilion)', lineHeight: 1 }}>+</span>{t.confirm.batch.takeMore}
             </button>
             <button type="button" onClick={() => albumRef.current?.click()} style={addTile}>
-              <span className="dot" style={{ fontSize: 26, color: 'var(--vermilion)', lineHeight: 1 }}>▣</span>앨범에서 추가
+              <span className="dot" style={{ fontSize: 26, color: 'var(--vermilion)', lineHeight: 1 }}>▣</span>{t.confirm.batch.addFromAlbum}
             </button>
           </>
         )}
       </div>
       {(room <= 0 || dropped > 0) && (
         <p className="muted" style={{ margin: 0, fontSize: 12, lineHeight: 1.5 }}>
-          {room <= 0 && <>한 번에 {BATCH_MAX}장까지예요.</>}{dropped > 0 && <> 뒤의 {dropped}장은 뺐어요.</>}
+          {room <= 0 && t.confirm.batch.limit(BATCH_MAX)}{dropped > 0 && <> {t.confirm.batch.dropped(dropped)}</>}
         </p>
       )}
-      <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={add} className="sr-only" tabIndex={-1} aria-hidden="true" aria-label="카메라로 더 찍기" />
-      <input ref={albumRef} type="file" accept="image/*" multiple onChange={add} className="sr-only" tabIndex={-1} aria-hidden="true" aria-label="앨범에서 추가" />
+      <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={add} className="sr-only" tabIndex={-1} aria-hidden="true" aria-label={t.confirm.batch.cameraMoreAria} />
+      <input ref={albumRef} type="file" accept="image/*" multiple onChange={add} className="sr-only" tabIndex={-1} aria-hidden="true" aria-label={t.confirm.batch.addFromAlbum} />
       <div style={{ marginTop: 'auto' }}>
-        <button type="button" className="btn btn--primary" onClick={() => onConfirm(files)} disabled={files.length === 0} style={{ width: '100%', fontWeight: 600 }}>{files.length}장 분석하기</button>
+        <button type="button" className="btn btn--primary" onClick={() => onConfirm(files)} disabled={files.length === 0} style={{ width: '100%', fontWeight: 600 }}>{t.confirm.batch.analyze(files.length)}</button>
       </div>
     </div>
   );

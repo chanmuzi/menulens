@@ -10,18 +10,19 @@ import { formatRateLine } from '../lib/money';
 import { batchLines, clearedBatchOrder, loadBatchOrder, saveBatchOrder, withBatchQty, type BatchOrder } from '../lib/order';
 import { OrderBar } from '../components/OrderBar';
 import { OrderSheet } from './OrderSheet';
-import { KIND_LABEL } from '../lib/kind';
 import { DotGlyph } from '../components/DotGlyph';
 import { BatchStrip } from '../components/BatchStrip';
 import { ChatFab, FAB_SIZE, fabBottom } from '../components/ChatFab';
 import { ChatPopup } from './ChatPopup';
-import { chatTitle } from '../lib/kind';
+import { chatTitle, kindLabel } from '../lib/kind';
+import { useT } from '../i18n';
 
 /** 보기 방식. App 이 들고 있어 읽는 중 사진(처리 중 화면)을 거쳐 돌아와도 유지된다 */
 export type ResultView = 'overlay' | 'cards';
 type Props = { readonly scan: Scan; readonly batch: readonly Scan[]; readonly view: ResultView; readonly onView: (v: ResultView) => void; /** 오버레이의 번역 표시(배지·덮개) 켜짐 */ readonly showMarks: boolean; readonly onShowMarks: (on: boolean) => void; /** 기록 이름(고친 이름 또는 자동 제목). 누르면 onRename */ readonly title: string; readonly onRename: () => void; readonly onSwitch: (id: string) => void; readonly onAdd: ((files: readonly File[]) => void) | undefined; readonly rate: Rate | null; readonly mode: ImageMode; readonly onMode: (m: ImageMode) => void; readonly onHome: () => void; /** 묶음 순서대로의 원본 파일(없으면 null → 화면용 사진으로 저장) */ readonly originalFiles: readonly (File | null)[] };
 
 export const ResultScreen = ({ scan, batch, view, onView, showMarks, onShowMarks, title, onRename, onSwitch, onAdd, rate, mode, onMode, onHome, originalFiles }: Props) => {
+  const t = useT();
   const isMenu = scan.kind === 'menu';
   // 안내문·기타는 카드가 의미 없으니 오버레이만 보여준다(view 는 App 상태)
   // 선택한 항목은 어느 사진 것인지 함께 든다(항목 id 가 사진마다 겹친다). 지금 보는 사진의 것만 화면에 쓴다
@@ -68,23 +69,23 @@ export const ResultScreen = ({ scan, batch, view, onView, showMarks, onShowMarks
   const detailing = scan.status === 'detailing';
   const counts: Record<string, number> = {};
   for (const it of scan.items) counts[it.category] = (counts[it.category] ?? 0) + 1;
-  const summary = Object.entries(counts).map(([k, n]) => `${k} ${n}`).join(' · ');
+  const summary = Object.entries(counts).map(([k, n]) => `${t.data.category[k as MenuItem['category']] ?? k} ${n}`).join(' · ');
 
   return (
     <div className="app">
-      <TopBar onBack={onHome} backLabel="홈으로" center={
+      <TopBar onBack={onHome} backLabel={t.common.home} center={
         isMenu ? (
-          <Segmented shadow label="보기 방식" value={view} onChange={onView} options={[{ value: 'overlay', label: '오버레이' }, { value: 'cards', label: '카드' }]} />
+          <Segmented shadow label={t.result.viewLabel} value={view} onChange={onView} options={[{ value: 'overlay', label: t.result.viewOverlay }, { value: 'cards', label: t.result.viewCards }]} />
         ) : (
-          <div className="dot" style={{ fontSize: 16 }}>{KIND_LABEL[scan.kind]}</div>
+          <div className="dot" style={{ fontSize: 16 }}>{kindLabel(scan.kind)}</div>
         )
       } right={
-        <button type="button" className="btn btn--icon" aria-label={batch.length > 1 ? `사진 ${batch.length}장을 기기에 저장` : '사진을 기기에 저장'} title="사진 저장" onClick={() => {
+        <button type="button" className="btn btn--icon" aria-label={t.result.savePhotosAria(batch.length)} title={t.result.savePhotoTitle} onClick={() => {
           // 묶음이면 전부 한 번에 공유 시트로
           void savePhotos(batch.map((s, i) => ({ file: originalFiles[i] ?? null, dataUrl: s.imageDataUrl }))).then((r) => {
-            setSaveMsg(r.kind === 'shared' ? `공유 시트에서 「이미지 저장」을 누르면 ${r.count > 1 ? `${r.count}장이 ` : ''}사진 앱에 들어가요`
-              : r.kind === 'opened' ? `새 탭의 사진을 길게 눌러 저장하세요${r.total > 1 ? ` (첫 장만 열었어요. 나머지는 사진을 옮겨 가며 저장)` : ''}`
-              : r.kind === 'unsupported' ? '이 브라우저에선 저장을 지원하지 않아요' : null);
+            setSaveMsg(r.kind === 'shared' ? t.result.saveShared(r.count)
+              : r.kind === 'opened' ? t.result.saveOpened(r.total)
+              : r.kind === 'unsupported' ? t.result.saveUnsupported : null);
             setTimeout(() => setSaveMsg(null), 4000);
           });
         }}>
@@ -97,20 +98,20 @@ export const ResultScreen = ({ scan, batch, view, onView, showMarks, onShowMarks
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ minWidth: 0, flex: 1 }}>
           {/* 기록 이름: 목록과 같은 이름을 보이고, 누르면 이름 고치기 */}
-          <button type="button" onClick={onRename} aria-label={`${title}, 이름 고치기`} style={{ display: 'flex', alignItems: 'center', gap: 6, maxWidth: '100%', background: 'none', border: 0, padding: 0, cursor: 'pointer', color: 'inherit', textAlign: 'left' }}>
+          <button type="button" onClick={onRename} aria-label={t.result.renameAria(title)} style={{ display: 'flex', alignItems: 'center', gap: 6, maxWidth: '100%', background: 'none', border: 0, padding: 0, cursor: 'pointer', color: 'inherit', textAlign: 'left' }}>
             <span style={{ fontSize: 20, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{title}</span>
             <DotGlyph name="pencil" />
           </button>
           {/* 안내문·기타는 「N줄 번역 · 일본어만」 같은 부제를 두지 않는다(불필요하다는 피드백) */}
           {(isMenu || streaming || detailing) && <div className="muted small">
-            {isMenu && <>{scan.items.length}개{summary && ` · ${summary}`}{formatRateLine(rate) && ` · ${formatRateLine(rate)}`}</>}
+            {isMenu && <>{t.result.itemCount(scan.items.length)}{summary && ` · ${summary}`}{formatRateLine(rate) && ` · ${formatRateLine(rate)}`}</>}
             {streaming && <span className="blink">{isMenu ? ' ' : ''}▌</span>}
-            {detailing && <span>{isMenu ? ' · 설명 쓰는 중' : '번역·요약 쓰는 중'}<span className="blink">▌</span></span>}
+            {detailing && <span>{isMenu ? ` · ${t.result.writingDesc}` : t.result.writingNotice}<span className="blink">▌</span></span>}
           </div>}
         </div>
         {overlayShown && (
           <div className="seg" style={{ flexShrink: 0 }}>
-            <button type="button" className="seg__btn seg__btn--small" aria-pressed={showMarks} onClick={() => onShowMarks(!showMarks)}>{showMarks ? '표시 끄기' : '표시 켜기'}</button>
+            <button type="button" className="seg__btn seg__btn--small" aria-pressed={showMarks} onClick={() => onShowMarks(!showMarks)}>{showMarks ? t.result.marksOff : t.result.marksOn}</button>
           </div>
         )}
       </div>

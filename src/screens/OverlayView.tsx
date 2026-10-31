@@ -5,6 +5,7 @@ import { MenuPhoto, type MarkerCtx } from '../components/MenuPhoto';
 import { loadSampler, sampleBox, type BoxColors } from '../lib/sample';
 import { NoticeCovers, type CoverBlock } from '../components/NoticeCovers';
 import { NoticePanel } from './NoticePanel';
+import { useT } from '../i18n';
 
 type Props = { readonly scan: Scan; readonly selectedId: string | null; readonly onSelect: (item: MenuItem) => void; /** 안내문 문단 선택(같은 문단을 다시 누르면 해제) */ readonly selectedNote: number | null; readonly onNote: (i: number) => void; readonly rate: Rate | null; /** 번역 표시(배지·덮개) 켜짐. 토글 버튼은 결과 화면 제목 줄에 있다 */ readonly showMarks: boolean };
 
@@ -52,6 +53,7 @@ const useBoxColors = (imageDataUrl: string, boxes: ReadonlyArray<readonly [strin
  * 사진을 두 손가락으로 확대하면 화면상 크기는 그대로라 겹침이 풀린다.
  */
 export const OverlayView = ({ scan, selectedId, onSelect, selectedNote, onNote, rate, showMarks }: Props) => {
+  const t = useT();
   const badges = scan.kind === 'menu' && (scan.items.length > CHIP_LIMIT || scan.rotation !== 0);
   const rot = scan.rotation + scan.tilt;
   const isMenu = scan.kind === 'menu';
@@ -88,7 +90,7 @@ export const OverlayView = ({ scan, selectedId, onSelect, selectedNote, onNote, 
               if (badges) {
                 const size = sizes?.get(it.id) ?? BADGE_MAX;
                 return (
-                  <button key={it.id} type="button" onClick={() => onSelect(it)} aria-pressed={selected} aria-label={`${i + 1}번 ${it.name_ko} ${formatPriceOrBlank(it)}`}
+                  <button key={it.id} type="button" onClick={() => onSelect(it)} aria-pressed={selected} aria-label={t.result.badgeAria(i + 1, it.name_ko, formatPriceOrBlank(it))}
                     className="dot"
                     style={{ position: 'absolute', left: `${cx / 10}%`, top: `${(y0 + y1) / 2 / 10}%`, transform: `translate(-50%, -50%) rotate(${rot}deg) scale(${ms})`, width: size, height: size, padding: 0, cursor: 'pointer',
                       background: selected ? 'var(--vermilion)' : 'var(--ink)', color: 'var(--paper)', border: '2px solid var(--paper-2)', boxShadow: '2px 2px 0 rgba(42,33,27,.6)', fontSize: Math.max(9, size / 2), lineHeight: 1, zIndex: selected ? 3 : 1 }}>

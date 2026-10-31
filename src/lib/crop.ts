@@ -1,5 +1,6 @@
 /** 확인 화면의 영역 지정. 좌표는 표시된 사진 기준 0~1 정규화. 잘라낸 결과는 새 File 로 만들어 기존 분석 경로에 그대로 넣는다. */
 import { loadImage } from './image';
+import { dict } from '../i18n';
 
 export type CropRect = { readonly x0: number; readonly y0: number; readonly x1: number; readonly y1: number };
 
@@ -34,9 +35,9 @@ export const cropFile = async (file: File, rect: CropRect): Promise<File> => {
   canvas.width = Math.max(1, Math.round(sw * scale));
   canvas.height = Math.max(1, Math.round(sh * scale));
   const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('캔버스를 만들 수 없어요');
+  if (!ctx) throw new Error(dict().confirm.crop.canvasError);
   ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', QUALITY));
-  if (!blob) throw new Error('사진을 잘라내지 못했어요');
+  if (!blob) throw new Error(dict().confirm.crop.cropFailed);
   return new File([blob], file.name.replace(/\.[^.]+$/, '') + '-crop.jpg', { type: 'image/jpeg' });
 };

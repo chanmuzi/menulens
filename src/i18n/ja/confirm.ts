@@ -1,0 +1,58 @@
+import type { confirm as Ko } from '../ko/confirm';
+
+/** confirm 네임스페이스 문구(日本語) */
+export const confirm: typeof Ko = {
+  batch: {
+    quit: 'やめる',
+    collected: (n: number) => `${n}枚集まりました`,
+    tapToCrop: '写真を押すと範囲を切り取れます',
+    cropPhotoAria: (i: number) => `写真 ${i} の範囲を切り取る`,
+    removePhotoAria: (i: number) => `写真 ${i} を外す`,
+    reading: '読み取り中',
+    moveForwardAria: (i: number) => `写真 ${i} を前へ`,
+    cropAria: (i: number) => `写真 ${i} を切り取る`,
+    crop: 'カット',
+    moveBackAria: (i: number) => `写真 ${i} を後ろへ`,
+    takeMore: 'もう1枚',
+    addFromAlbum: 'アルバムから追加',
+    limit: (n: number) => `一度に${n}枚までです。`,
+    dropped: (n: number) => `後ろの${n}枚は外しました。`,
+    cameraMoreAria: 'カメラでもっと撮る',
+    analyze: (n: number) => `${n}枚を分析する`,
+  },
+  crop: {
+    backToBatch: 'まとめへ戻る',
+    title: '範囲を切り取る',
+    imageAlt: '選んだ写真',
+    onlyRed: '赤い範囲だけ分析します',
+    dragHint: '角をドラッグすると文字の部分だけ残せます',
+    resetFull: '全体に戻す',
+    cropping: '切り取り中…',
+    useArea: 'この範囲だけ使う',
+    useWhole: 'そのまま使う',
+    handleAria: (h: string) => `範囲 ${h}`,
+    boxAria: '範囲指定',
+    canvasError: 'キャンバスを作成できません',
+    cropFailed: '写真を切り取れませんでした',
+  },
+  strip: {
+    groupAria: 'まとめの写真',
+    statusAria: (i: number, status: string) => `写真 ${i} ${status}`,
+    failed: '失敗',
+    takeMoreAria: '写真をもっと撮る',
+  },
+  leave: {
+    titleDetailing: 'まだ説明を書いています',
+    titleReading: (n: number) => `写真 ${n}枚をまだ読んでいます`,
+    bodyDetailing: '今出ると、メニューの説明が空のまま残ります。',
+    bodyReading: '今出ると読み取りを止め、読んでいた写真は記録に残りません。',
+    stay: '読み続ける',
+    leave: '中止してホームへ',
+  },
+  rename: {
+    title: '名前を変更',
+    nameLabel: '名前',
+    autoTitle: (auto: string) => `自動タイトル: ${auto}`,
+    useAuto: '自動タイトルに戻す',
+  },
+};

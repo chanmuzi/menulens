@@ -2,6 +2,8 @@
 import type { TalkWho } from '../types';
 import { getAccessCode } from './storage';
 import { readNdjson } from './ndjson';
+import { dict } from '../i18n';
+import { ApiError, emptyResponseError } from './apiError';
 
 type Ctx = ReadonlyArray<{ who: TalkWho; src: string; tr: string }>;
 
@@ -12,7 +14,7 @@ export class SttUnavailableError extends Error {
 }
 
 const code = (): string => getAccessCode() ?? '';
-const failure = (status: number): Error => new Error(status === 401 ? '초대 코드가 더 이상 유효하지 않아요' : `서버 오류 (${status})`);
+const failure = (status: number): Error => new ApiError(status);
 
 export const transcribe = async (audio: Blob, lang: 'ko' | 'ja', signal?: AbortSignal): Promise<string> => {
   const res = await fetch('/api/stt', {
@@ -30,9 +32,9 @@ export const transcribe = async (audio: Blob, lang: 'ko' | 'ja', signal?: AbortS
 /** /api/talk 스트림. error 이벤트는 예외로 */
 const readLines = async (res: Response, onEvent: (ev: Record<string, unknown>) => void): Promise<void> => {
   if (!res.ok) throw failure(res.status);
-  if (!res.body) throw new Error('응답이 비어 있어요');
+  if (!res.body) throw emptyResponseError();
   await readNdjson<Record<string, unknown>>(res.body, (ev) => {
-    if (ev.t === 'error') throw new Error(typeof ev.m === 'string' ? ev.m : '응답 오류');
+    if (ev.t === 'error') throw new Error(typeof ev.m === 'string' ? ev.m : dict().talk.responseError);
     onEvent(ev);
   });
 };
@@ -49,7 +51,7 @@ export const translate = async (text: string, turns: Ctx, onFields: (f: Readonly
     if (ev.t === 'field' && typeof ev.k === 'string') { fields = { ...fields, [ev.k]: ev.v }; onFields(fields); }
     else if (ev.t === 'done' && ev.result && typeof ev.result === 'object') result = ev.result as Record<string, unknown>;
   });
-  if (!result) throw new Error('번역이 끊겼어요');
+  if (!result) throw new Error(dict().talk.translationCut);
   return result;
 };
 
@@ -62,7 +64,7 @@ export const askHelper = async (question: string, turns: Ctx, history: ReadonlyA
     if (ev.t === 'delta' && typeof ev.text === 'string') { text += ev.text; onText(text); }
     else if (ev.t === 'done' && typeof ev.text === 'string') final = ev.text;
   });
-  if (final === null) throw new Error('답이 끊겼어요');
+  if (final === null) throw new Error(dict().talk.answerCut);
   return final;
 };
 

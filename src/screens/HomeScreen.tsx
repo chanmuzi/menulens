@@ -14,6 +14,7 @@ import { TalkRow } from '../components/TalkRow';
 import { DotGlyph } from '../components/DotGlyph';
 import { Segmented } from '../components/Segmented';
 import { loadHomeTab, saveHomeTab, type HomeTab } from '../lib/storage';
+import { toggleLang, useLang, useT } from '../i18n';
 
 type Props = {
   readonly scans: readonly Scan[];
@@ -33,17 +34,13 @@ type Props = {
   readonly onShowAllTalks: () => void;
 };
 
-const HINT_BY_REASON = {
-  empty: '클립보드에 이미지가 없어요',
-  denied: '붙여넣기가 허용되지 않았어요 · 앨범에서 골라 주세요',
-  unsupported: '이 브라우저는 붙여넣기를 지원하지 않아요',
-} as const;
 const HINT_MS = 3000;
 
 /** 홈에는 최근 몇 묶음만. 나머지는 「전체 보기」 */
 const HOME_RECENT = 5;
 
 export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRename, onRemove, talks, onNewTalk, onOpenTalk, onRenameTalk, onRemoveTalk, onShowAllTalks }: Props) => {
+  const t = useT();
   /** 사진 읽기 / 대화 통역. 마지막으로 고른 탭을 기억한다(대화에서 홈으로 돌아오면 대화 탭) */
   const [tab, setTab] = useState<HomeTab>(loadHomeTab);
   const changeTab = (t: HomeTab) => { saveHomeTab(t); setTab(t); };
@@ -94,20 +91,20 @@ export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRe
       setDragging(false);
       const f = imageFromDropEvent(e);
       if (f) onPick([f], 'drop');
-      else setHint({ text: '이미지 파일만 넣을 수 있어요', at: Date.now() });
+      else setHint({ text: t.home.dropOnlyImage, at: Date.now() });
     };
     document.addEventListener('dragover', onOver);
     document.addEventListener('dragleave', onLeave);
     document.addEventListener('drop', onDrop);
     return () => { document.removeEventListener('dragover', onOver); document.removeEventListener('dragleave', onLeave); document.removeEventListener('drop', onDrop); };
-  }, [onPick]);
+  }, [onPick, t]);
 
   // 모바일: 버튼 탭 → 클립보드 읽기 (사용자 동작 안에서 호출해야 한다)
   const pasteFromButton = async () => {
     const r = await readImageFromClipboard();
     if (r.ok) { onPick([r.file], 'paste'); return; }
     if (isIos()) { setPasteBox(true); return; } // 상자를 길게 눌러 네이티브 「붙여넣기」 → paste 이벤트
-    setHint({ text: HINT_BY_REASON[r.reason], at: Date.now() });
+    setHint({ text: t.home.pasteHint[r.reason], at: Date.now() });
   };
 
   return (
@@ -119,31 +116,32 @@ export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRe
           </div>
           <div className="dot" style={{ fontSize: 20, lineHeight: 1 }}>MENULENS</div>
         </div>
-        <div className="dot" style={{ height: 40, padding: '0 10px', border: '2px solid var(--ink)', background: 'var(--paper-2)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
-          {tab === 'menu' ? <>日本語 <span style={{ color: 'var(--vermilion)' }}>→</span> 한국어</> : <>한국어 <span style={{ color: 'var(--vermilion)' }}>⇄</span> 日本語</>}
-        </div>
+        {/* 언어 전환 버튼: 지금 방향(원문 → 앱 언어)을 보여주고 누르면 앱 언어를 바꾼다 */}
+        <button type="button" className="dot" onClick={toggleLang} aria-label={t.common.langButtonAria} style={{ height: 40, padding: '0 10px', border: '2px solid var(--ink)', background: 'var(--paper-2)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', color: 'var(--ink)' }}>
+          {t.common.langButton}
+        </button>
       </header>
 
       <div className="notice-tabs">
-        <Segmented label="기능" value={tab} onChange={changeTab} options={[{ value: 'menu', label: '사진 읽기', icon: 'camera' }, { value: 'talk', label: '대화 통역', icon: 'talk' }]} />
+        <Segmented label={t.home.tabsAria} value={tab} onChange={changeTab} options={[{ value: 'menu', label: t.home.tabMenu, icon: 'camera' }, { value: 'talk', label: t.home.tabTalk, icon: 'talk' }]} />
       </div>
 
       {tab === 'talk' ? (
         <>
-          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 600, lineHeight: 1.3 }}>말하거나 쓰면 일본어로,<br />들으면 한국어로 보여드려요</h1>
+          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 600, lineHeight: 1.3 }}>{t.home.talkTitle1}<br />{t.home.talkTitle2}</h1>
           <div className="corners frame" style={{ background: 'var(--paper-dark)', boxShadow: '4px 4px 0 var(--ink)', padding: '28px 18px 18px', display: 'flex', flexDirection: 'column', gap: 8 }}>
             <span className="c3" /><span className="c4" />
             <TalkMock />
             <button type="button" className="btn btn--primary" onClick={onNewTalk} style={{ marginTop: 10, minHeight: 60, borderWidth: 3, boxShadow: '4px 4px 0 var(--ink)', fontSize: 18, fontWeight: 600 }}>
-              <DotGlyph name="mic" size={18} />새 대화 시작
+              <DotGlyph name="mic" size={18} />{t.home.newTalk}
             </button>
           </div>
           {talks.length > 0 && (
             <section style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div className="dot" style={{ fontSize: 14 }}>최근 대화</div>
+                <div className="dot" style={{ fontSize: 14 }}>{t.home.recentTalks}</div>
                 {talks.length > HOME_RECENT && (
-                  <button type="button" className="btn btn--quiet" onClick={onShowAllTalks} style={{ minHeight: 32, padding: '0 6px' }}>전체 보기 ({talks.length}) ›</button>
+                  <button type="button" className="btn btn--quiet" onClick={onShowAllTalks} style={{ minHeight: 32, padding: '0 6px' }}>{t.home.showAllCount(talks.length)}</button>
                 )}
               </div>
               {talks.slice(0, HOME_RECENT).map((t) => <TalkRow key={t.id} talk={t} when={whenLabel(t.updatedAt)} onOpen={onOpenTalk} onRename={onRenameTalk} onRemove={onRemoveTalk} />)}
@@ -153,7 +151,7 @@ export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRe
         </>
       ) : (<>
 
-      <h1 style={{ margin: 0, fontSize: 24, fontWeight: 600, lineHeight: 1.3 }}>메뉴판이나 안내문을 찍으면<br />바로 읽어드려요</h1>
+      <h1 style={{ margin: 0, fontSize: 24, fontWeight: 600, lineHeight: 1.3 }}>{t.home.menuTitle1}<br />{t.home.menuTitle2}</h1>
 
       {/* 뷰파인더: 사진이 여기 찍혀 번역된다는 걸 그림으로. 설명 문구 대신 메뉴판 모형 + 스캔 라인 + 번역 칩. 안내·오류 문구는 필요할 때만 그 위에 */}
       <div className="corners frame" style={{ background: dragging ? 'var(--paper-2)' : 'var(--paper-dark)', outline: dragging ? '3px dashed var(--vermilion)' : 'none', outlineOffset: -8, boxShadow: '4px 4px 0 var(--ink)', padding: 18, minHeight: 300, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', gap: 18, overflow: 'hidden' }}>
@@ -162,32 +160,32 @@ export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRe
         {/* 라이브 영역은 늘 두고 문구만 넣었다 뺀다(영역과 문구가 같이 생기면 낭독기가 읽지 않을 수 있다) */}
         <div role="status" style={{ position: 'absolute', top: 96, left: 0, right: 0, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
           {(dragging || hint) && (
-            <div style={{ background: 'var(--paper-2)', border: '2px solid var(--ink)', padding: '8px 12px', fontSize: 13, fontWeight: 500, color: hint ? 'var(--vermilion)' : undefined, maxWidth: 'calc(100% - 48px)', textAlign: 'center' }}>{dragging ? '여기에 놓으면 확인 화면으로 가요' : hint?.text}</div>
+            <div style={{ background: 'var(--paper-2)', border: '2px solid var(--ink)', padding: '8px 12px', fontSize: 13, fontWeight: 500, color: hint ? 'var(--vermilion)' : undefined, maxWidth: 'calc(100% - 48px)', textAlign: 'center' }}>{dragging ? t.home.dropHere : hint?.text}</div>
           )}
         </div>
         <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 14, marginTop: 170 }}>
-          <button type="button" className="btn" onClick={() => albumRef.current?.click()}>앨범에서</button>
-          <button type="button" className="btn btn--primary" onClick={() => cameraRef.current?.click()} style={{ width: 78, height: 78, borderWidth: 3, boxShadow: '4px 4px 0 var(--ink)', fontSize: 18, fontWeight: 600 }}>촬영</button>
+          <button type="button" className="btn" onClick={() => albumRef.current?.click()}>{t.home.albumButton}</button>
+          <button type="button" className="btn btn--primary" onClick={() => cameraRef.current?.click()} style={{ width: 78, height: 78, borderWidth: 3, boxShadow: '4px 4px 0 var(--ink)', fontSize: 18, fontWeight: 600 }}>{t.home.cameraButton}</button>
           {isIosStandalone()
             // 홈 화면 앱은 클립보드 API 가 막혀 있어 버튼을 길게 눌러 iOS 「붙여넣기」 메뉴로 받는다 (paste 이벤트 → document 리스너)
-            ? <div role="button" tabIndex={0} contentEditable suppressContentEditableWarning inputMode="none" className="btn" aria-label="길게 눌러 붙여넣기"
-                onInput={(e) => { e.currentTarget.textContent = '붙여넣기'; }}
-                onClick={() => setHint({ text: '버튼을 길게 눌러 「붙여넣기」를 고르세요', at: Date.now() })}
-                style={{ caretColor: 'transparent', userSelect: 'text', WebkitUserSelect: 'text' }}>붙여넣기</div>
+            ? <div role="button" tabIndex={0} contentEditable suppressContentEditableWarning inputMode="none" className="btn" aria-label={t.home.pasteLongPressAria}
+                onInput={(e) => { e.currentTarget.textContent = t.home.pasteButton; }}
+                onClick={() => setHint({ text: t.home.pasteLongPressHint, at: Date.now() })}
+                style={{ caretColor: 'transparent', userSelect: 'text', WebkitUserSelect: 'text' }}>{t.home.pasteButton}</div>
             : pasteSupported
-              ? <button type="button" className="btn" onClick={() => void pasteFromButton()}>붙여넣기</button>
+              ? <button type="button" className="btn" onClick={() => void pasteFromButton()}>{t.home.pasteButton}</button>
               : <div style={{ width: 78 }} />}
         </div>
-        <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handle('camera')} className="sr-only" aria-label="카메라로 촬영" />
-        <input ref={albumRef} type="file" accept="image/*" multiple onChange={handle('album')} className="sr-only" aria-label="앨범에서 선택" />
+        <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handle('camera')} className="sr-only" aria-label={t.home.cameraInputAria} />
+        <input ref={albumRef} type="file" accept="image/*" multiple onChange={handle('album')} className="sr-only" aria-label={t.home.albumInputAria} />
       </div>
 
       {scans.length > 0 && (
         <section style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div className="dot" style={{ fontSize: 14 }}>최근 스캔</div>
+            <div className="dot" style={{ fontSize: 14 }}>{t.home.recentScans}</div>
             {groups.length > HOME_RECENT && (
-              <button type="button" className="btn btn--quiet" onClick={onShowAll} style={{ minHeight: 32, padding: '0 6px' }}>전체 보기 ({groups.length}) ›</button>
+              <button type="button" className="btn btn--quiet" onClick={onShowAll} style={{ minHeight: 32, padding: '0 6px' }}>{t.home.showAllCount(groups.length)}</button>
             )}
           </div>
           {groups.slice(0, HOME_RECENT).map((g) => <ScanRow key={g.key} group={g} when={whenLabel(g.at)} onOpen={onOpen} onRename={onRename} onRemove={onRemove} />)}
@@ -197,12 +195,12 @@ export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRe
       {pasteBox && (
         <div className="frame frame--flat" style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--paper-dark)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 13 }}>
-            <span>붙여넣기 권한이 막혀 있어요. 아래 상자를 <strong>길게 눌러 「붙여넣기」</strong>를 고르세요</span>
-            <button type="button" className="btn btn--quiet" onClick={() => setPasteBox(false)} aria-label="닫기" style={{ minHeight: 32, padding: '0 6px' }}>✕</button>
+            <span>{t.home.pasteBoxBefore}<strong>{t.home.pasteBoxStrong}</strong>{t.home.pasteBoxAfter}</span>
+            <button type="button" className="btn btn--quiet" onClick={() => setPasteBox(false)} aria-label={t.common.close} style={{ minHeight: 32, padding: '0 6px' }}>✕</button>
           </div>
-          <div ref={pasteBoxRef} contentEditable suppressContentEditableWarning inputMode="none" aria-label="붙여넣기 상자" onInput={(e) => { e.currentTarget.textContent = ''; }}
+          <div ref={pasteBoxRef} contentEditable suppressContentEditableWarning inputMode="none" aria-label={t.home.pasteBoxAria} onInput={(e) => { e.currentTarget.textContent = ''; }}
             style={{ minHeight: 56, border: '2px dashed var(--vermilion)', background: 'var(--paper-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: 'var(--muted)', outline: 'none', caretColor: 'transparent' }}>
-            여기를 길게 누르기
+            {t.home.pasteBoxLongPress}
           </div>
         </div>
       )}
@@ -212,22 +210,30 @@ export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRe
   );
 };
 
-/** 대화 통역 모형: 내 말(오른쪽, 원문 작게 + 일본어 크게)과 상대 말(왼쪽, 먹색)이 쌓이는 모습. 실제 번역 결과에서 가져온 문장 */
-const TalkMock = () => (
-  <div aria-hidden="true" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-    <div style={{ alignSelf: 'flex-end', maxWidth: '80%', background: 'var(--paper-2)', border: '2px solid var(--ink)', padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <span style={{ fontSize: 11, color: 'var(--muted)' }}>그럼 하나 부탁할게요</span>
-      <span className="jp" style={{ fontSize: 17 }}>じゃあ、一つお願いします</span>
+/** 대화 통역 모형: 내 말(오른쪽, 원문 작게 + 번역 크게)과 상대 말(왼쪽, 먹색)이 쌓이는 모습. 실제 번역 결과에서 가져온 문장.
+ *  일본어 글꼴(jp)은 일본어인 줄에만 건다: ko UI 는 내 말의 번역·상대 말의 원문, ja UI 는 그 반대 */
+const TalkMock = () => {
+  const t = useT();
+  const ja = useLang() === 'ja';
+  const m = t.home.talkMock;
+  return (
+    <div aria-hidden="true" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ alignSelf: 'flex-end', maxWidth: '80%', background: 'var(--paper-2)', border: '2px solid var(--ink)', padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <span style={{ fontSize: 11, color: 'var(--muted)', fontFamily: ja ? 'var(--font-jp)' : undefined }}>{m.mineSrc}</span>
+        <span className={ja ? undefined : 'jp'} style={{ fontSize: 17, fontWeight: ja ? 700 : undefined }}>{m.mineDst}</span>
+      </div>
+      <div style={{ alignSelf: 'flex-start', maxWidth: '84%', background: 'var(--ink)', color: 'var(--paper)', padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <span style={{ fontFamily: ja ? undefined : 'var(--font-jp)', fontSize: 11, color: '#D9CCB4' }}>{m.otherSrc}</span>
+        <span className={ja ? 'jp' : undefined} style={{ fontSize: 15, fontWeight: 700 }}>{m.otherDst}</span>
+      </div>
     </div>
-    <div style={{ alignSelf: 'flex-start', maxWidth: '84%', background: 'var(--ink)', color: 'var(--paper)', padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <span style={{ fontFamily: 'var(--font-jp)', fontSize: 11, color: '#D9CCB4' }}>お水はセルフサービスになっております</span>
-      <span style={{ fontSize: 15, fontWeight: 700 }}>물은 셀프서비스입니다.</span>
-    </div>
-  </div>
-);
+  );
+};
 
 /** 메뉴판 모형: 나무판 위 종이 한 장에 글줄(막대)과 그림, 그 위를 지나는 스캔 라인, 한 줄이 번역 칩으로 뜬 모습 */
-const MenuMock = () => (
+const MenuMock = () => {
+  const t = useT();
+  return (
   <div aria-hidden="true" style={{ position: 'absolute', left: 44, right: 44, top: 30, height: 160, background: 'var(--wood)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
     <div style={{ position: 'relative', width: 150, height: 128, background: '#F7EFDD', border: '2px solid var(--ink)', padding: '12px 12px', display: 'flex', flexDirection: 'column', gap: 9 }}>
       {[[0.75, true], [0.55, false], [0.65, false], [0.45, false], [0.6, false]].map(([w, head], i) => (
@@ -238,9 +244,10 @@ const MenuMock = () => (
       ))}
       {/* 두 번째 줄이 번역돼 떠오른 칩 */}
       <div className="pop" style={{ position: 'absolute', left: 10, top: 29, display: 'flex', alignItems: 'center', gap: 5, background: 'var(--paper-2)', border: '2px solid var(--ink)', boxShadow: '2px 2px 0 var(--ink)', padding: '2px 6px', fontSize: 11, fontWeight: 600, lineHeight: 1.2 }}>
-        <PixelIcon icon="ramen" size={1} />라멘 <span className="dot" style={{ color: 'var(--vermilion)' }}>¥900</span>
+        <PixelIcon icon="ramen" size={1} />{t.home.menuMockItem} <span className="dot" style={{ color: 'var(--vermilion)' }}>{t.home.menuMockPrice}</span>
       </div>
       <div className="scanline" style={{ left: 0, right: 0 }} />
     </div>
   </div>
-);
+  );
+};

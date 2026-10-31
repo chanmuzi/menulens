@@ -1,4 +1,6 @@
 export type Category = '안주' | '식사' | '음료' | '디저트' | '기타';
+/** 2단계 태그(모델이 내는 한국어 값, api/_lib/prompt.ts STAGE2_SYSTEM 과 같아야 한다) */
+export type Tag = '인기' | '날것' | '매움' | '튀김' | '음료' | '채식' | '선택 필요';
 
 export type Point = readonly [number, number];
 /** 메뉴판 네 모서리 (왼쪽위, 오른쪽위, 오른쪽아래, 왼쪽아래), 0~1000 정규화 */

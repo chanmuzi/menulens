@@ -1,5 +1,6 @@
 /** 되돌릴 수 없는 동작 전 확인 팝업(기록 지우기 등). 모양은 LeaveDialog 와 같고, 기본 포커스는 안전한 쪽(취소)에 둔다. */
 import { useEffect } from 'react';
+import { useT } from '../i18n';
 
 type Props = {
   readonly title: string;
@@ -10,6 +11,7 @@ type Props = {
 };
 
 export const ConfirmDialog = ({ title, body, confirmLabel, onCancel, onConfirm }: Props) => {
+  const t = useT();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel(); };
     window.addEventListener('keydown', onKey);
@@ -22,7 +24,7 @@ export const ConfirmDialog = ({ title, body, confirmLabel, onCancel, onConfirm }
         <div id="confirm-title" className="dot" style={{ fontSize: 16 }}>{title}</div>
         <p id="confirm-body" style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: 'var(--body)', overflowWrap: 'anywhere' }}>{body}</p>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button type="button" className="btn" onClick={onCancel} autoFocus style={{ flex: 1 }}>취소</button>
+          <button type="button" className="btn" onClick={onCancel} autoFocus style={{ flex: 1 }}>{t.common.cancel}</button>
           <button type="button" className="btn btn--primary" onClick={onConfirm} style={{ flex: 1 }}>{confirmLabel}</button>
         </div>
       </div>

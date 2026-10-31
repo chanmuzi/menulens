@@ -3,6 +3,8 @@
 import type { MenuItem, Scan, ScanKind } from '../types';
 import { getAccessCode } from './storage';
 import { readNdjson } from './ndjson';
+import { dict } from '../i18n';
+import { ApiError, emptyResponseError } from './apiError';
 
 /** 대화 한 줄. refs 는 저장용 참조 「사진 id/항목 id」(불러올 때 옛 형식을 바꾼다). sawScan 은 어느 사진을 봤는지(묶음일 때 표시용, 옛 대화에는 없다) */
 export type ChatMsg = { readonly role: 'me' | 'bot'; readonly text: string; readonly refs: readonly string[]; readonly sawImage: boolean; readonly sawScan?: string | null; readonly at: number };
@@ -87,11 +89,8 @@ export const askMenu = async (
     headers: { 'content-type': 'application/json', 'x-access-code': getAccessCode() ?? '' },
     body: JSON.stringify({ ...req.context, focus: req.focus, question: req.question, history: req.history.slice(-6).map((m) => ({ role: m.role, text: m.text })), image: req.image, imagePhoto: req.imagePhoto }),
   });
-  if (!res.ok) {
-    if (res.status === 401) throw new Error('초대 코드가 더 이상 유효하지 않아요');
-    throw new Error(`서버 오류 (${res.status})`);
-  }
-  if (!res.body) throw new Error('응답이 비어 있어요');
+  if (!res.ok) throw new ApiError(res.status);
+  if (!res.body) throw emptyResponseError();
   let text = '';
   let result: AskResult | null = null;
   await readNdjson<Event>(res.body, (ev) => {
@@ -100,7 +99,7 @@ export const askMenu = async (
     else if (ev.t === 'need_image') result = { kind: 'need_image', photo: ev.photo ?? null };
     else if (ev.t === 'error') throw new Error(ev.m);
   });
-  if (!result) throw new Error('답이 끊겼어요');
+  if (!result) throw new Error(dict().chat.cutOff);
   return result;
 };
 

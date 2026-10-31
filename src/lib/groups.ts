@@ -12,7 +12,8 @@ const MAX_GROUPS = 10;
 export const MIN_ITEMS_FOR_GROUPS = 8;
 const MIN_GROUPED_RATIO = 0.6;
 const CATEGORY_ORDER: readonly Category[] = ['식사', '안주', '음료', '디저트', '기타'];
-const REST = '그 밖에';
+/** 묶음 이름이 없는 항목의 묶음 키. 저장·필터 키로 쓰이므로 언어와 무관하게 고정하고, 화면은 t.result.groupRest 로 보여준다 */
+export const REST = '그 밖에';
 
 const collect = (items: readonly MenuItem[], keyOf: (it: MenuItem) => string | null): readonly Group[] => {
   const map = new Map<string, MenuItem[]>();

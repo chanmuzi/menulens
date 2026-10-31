@@ -7,6 +7,7 @@ import type { Box } from '../types';
 import type { MarkerCtx } from './MenuPhoto';
 import { LINE_HEIGHT, PAD_X, planCovers, type Measure, type Rect } from '../lib/coverLayout';
 import { rgba, type BoxColors } from '../lib/sample';
+import { useT } from '../i18n';
 
 export type CoverBlock = {
   readonly key: string;
@@ -55,6 +56,7 @@ const useFontsReady = (): boolean => {
 };
 
 export const NoticeCovers = ({ blocks, ctx, rotation, rot, onBadges }: Props) => {
+  const t = useT();
   const fontsReady = useFontsReady();
   const { W, Hi } = ctx;
   const scale = ctx.fit.scale;
@@ -101,7 +103,7 @@ export const NoticeCovers = ({ blocks, ctx, rotation, rot, onBadges }: Props) =>
       const size = badgeSize.get(b.key) ?? 20;
       // 줄 왼쪽 바깥, 세로 가운데에 붙여 원문 글자를 가리지 않는다
       texts.push(
-        <button key={b.key} type="button" onClick={b.onClick} aria-pressed={b.selected} aria-label={`${label}번 ${b.text}`} className="dot"
+        <button key={b.key} type="button" onClick={b.onClick} aria-pressed={b.selected} aria-label={t.result.coverBadgeAria(label, b.text)} className="dot"
           style={{ position: 'absolute', left: `${first[0] / 10}%`, top: `${(first[1] + first[3]) / 20}%`, transform: `translate(-100%, -50%) rotate(${rot}deg) scale(${ms})`, transformOrigin: 'right center',
             minWidth: size, height: size, padding: '0 3px', cursor: 'pointer', background: b.selected ? 'var(--vermilion)' : 'var(--ink)', color: 'var(--paper-2)', border: '1.5px solid var(--paper-2)', fontSize: Math.max(9, size * 0.55), lineHeight: 1, zIndex: 3 }}>
           {label}
