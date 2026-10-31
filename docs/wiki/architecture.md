@@ -7,12 +7,13 @@
 1. **클라이언트** `src/lib/image.ts` — `<img>` 디코딩(EXIF 적용) → 긴 변 1280px JPEG(q0.85) → base64.
 2. **`POST /api/analyze`** (`api/analyze.ts`, Node.js, 도쿄) — NDJSON 스트림으로 아래 이벤트를 순서대로 보낸다.
    - `ocr` — Upstage Document OCR(`model=ocr`) 결과: 단어 `{id,t,box}`(0~1000 정규화), `rotation`(90° 단위), `tilt`(도), `width`·`height`, `ms`, `used`(실패 시 `error`)
+   - `lang` — 번역 방향 `{src, dst, currency}`. `dst` 는 클라이언트가 보낸 앱 언어(`lang` 본문 필드, 없으면 ko), `src` 는 OCR 단어의 문자 체계(한글 vs 가나·한자)로 판정(`api/_lib/direction.ts`), OCR 을 못 썼으면 앱 언어의 반대. 통화는 src 를 따른다(ko→KRW)
    - `mode` — `ocr`(단어 ≥3) 또는 `image`(폴백: 이미지를 직접 보는 프롬프트), `chunks` 수
    - `kind` — 1단계 출력의 첫 키 `"kind"` 가 스트림에 보이는 즉시(항목보다 먼저, 한 번만). 처리 중 화면이 메뉴판/안내문에 맞는 문구로 바뀐다. 추가 호출 없음
    - `item` — 1단계 LLM 항목이 완성될 때마다 `{key:"묶음:순번", item}`. 단어 60개 초과면 읽기 순서로 최대 4묶음을 **병렬** 호출(`api/_lib/chunk.ts`), 파싱은 서버(`api/_lib/itemStream.ts`)
    - `note` — 1단계 문구(안내문은 문단 `{role, lines, text, tr}`)가 완성될 때마다. 안내문은 첫 문단에서 결과 화면을 열어 덮개가 차례로 뜬다(최종본은 `meta.notes`)
    - `meta` — 모든 묶음 완료 후 `kind`(menu/sign/other)·`shop_name`·`title`(「이모지 제목」, 기록 목록용 자동 제목)·`notes`(비메뉴 문구)
-   - `details` — 2단계 LLM: 10개씩 병렬로 `pron/desc/tags/photo_query`. Redis 캐시 적중분은 `cached:true` 로 먼저 온다
+   - `details` — 2단계 LLM: 10개씩 병렬로 `desc/tags/photo_query`(+ 일본어 원문이면 읽기 `kana`). **발음 `pron` 은 모델이 아니라 서버 규칙이 만든다**: 일→한은 `kana`(히라가나 읽기)를 `api/_lib/kanaToHangul.ts` 로 한글로 옮기고 가나가 아니면 비운다, 한→일은 이름 자체를 `api/_lib/hangulToKana.ts` 로 가타카나로 옮긴다(괄호 단위 제외). 규칙 검사는 `node --experimental-strip-types --test scripts/bench/rules_test.ts`. Redis 캐시 적중분은 `cached:true` 로 먼저 온다(캐시 키는 방향별, 일→한은 옛 키 그대로)
    - `summary` — 안내문·기타일 때 `meta` 뒤 한 번: 문단을 텍스트로 넘겨 `SUMMARY_SYSTEM` 으로 `{summary(사진에 적힌 것만), tips(일반 상식 0~2)}`. 실패하면 생략
    - `groups` — 메뉴판이고 항목 8개 이상일 때만, 2단계와 **병렬**로 한 번 더 LLM 호출(텍스트만, `GROUPS_SYSTEM`): 1단계가 항목마다 붙인 임시 `group` 을 메뉴판 전체 기준 4~8개 `{name, keys}` 로 합친다. 실패·소수 항목이면 안 보내고 클라이언트가 항목 group/category 로 묶는다(`src/lib/groups.ts`). 목록 표시 시간은 변하지 않고 정리는 목록 후 ≈2s
    - `done` / `error`
@@ -24,7 +25,7 @@
 5-1. **클라이언트 대화 통역** (`src/screens/TalkScreen.tsx`) — 말하기는 `recorder.ts`(MediaRecorder: iPhone audio/mp4, Chrome audio/webm, AnalyserNode 로 소리 크기를 재 말이 끝나고 1.3s 조용하면 끝, 말소리 0.3s 미만이면 보내지 않음) → `/api/stt` → 마디 추가 → `/api/talk` translate 의 `field` 를 받는 대로 `applyFields`(lang 이 ja 면 상대 말로). 마디가 끝날 때마다 `talkStore`(IndexedDB `menulens-talk`, 스캔 DB 와 별개, 실패 시 localStorage 20건)에 저장. 결정은 [[decisions-talk]].
 6. **`POST /api/talk`** (`api/talk.ts`, 프롬프트 `api/_lib/talkPrompt.ts`, 호출 `api/_lib/claude.ts`) — 대화 통역의 글자 쪽. `mode:'translate'` 는 NDJSON `field{k,v}`(값이 닫힌 문자열 필드부터: `lang` → 번역문 `ja`/`ko` → `fixed`(오인식 고친 원문) → `pron`·`kana`·`en`) 뒤 `done{result,via}`, `mode:'ask'`(도우미)는 `delta`/`done`, `mode:'title'` 은 `{title}`. Claude 는 Timely 가 기본이고 402·429·한도 문구면 같은 요청을 Anthropic 직접 키로 한 번 더(`via` 로 구분).
 
-모델은 `api/_lib/prompt.ts` 의 `MODEL`(현재 `claude-sonnet-5-5`, Timely Router `/v1/messages`). 프롬프트 5종(`api/_lib/prompt.ts`): `STAGE1_SYSTEM`(짧은 구조화, 끝에 기록용 `emoji`·`title`), `STAGE2_SYSTEM`(설명), `GROUPS_SYSTEM`(카드 묶음 정리), `SUMMARY_SYSTEM`(안내문 요약), `IMAGE_SYSTEM`(폴백). 챗은 `api/_lib/chatPrompt.ts` 의 `chatSystem(kind)`, 아이콘 생성은 `api/icon.ts`.
+모델은 `api/_lib/prompt.ts` 의 `MODEL`(현재 `claude-sonnet-5-5`, Timely Router `/v1/messages`). 프롬프트 5종은 방향 `{src, dst}` 를 받는 함수(`api/_lib/prompt.ts`): `stage1System`(짧은 구조화, 끝에 기록용 `emoji`·`title`), `stage2System`(설명·읽기), `groupsSystem`(카드 묶음 정리), `summarySystem`(안내문 요약), `imageSystem`(폴백). 본문은 한국어로 쓰고 원문·대상 언어, 나라, 가격 규칙(엔: 세전/세후, 원: 「9.0」= 9,000원·세금 포함)만 바꾼다. 분류·태그는 앱 내부 코드라 어느 방향이든 한국어 값. 챗은 `api/_lib/chatPrompt.ts` 의 `chatSystem(kind)`, 아이콘 생성은 `api/icon.ts`.
 
 ## 파일 지도
 
@@ -32,7 +33,7 @@
 api/            Vercel Functions (Node.js, Web 표준 fetch 핸들러, ESM — 상대 import 에 .js 확장자 필수)
   analyze.ts 파이프라인 본체   chat.ts 결과 화면 챗   icon.ts 도트 아이콘 격자 생성(상위 모델 → 폴백)   auth.ts 초대 코드   rate.ts 환율
   photo.ts Commons 사진(사진 토글이 비활성이라 호출되지 않음, 경로는 살아 있음)   stt.ts 대화 음성 인식   talk.ts 대화 번역·도우미·제목
-  _lib/  access(초대 코드) ocr chunk itemStream prompt chatPrompt kv(Redis) cache(설명 캐시 180일) iconCache(아이콘 365일) debugStore(진단 20건·7일) pixel(서버 팔레트) http
+  _lib/  access(초대 코드) ocr chunk itemStream prompt(방향별 함수) direction(원문 언어 판정·통화) kanaToHangul·hangulToKana(발음 규칙) chatPrompt kv(Redis) cache(설명 캐시 180일, 방향별 키) iconCache(아이콘 365일) debugStore(진단 20건·7일) pixel(서버 팔레트) http
          stt(Groq → Gemini) claude(Timely → 한도 시 Anthropic 직접, SSE 읽기) talkPrompt(번역·제목·도우미)
 src/
   App.tsx       화면 상태 머신 gate → home ⇄ history → confirm(모음·자르기) → processing → result, home ⇄ talk(대화 통역), 스캔 오케스트레이션(runScan·startScans·addScans), 대화 목록·이름 고치기·지우기
@@ -43,7 +44,7 @@ src/
                 ConfirmDialog(지우기 확인) RenameDialog(이름 고치기) ChatFab OrderBar QtyStepper CropBox InstallHint PixelIcon Segmented ProgressBlocks ItemImage TopBar
   lib/          image api scan(정규화·unionBox·applyDetails) coverLayout(덮개/번호 판정·글자 맞춤) sample(덮개 배경·글자색) icons(키워드 우선) iconStore pixel kind(종류별 문구)
                 upgrade(빈 스캔 기본값·옛 기록 변환: 2026-10-31 필드 중립화 이전 키 name_ja 등을 name/tr 로) history(기록 묶음·제목 규칙) when(날짜·요일·12시간제) storage(저장 큐·이름 고치기·썸네일 채우기·홈 탭·대화 화면 설정) db(IndexedDB) thumb(168px 썸네일) batch(runLimited)
-                groups chat order(묶음 전체 수량 BatchOrder·주문 문구) money crop clipboard drop platform photos savePhoto(묶음 전부 공유) version
+                groups chat order(묶음 전체 수량 BatchOrder·주문 문구) money(통화별 표기·양방향 환산 formatMoney/formatConverted/splitMoney) crop clipboard drop platform photos savePhoto(묶음 전부 공유) version
                 talk(마디·말풍선 언어·제목·「말해 볼 문장」) talkApi(/api/stt·/api/talk) talkStore(IndexedDB menulens-talk) ndjson(스트림 줄 읽기: chat·talkApi 공용) recorder(녹음·소리 크기·무음 거르기)
   styles/       global.css(토큰·픽셀 프레임·애니메이션) pixel-icons.css(생성: scripts/px_icons.py)
   i18n/         lang(앱 언어 ko|ja: 기기 언어 기본, localStorage menulens.lang, useLang) index(useT·dict) ko/·ja/ 네임스페이스 사전(common data home history confirm processing result order chat talk lib tips app). 화면은 useT(), lib 은 호출 시점 dict()

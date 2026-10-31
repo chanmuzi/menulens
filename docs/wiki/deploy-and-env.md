@@ -37,7 +37,7 @@
 
 | 키 | 용도 | 보관 |
 |---|---|---|
-| `menulens:detail:v1:*` | 메뉴 설명 캐시(`api/_lib/cache.ts`) | 180일 |
+| `menulens:detail:v1:*` | 메뉴 설명 캐시(`api/_lib/cache.ts`). 일→한은 `v1:<이름>`, 그 밖의 방향은 `v1:<src>-<dst>:<이름>`(2026-10-31) | 180일 |
 | `menulens:icon:v1:*` | 생성 아이콘 격자(`api/_lib/iconCache.ts`) | 365일 |
 | `menulens:debug:*` + `menulens:debug:list` | 진단 저장 최대 20건(사진 포함) | 7일, 밀려나면 본문도 삭제([[debug-store]]) |
 
