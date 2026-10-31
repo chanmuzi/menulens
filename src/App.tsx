@@ -135,6 +135,7 @@ export const App = () => {
           words = r.used ? r.words : [];
           update((s) => ({ ...s, words, rotation: r.used ? r.rotation : 0, tilt: r.used ? r.tilt : 0, timing: { ...s.timing, ocrMs: r.ms } }));
         },
+        onLang: (lang, currency) => update((s) => ({ ...s, lang, currency })),
         onMode: () => update((s) => ({ ...s, status: 'streaming' })),
         onKind: (k) => update((s) => ({ ...s, kind: toKind(k), kindKnown: true })),
         onItem: (key, raw) => {

@@ -1,8 +1,8 @@
 /** 주문 문구 시트: 담은 목록·합계, 직원에게 보여줄 일본어(크게), 한글 발음, 뜻. 복사·비우기. 묶음이면 줄마다 어느 사진에서 담았는지 번호를 단다. */
 import { useEffect, useState } from 'react';
 import type { Rate } from '../types';
-import { formatJpy, formatPrice } from '../lib/money';
-import { buildOrderText, orderModes, totalCount, totalJpy, totalKrw, type OrderLine, type OrderMode } from '../lib/order';
+import { formatConverted, formatMoney, formatPrice } from '../lib/money';
+import { buildOrderText, linesCurrency, orderModes, total, totalCount, type OrderLine, type OrderMode } from '../lib/order';
 import { QtyStepper } from '../components/QtyStepper';
 import { Segmented } from '../components/Segmented';
 import { useT } from '../i18n';
@@ -23,8 +23,9 @@ export const OrderSheet = ({ lines, rate, photos, onQty, onClear, onClose }: Pro
   useEffect(() => { if (lines.length === 0) onClose(); }, [lines.length, onClose]);
 
   const text = buildOrderText(lines, mode);
-  const [jpy, hasUnknown] = totalJpy(lines);
-  const krw = totalKrw(jpy, rate);
+  const [sum, hasUnknown] = total(lines);
+  const currency = linesCurrency(lines);
+  const converted = formatConverted(sum, currency, rate);
   const copy = async () => {
     try { await navigator.clipboard.writeText(text.ja); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* 클립보드 불가 */ }
   };
@@ -54,8 +55,8 @@ export const OrderSheet = ({ lines, rate, photos, onQty, onClear, onClose }: Pro
             <li key={`${scanId}/${item.id}`} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.tr}</div>
-                <div className="jp muted" style={{ fontSize: 12, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name} · {formatPrice(item)}</span>
+                <div className={`${currency === 'JPY' ? 'jp ' : ''}muted`} style={{ fontSize: 12, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name} · {formatPrice(item, currency)}</span>
                   {photos > 1 && <span className="dot" style={{ flexShrink: 0, fontSize: 10, padding: '0 4px', lineHeight: '16px', background: 'var(--ink)', color: 'var(--paper)' }}>{t.order.photoN(photo)}</span>}
                 </div>
               </div>
@@ -66,8 +67,8 @@ export const OrderSheet = ({ lines, rate, photos, onQty, onClear, onClose }: Pro
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderTop: '2px dashed var(--ink)', paddingTop: 10 }}>
           <span className="dot" style={{ fontSize: 14 }}>{t.order.total}{hasUnknown ? ` ${t.order.excludeNoPrice}` : ''}</span>
           <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-            <span className="dot" style={{ fontSize: 20, color: 'var(--vermilion)' }}>{formatJpy(jpy)}</span>
-            {krw !== null && <span className="muted" style={{ fontSize: 12 }}>≈ ₩{krw.toLocaleString('ko-KR')}</span>}
+            <span className="dot" style={{ fontSize: 20, color: 'var(--vermilion)' }}>{formatMoney(sum, currency)}</span>
+            {converted && <span className="muted" style={{ fontSize: 12 }}>{converted}</span>}
           </span>
         </div>
 

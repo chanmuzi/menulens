@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { MenuItem, Rate, Scan } from '../types';
-import { formatJpy, formatPriceOrBlank, payableJpy } from '../lib/money';
+import { formatMoney, formatPriceOrBlank, payable } from '../lib/money';
 import { MenuPhoto, type MarkerCtx } from '../components/MenuPhoto';
 import { loadSampler, sampleBox, type BoxColors } from '../lib/sample';
 import { NoticeCovers, type CoverBlock } from '../components/NoticeCovers';
@@ -90,7 +90,7 @@ export const OverlayView = ({ scan, selectedId, onSelect, selectedNote, onNote, 
               if (badges) {
                 const size = sizes?.get(it.id) ?? BADGE_MAX;
                 return (
-                  <button key={it.id} type="button" onClick={() => onSelect(it)} aria-pressed={selected} aria-label={t.result.badgeAria(i + 1, it.tr, formatPriceOrBlank(it))}
+                  <button key={it.id} type="button" onClick={() => onSelect(it)} aria-pressed={selected} aria-label={t.result.badgeAria(i + 1, it.tr, formatPriceOrBlank(it, scan.currency))}
                     className="dot"
                     style={{ position: 'absolute', left: `${cx / 10}%`, top: `${(y0 + y1) / 2 / 10}%`, transform: `translate(-50%, -50%) rotate(${rot}deg) scale(${ms})`, width: size, height: size, padding: 0, cursor: 'pointer',
                       background: selected ? 'var(--vermilion)' : 'var(--ink)', color: 'var(--paper)', border: '2px solid var(--paper-2)', boxShadow: '2px 2px 0 rgba(42,33,27,.6)', fontSize: Math.max(9, size / 2), lineHeight: 1, zIndex: selected ? 3 : 1 }}>
@@ -102,11 +102,11 @@ export const OverlayView = ({ scan, selectedId, onSelect, selectedNote, onNote, 
               const top = vertical ? Math.min(y0 + 40 + lane * 95, 900) : Math.min(y1, 960);
               const align = cx < 200 ? 'translateX(-20%)' : cx > 800 ? 'translateX(-80%)' : 'translateX(-50%)';
               return (
-                <button key={it.id} type="button" onClick={() => onSelect(it)} aria-pressed={selected} aria-label={`${it.tr} ${formatPriceOrBlank(it)}`}
+                <button key={it.id} type="button" onClick={() => onSelect(it)} aria-pressed={selected} aria-label={`${it.tr} ${formatPriceOrBlank(it, scan.currency)}`}
                   style={{ position: 'absolute', left: `${cx / 10}%`, top: `${top / 10}%`, transform: `${align} rotate(${rot}deg) scale(${ms})`, transformOrigin: 'top center', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1, padding: '4px 7px', cursor: 'pointer',
                     background: selected ? 'var(--vermilion)' : 'var(--paper-2)', color: selected ? 'var(--paper-2)' : 'var(--ink)', border: '2px solid var(--ink)', boxShadow: '3px 3px 0 var(--ink)', maxWidth: vertical ? '33%' : '46%', textAlign: 'left', zIndex: selected ? 3 : 1 }}>
                   <span style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{shortName(it.tr)}</span>
-                  {payableJpy(it) !== null && <span className="dot" style={{ fontSize: 11, lineHeight: 1 }}>{formatJpy(payableJpy(it))}</span>}
+                  {payable(it) !== null && <span className="dot" style={{ fontSize: 11, lineHeight: 1 }}>{formatMoney(payable(it), scan.currency)}</span>}
                 </button>
               );
             });
@@ -122,7 +122,7 @@ export const OverlayView = ({ scan, selectedId, onSelect, selectedNote, onNote, 
               <button type="button" onClick={() => onSelect(it)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 0, padding: '4px 0', cursor: 'pointer', textAlign: 'left', color: 'inherit' }}>
                 <span className="dot" style={{ width: 22, height: 22, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: it.id === selectedId ? 'var(--vermilion)' : 'var(--ink)', color: 'var(--paper)', fontSize: 12 }}>{i + 1}</span>
                 <span style={{ fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{shortName(it.tr)}</span>
-                <span className="dot muted" style={{ fontSize: 11, marginLeft: 'auto', flexShrink: 0 }}>{formatPriceOrBlank(it)}</span>
+                <span className="dot muted" style={{ fontSize: 11, marginLeft: 'auto', flexShrink: 0 }}>{formatPriceOrBlank(it, scan.currency)}</span>
               </button>
             </li>
           ))}

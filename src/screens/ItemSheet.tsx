@@ -1,15 +1,15 @@
 import { useEffect } from 'react';
-import type { ImageMode, MenuItem, Rate } from '../types';
-import { formatKrw, formatPrice, payableJpy } from '../lib/money';
+import type { Currency, ImageMode, MenuItem, Rate } from '../types';
+import { formatConverted, formatPrice, payable } from '../lib/money';
 import { ItemImage } from '../components/ItemImage';
 import { QtyStepper } from '../components/QtyStepper';
 import { PixelIcon } from '../components/PixelIcon';
 import { useT, tagLabel } from '../i18n';
 
-type Props = { readonly item: MenuItem; readonly rate: Rate | null; readonly mode: ImageMode; readonly onClose: () => void; /** null 이면 주문 기능 없음(안내문) */ readonly qty?: number | null; readonly onQty?: (qty: number) => void; /** 설명이 아직 올 수 있는가(스캔 진행 중). 기록에서 연 미완 스캔은 false 라 깜빡이지 않는다 */ readonly pending?: boolean; /** 이 항목을 맥락으로 챗 열기 */ readonly onAsk?: () => void };
+type Props = { readonly item: MenuItem; readonly rate: Rate | null; readonly currency: Currency; /** 원문 언어(일본어면 세리프 글꼴) */ readonly srcLang: 'ja' | 'ko'; readonly mode: ImageMode; readonly onClose: () => void; /** null 이면 주문 기능 없음(안내문) */ readonly qty?: number | null; readonly onQty?: (qty: number) => void; /** 설명이 아직 올 수 있는가(스캔 진행 중). 기록에서 연 미완 스캔은 false 라 깜빡이지 않는다 */ readonly pending?: boolean; /** 이 항목을 맥락으로 챗 열기 */ readonly onAsk?: () => void };
 
 /** 메뉴 하나의 상세 바텀시트. 주문할 때 보여줄 일본어 문구와 한글 발음을 함께 보여준다. */
-export const ItemSheet = ({ item, rate, mode, onClose, qty = null, onQty, pending = false, onAsk }: Props) => {
+export const ItemSheet = ({ item, rate, currency, srcLang, mode, onClose, qty = null, onQty, pending = false, onAsk }: Props) => {
   const t = useT();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -27,13 +27,13 @@ export const ItemSheet = ({ item, rate, mode, onClose, qty = null, onQty, pendin
         <div style={{ display: 'flex', gap: 14 }}>
           <ItemImage item={item} mode={mode} size={92} />
           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <div id="sheet-title" className="jp" style={{ fontSize: 20, lineHeight: 1.2 }}>{item.name}</div>
+            <div id="sheet-title" lang={srcLang} className={srcLang === 'ja' ? 'jp' : undefined} style={{ fontSize: 20, lineHeight: 1.2, fontWeight: srcLang === 'ja' ? undefined : 700 }}>{item.name}</div>
             {item.pron && <div className="dot muted" style={{ fontSize: 12 }}>{item.pron}</div>}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
               <span style={{ fontSize: 16, fontWeight: 600 }}>{item.tr}</span>
               <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                {(payableJpy(item) !== null || item.category !== '기타') && <span className="dot" style={{ fontSize: 18, color: 'var(--vermilion)', whiteSpace: 'nowrap' }}>{formatPrice(item)}</span>}
-                {formatKrw(payableJpy(item), rate) && <span className="muted" style={{ fontSize: 11 }}>{formatKrw(payableJpy(item), rate)}{item.price_tax !== null ? ` ${t.result.taxIncluded}` : ''}</span>}
+                {(payable(item) !== null || item.category !== '기타') && <span className="dot" style={{ fontSize: 18, color: 'var(--vermilion)', whiteSpace: 'nowrap' }}>{formatPrice(item, currency)}</span>}
+                {formatConverted(payable(item), currency, rate) && <span className="muted" style={{ fontSize: 11 }}>{formatConverted(payable(item), currency, rate)}{item.price_tax !== null ? ` ${t.result.taxIncluded}` : ''}</span>}
               </span>
             </div>
             {item.desc
@@ -48,7 +48,7 @@ export const ItemSheet = ({ item, rate, mode, onClose, qty = null, onQty, pendin
             <QtyStepper qty={qty} onChange={onQty} label={item.tr} />
           </div>
         )}
-        {item.category !== '기타' && <div style={{ background: 'var(--paper-dark)', border: '2px solid var(--ink)', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {item.category !== '기타' && srcLang === 'ja' && <div style={{ background: 'var(--paper-dark)', border: '2px solid var(--ink)', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
           <span className="dot small" style={{ color: 'var(--vermilion)' }}>{t.result.showWhenOrdering}</span>
           <span className="jp" style={{ fontSize: 18 }}>{item.name}を ひとつ ください。</span>
           <span style={{ fontSize: 13, fontWeight: 500 }}>{pron}오 히토츠 쿠다사이</span>

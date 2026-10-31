@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { ImageMode, MenuItem, Rate, Scan, Tag } from '../types';
-import { formatKrw, formatPrice, payableJpy } from '../lib/money';
+import { formatConverted, formatPrice, payable } from '../lib/money';
 import { ItemImage } from '../components/ItemImage';
 import { Segmented } from '../components/Segmented';
 import { QtyStepper } from '../components/QtyStepper';
@@ -12,7 +12,7 @@ import { useT, tagLabel } from '../i18n';
 /** 전체 · 묶음(g:라벨) · 매운맛 */
 type Filter = '전체' | '매운맛' | `g:${string}`;
 
-type Props = { readonly scan: Scan; readonly rate: Rate | null; readonly mode: ImageMode; readonly onMode: (m: ImageMode) => void; readonly onSelect: (item: MenuItem) => void; readonly order: Order; readonly onQty: (id: string, qty: number) => void };
+type Props = { readonly scan: Scan; readonly rate: Rate | null; readonly mode: ImageMode; readonly onMode: (m: ImageMode) => void; readonly onSelect: (item: MenuItem) => void; readonly order: Order; /** 없으면 주문 기능 없음(아직 주문 문구가 없는 방향) */ readonly onQty?: (id: string, qty: number) => void };
 
 
 /** 카드에 보여줄 배지는 고르는 데 도움이 되는 것만 최대 2개(사용자 결정 2026-10-21). 음료·튀김·채식 같은 분류성 태그는 상세 시트에만 */
@@ -74,10 +74,10 @@ export const CardsView = ({ scan, rate, mode, onMode, onSelect, order, onQty }: 
           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6, alignSelf: 'stretch' }}>
           <button type="button" onClick={() => onSelect(it)} style={{ display: 'flex', flexDirection: 'column', gap: 4, background: 'none', border: 0, padding: 0, textAlign: 'left', cursor: 'pointer' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-              <span className="jp" style={{ fontSize: 17 }}>{it.name}</span>
+              <span lang={scan.lang.src} className={scan.lang.src === 'ja' ? 'jp' : undefined} style={{ fontSize: 17, fontWeight: scan.lang.src === 'ja' ? undefined : 600 }}>{it.name}</span>
               <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0 }}>
-                {(payableJpy(it) !== null || it.category !== '기타') && <span className="dot" style={{ fontSize: 15, color: 'var(--vermilion)', whiteSpace: 'nowrap' }}>{formatPrice(it)}</span>}
-                {formatKrw(payableJpy(it), rate) && <span className="muted" style={{ fontSize: 10 }}>{formatKrw(payableJpy(it), rate)}{it.price_tax !== null ? ` ${t.result.taxIncluded}` : ''}</span>}
+                {(payable(it) !== null || it.category !== '기타') && <span className="dot" style={{ fontSize: 15, color: 'var(--vermilion)', whiteSpace: 'nowrap' }}>{formatPrice(it, scan.currency)}</span>}
+                {formatConverted(payable(it), scan.currency, rate) && <span className="muted" style={{ fontSize: 10 }}>{formatConverted(payable(it), scan.currency, rate)}{it.price_tax !== null ? ` ${t.result.taxIncluded}` : ''}</span>}
               </span>
             </div>
             <span style={{ fontSize: 14, fontWeight: 600 }}>{it.tr}</span>
@@ -85,7 +85,7 @@ export const CardsView = ({ scan, rate, mode, onMode, onSelect, order, onQty }: 
               ? <span style={{ fontSize: 12, color: 'var(--body)', lineHeight: 1.45 }}>{it.desc}</span>
               : !it.detailed && scan.status !== 'done' && <span className="muted" style={{ fontSize: 12 }}>{t.result.writingDesc}<span className="blink">▌</span></span>}
           </button>
-          {scan.kind === 'menu' && it.category !== '기타' && (
+          {scan.kind === 'menu' && onQty && it.category !== '기타' && (
             // 카드 오른쪽 아래. 태그 줄이 사라져 이 줄이 본문 바로 아래에 붙는다
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'auto' }}>
               <QtyStepper qty={order[it.id] ?? 0} onChange={(q) => onQty(it.id, q)} label={it.tr} size="small" />

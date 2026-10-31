@@ -1,6 +1,6 @@
-import type { NoticeSummary, OcrWord, Photo, Rate, ScanGroup } from '../types';
+import type { Currency, NoticeSummary, OcrWord, Photo, Rate, ScanGroup, ScanLang } from '../types';
 import { getAccessCode } from './storage';
-import { dict } from '../i18n';
+import { dict, getLang } from '../i18n';
 import { ApiError, emptyResponseError } from './apiError';
 
 const headers = (): Record<string, string> => ({
@@ -26,6 +26,8 @@ export type MetaEvent = { kind: string; shop_name: string | null; title: string 
 
 export type AnalyzeHandlers = {
   readonly onOcr: (r: OcrEvent) => void;
+  /** 원문 언어(OCR 문자 체계로 서버가 판정)와 앱 언어, 통화. mode 보다 먼저 온다 */
+  readonly onLang: (lang: ScanLang, currency: Currency) => void;
   readonly onMode: (mode: 'ocr' | 'image') => void;
   /** 1단계 출력에서 종류(menu/sign/other)가 보이는 즉시. 항목보다 먼저 온다 */
   readonly onKind: (kind: string) => void;
@@ -43,6 +45,7 @@ export type AnalyzeHandlers = {
 
 type Event =
   | ({ t: 'ocr' } & OcrEvent)
+  | { t: 'lang'; src: 'ja' | 'ko'; dst: 'ja' | 'ko'; currency: Currency }
   | { t: 'mode'; mode: 'ocr' | 'image'; chunks?: number }
   | { t: 'kind'; kind: string }
   | { t: 'item'; key: string; item: unknown }
@@ -57,7 +60,7 @@ type Event =
 /** NDJSON 분석 스트림을 읽어 이벤트별 콜백으로 넘긴다. 서버 오류는 예외로 던진다. */
 export const analyzeImage = async (base64: string, mediaType: string, h: AnalyzeHandlers): Promise<void> => {
   const res = await fetch('/api/analyze', {
-    method: 'POST', headers: headers(), body: JSON.stringify({ image: base64, mediaType }), signal: h.signal,
+    method: 'POST', headers: headers(), body: JSON.stringify({ image: base64, mediaType, lang: getLang() }), signal: h.signal,
   });
   if (!res.ok) {
     const data = (await res.json().catch(() => ({}))) as { error?: string };
@@ -73,6 +76,7 @@ export const analyzeImage = async (base64: string, mediaType: string, h: Analyze
     const ev = JSON.parse(raw) as Event;
     switch (ev.t) {
       case 'ocr': h.onOcr({ words: ev.words, width: ev.width, height: ev.height, rotation: ev.rotation ?? 0, tilt: ev.tilt ?? 0, ms: ev.ms, used: ev.used }); break;
+      case 'lang': h.onLang({ src: ev.src, dst: ev.dst }, ev.currency === 'KRW' ? 'KRW' : 'JPY'); break;
       case 'mode': h.onMode(ev.mode); break;
       case 'kind': h.onKind(ev.kind); break;
       case 'item': h.onItem(ev.key, ev.item); break;
