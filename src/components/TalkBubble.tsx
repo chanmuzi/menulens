@@ -1,11 +1,12 @@
 /** 대화 말풍선. 위 작은 줄(원문) → 가운데 큰 줄(읽을 사람의 언어) → 발음. 내 말은 오른쪽 종이색(누르면 크게 보여주기), 상대 말은 왼쪽 먹색 */
-import type { TalkPair, TalkTurn } from '../types';
+import type { TalkLang, TalkPair, TalkTurn } from '../types';
 import { bubbleView } from '../lib/talk';
 import { useT } from '../i18n';
 
 type Props = {
   readonly turn: TalkTurn;
   readonly pair: TalkPair;
+  readonly lang: TalkLang;
   readonly showPron: boolean;
   /** 같은 사람이 이어 말한 마디면 위 간격을 좁힌다 */
   readonly joined: boolean;
@@ -15,9 +16,9 @@ type Props = {
 
 const fontOf = (lang: 'ko' | 'ja' | 'en') => (lang === 'ja' ? 'var(--font-jp)' : 'var(--font-ui)');
 
-export const TalkBubble = ({ turn, pair, showPron, joined, onShow, onRetry }: Props) => {
+export const TalkBubble = ({ turn, pair, lang, showPron, joined, onShow, onRetry }: Props) => {
   const t = useT();
-  const v = bubbleView(turn, pair, showPron);
+  const v = bubbleView(turn, pair, showPron, lang);
   const mine = turn.who === 'me';
   const waiting = turn.status === 'translating' && !v.main;
   const body = (
@@ -32,7 +33,7 @@ export const TalkBubble = ({ turn, pair, showPron, joined, onShow, onRetry }: Pr
           {waiting ? <>{t.talk.translating}<span className="blink">▌</span></> : v.main}
         </span>
       )}
-      {v.pron && <span style={{ fontSize: 12, lineHeight: 1.45, color: 'var(--vermilion-dark)' }}>{v.pron}</span>}
+      {v.pron && <span lang={lang.me} style={{ fontSize: 12, lineHeight: 1.45, color: 'var(--vermilion-dark)' }}>{v.pron}</span>}
     </>
   );
   const box = { maxWidth: '84%', display: 'flex', flexDirection: 'column' as const, gap: 3, padding: '9px 12px 10px', textAlign: 'left' as const };

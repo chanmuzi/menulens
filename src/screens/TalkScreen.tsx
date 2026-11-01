@@ -1,12 +1,13 @@
 /**
  * 대화 통역 화면. 말풍선이 좌우로 쌓이고(내 말 오른쪽, 상대 말 왼쪽, 연달아 말해도 된다), 아래에서 말하기·글로 쓰기.
+ * 내 언어는 대화를 만들 때의 앱 언어(talk.lang.me), 상대는 그 반대. 말하기 버튼은 내 언어가 왼쪽(주홍), 상대 언어가 오른쪽(먹).
  * 말하기: 녹음(recorder) → /api/stt → 마디 추가 → /api/talk 번역(필드가 오는 대로 채움). 글로 쓰기는 녹음만 건너뛴다(한국어·일본어 자동 판별).
  * 내 말풍선을 누르면 상대에게 크게 보여준다. 오른쪽 위 반짝이는 도우미(상대에게 안 보이는 질문).
  * 대화는 마디가 끝날 때마다 저장되고(App → talkStore), 완료 2·6마디에 자동 제목을 짓는다.
  */
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import type { HelperMsg, Talk, TalkPair, TalkTurn } from '../types';
-import { applyFields, bubbleView, contextTurns, needsTitle, newTurn, talkTitle } from '../lib/talk';
+import { applyFields, bubbleView, contextTurns, needsTitle, newTurn, talkTitle, withTranslation } from '../lib/talk';
 import { fetchTitle, SttUnavailableError, transcribe, translate } from '../lib/talkApi';
 import { isAccessCodeError } from '../lib/apiError';
 import { canRecord, startRecording, type RecorderHandle } from '../lib/recorder';
@@ -26,15 +27,15 @@ type Props = {
 };
 
 type Lang = 'ko' | 'ja';
-type Show = { readonly text: string; readonly lang: 'ja' | 'en'; readonly kana: string; readonly pron: string };
+type Show = { readonly text: string; readonly lang: 'ko' | 'ja' | 'en'; readonly kana: string; readonly pron: string };
 
 const PAIRS: readonly TalkPair[] = ['ko-ja', 'ko-en', 'ja-en'];
 
 /**
- * 말하기 버튼 색 정책(2026-10-23 사용자): 두 버튼은 같은 모양(너비·글꼴)이고 색은 언제나 다르다. 말풍선과 맞춰 한국어(내 말) = 주홍, 일본어(상대 말) = 먹.
+ * 말하기 버튼 색 정책(2026-10-23 사용자): 두 버튼은 같은 모양(너비·글꼴)이고 색은 언제나 다르다. 말풍선과 맞춰 내 언어 = 주홍, 상대 언어 = 먹.
  * 평소: 그 색으로 채움. 녹음 중: 뒤집어 종이 바탕 + 그 색 굵은 테두리·글자 + ● 깜빡임 + 그 색 소리 막대, 눌린 듯 그림자 없음. 다른 쪽은 흐리게.
  */
-const VOICE_COLOR: Readonly<Record<Lang, string>> = { ko: 'var(--vermilion)', ja: 'var(--ink)' };
+const ROLE_COLOR: Readonly<Record<'me' | 'them', string>> = { me: 'var(--vermilion)', them: 'var(--ink)' };
 
 type TalkDict = Dict['talk'];
 /** 다시 될 때까지 남은 시간 → 「40초 」「12분 」「2시간 」 */
@@ -47,6 +48,10 @@ export const TalkScreen = ({ talk: initial, onSave, onHome, onRename }: Props) =
   const [talk, setTalk] = useState(initial);
   const talkRef = useRef(talk);
   talkRef.current = talk;
+  /** 대화의 언어(나·상대). 대화를 만들 때 정해지고 바뀌지 않는다 */
+  const lang = talk.lang;
+  const whoOf = (l: Lang): 'me' | 'them' => (l === lang.me ? 'me' : 'them');
+  const colorOf = (l: Lang): string => ROLE_COLOR[whoOf(l)];
   const [prefs, setPrefs] = useState<TalkPrefs>(loadTalkPrefs);
   const [mode, setMode] = useState<'voice' | 'text'>('voice');
   const [draft, setDraft] = useState('');
@@ -95,7 +100,7 @@ export const TalkScreen = ({ talk: initial, onSave, onHome, onRename }: Props) =
     if (titling.current || !needsTitle(talk)) return;
     titling.current = true;
     const done = talk.turns.filter((t) => t.status === 'done').length;
-    void fetchTitle(contextTurns(talk.turns)).catch(() => null).then((title) => {
+    void fetchTitle(contextTurns(talk.turns, talk.lang), talk.lang).catch(() => null).then((title) => {
       setTalk((t) => ({ ...t, autoTitle: title ?? t.autoTitle, titledAt: done }));
       titling.current = false;
     });
@@ -109,10 +114,11 @@ export const TalkScreen = ({ talk: initial, onSave, onHome, onRename }: Props) =
 
   const translateTurn = async (turn: TalkTurn) => {
     const ctrl = track();
-    const before = contextTurns(talkRef.current.turns.filter((t) => t.id !== turn.id && t.at <= turn.at));
+    const tl = talkRef.current.lang;
+    const before = contextTurns(talkRef.current.turns.filter((t) => t.id !== turn.id && t.at <= turn.at), tl);
     try {
-      const result = await translate(turn.src, before, (f) => patchTurn(turn.id, (x) => applyFields(x, f)), ctrl.signal);
-      patchTurn(turn.id, (x) => ({ ...applyFields(x, result), status: 'done' }));
+      const result = await translate(turn.src, before, tl, (f) => patchTurn(turn.id, (x) => applyFields(x, f, tl)), ctrl.signal);
+      patchTurn(turn.id, (x) => ({ ...applyFields(x, result, tl), status: 'done' }));
     } catch (e) {
       if (ctrl.signal.aborted) return;
       patchTurn(turn.id, (x) => ({ ...x, status: 'error' }));
@@ -126,8 +132,8 @@ export const TalkScreen = ({ talk: initial, onSave, onHome, onRename }: Props) =
     void translateTurn(fresh);
   };
 
-  /** 말하기 버튼. 녹음 중에 다시 누르면 끝낸다(말이 끝나고 조용해져도 저절로 끝난다) */
-  const speak = async (lang: Lang) => {
+  /** 말하기 버튼(voice 는 녹음·인식 언어). 녹음 중에 다시 누르면 끝낸다(말이 끝나고 조용해져도 저절로 끝난다) */
+  const speak = async (voice: Lang) => {
     if (rec) { recRef.current?.stop(); return; }
     if (hearing || starting.current) return;
     setNotice(null);
@@ -150,19 +156,19 @@ export const TalkScreen = ({ talk: initial, onSave, onHome, onRename }: Props) =
     }
     if (!alive.current) { started.handle.cancel(); return; }
     recRef.current = started.handle;
-    setRec({ lang, level: 0 });
+    setRec({ lang: voice, level: 0 });
     const r = await started.done;
     recRef.current = null;
     if (!r || !alive.current) return;
     setRec(null);
     if (!r.heard) { setNotice(t.talk.nothingHeard); return; }
     const ctrl = track();
-    setHearing(lang);
+    setHearing(voice);
     try {
-      const text = await transcribe(r.blob, lang, ctrl.signal);
+      const text = await transcribe(r.blob, voice, ctrl.signal);
       if (ctrl.signal.aborted) return;
       if (!text) { setNotice(t.talk.notUnderstood); return; }
-      start(newTurn(lang === 'ko' ? 'me' : 'them', 'voice', text));
+      start(newTurn(whoOf(voice), 'voice', text));
     } catch (e) {
       if (ctrl.signal.aborted) return;
       if (e instanceof SttUnavailableError) { setNotice(sttNotice(t.talk, e.retryAfter)); setMode('text'); }
@@ -185,24 +191,25 @@ export const TalkScreen = ({ talk: initial, onSave, onHome, onRename }: Props) =
   };
 
   const showTurn = (turn: TalkTurn) => {
-    const v = bubbleView(turn, prefs.pair, true);
-    const lang = v.mainLang === 'en' ? 'en' : 'ja';
-    setShow({ text: v.main, lang, kana: lang === 'ja' ? turn.kana : '', pron: lang === 'ja' ? turn.pron : '' });
+    const v = bubbleView(turn, prefs.pair, true, lang);
+    const main = v.mainLang === lang.them;
+    setShow({ text: v.main, lang: v.mainLang, kana: main && lang.them === 'ja' ? turn.kana : '', pron: main ? turn.pron : '' });
   };
-  const sayFromHelper = (ja: string, pron: string) => {
-    addTurn({ ...newTurn('me', 'helper', ja), ja, pron, status: 'done' });
+  /** 도우미의 「말해 볼 문장」(상대 언어)을 내 말풍선으로 넣고 바로 크게 보여준다 */
+  const sayFromHelper = (text: string, pron: string) => {
+    addTurn({ ...withTranslation(newTurn('me', 'helper', text), lang.them, text), pron, status: 'done' });
     setHelperOpen(false);
-    setShow({ text: ja, lang: 'ja', kana: '', pron });
+    setShow({ text, lang: lang.them, kana: '', pron });
   };
   const setHelper = useCallback((helper: readonly HelperMsg[]) => setTalk((t) => ({ ...t, updatedAt: Date.now(), helper })), []);
 
-  const recording = (lang: Lang) => rec?.lang === lang;
-  const micButton = (lang: Lang) => {
-    const v = { ...t.talk.mic[lang], color: VOICE_COLOR[lang] };
-    const on = recording(lang);
-    const other: Lang = lang === 'ko' ? 'ja' : 'ko';
+  const recording = (voice: Lang) => rec?.lang === voice;
+  const micButton = (voice: Lang) => {
+    const v = { ...t.talk.mic[voice], color: colorOf(voice) };
+    const on = recording(voice);
+    const other: Lang = voice === 'ko' ? 'ja' : 'ko';
     return (
-      <button type="button" className="btn" onClick={() => void speak(lang)} disabled={opening || hearing !== null || recording(other)} lang={lang} aria-pressed={on}
+      <button type="button" className="btn" onClick={() => void speak(voice)} disabled={opening || hearing !== null || recording(other)} lang={voice} aria-pressed={on}
         style={{ position: 'relative', overflow: 'hidden', flex: 1, minHeight: 60, padding: '0 8px', gap: 8, fontSize: 16, fontWeight: 700,
           background: on ? 'var(--paper-2)' : v.color, color: on ? v.color : 'var(--paper-2)', border: on ? `3px solid ${v.color}` : '2px solid var(--ink)',
           boxShadow: on ? 'none' : '3px 3px 0 var(--ink)', transform: on ? 'translate(2px, 2px)' : undefined }}>
@@ -241,7 +248,7 @@ export const TalkScreen = ({ talk: initial, onSave, onHome, onRename }: Props) =
                 <div style={{ height: 2, background: 'var(--paper-dark)', margin: '2px 0' }} />
                 <button type="button" role="menuitemcheckbox" aria-checked={prefs.pron} onClick={() => changePrefs({ ...prefs, pron: !prefs.pron })}
                   style={{ minHeight: 40, padding: '0 8px', border: 0, background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', font: 'inherit', fontSize: 14, color: 'var(--ink)' }}>
-                  <span>{t.talk.pronToggle}</span><span className="dot" style={{ fontSize: 13, color: prefs.pron ? 'var(--vermilion)' : 'var(--muted)' }}>{prefs.pron ? t.talk.on : t.talk.off}</span>
+                  <span>{t.talk.pronToggle[lang.them]}</span><span className="dot" style={{ fontSize: 13, color: prefs.pron ? 'var(--vermilion)' : 'var(--muted)' }}>{prefs.pron ? t.talk.on : t.talk.off}</span>
                 </button>
               </div>
             </>
@@ -256,16 +263,16 @@ export const TalkScreen = ({ talk: initial, onSave, onHome, onRename }: Props) =
       <div ref={listRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '6px 14px 16px' }}>
         {talk.turns.length === 0 && !hearing && (
           <p className="muted" style={{ margin: '24px 4px', fontSize: 14, lineHeight: 1.65 }}>
-            {t.talk.intro}
+            {t.talk.intro[lang.me]}
           </p>
         )}
         {hasMine && <p className="muted" style={{ margin: '6px 0 0', textAlign: 'center', fontSize: 11 }}>{t.talk.tapToShow}</p>}
         {talk.turns.map((t, i) => (
-          <TalkBubble key={t.id} turn={t} pair={prefs.pair} showPron={prefs.pron} joined={i > 0 && talk.turns[i - 1]!.who === t.who} onShow={showTurn} onRetry={retry} />
+          <TalkBubble key={t.id} turn={t} pair={prefs.pair} lang={lang} showPron={prefs.pron} joined={i > 0 && talk.turns[i - 1]!.who === t.who} onShow={showTurn} onRetry={retry} />
         ))}
         {hearing && (
-          <div style={{ display: 'flex', justifyContent: hearing === 'ko' ? 'flex-end' : 'flex-start', marginTop: 16 }}>
-            <div style={{ padding: '8px 12px', border: `2px dashed ${VOICE_COLOR[hearing]}`, background: 'var(--paper-2)', fontSize: 14, color: 'var(--body)' }}>
+          <div style={{ display: 'flex', justifyContent: whoOf(hearing) === 'me' ? 'flex-end' : 'flex-start', marginTop: 16 }}>
+            <div style={{ padding: '8px 12px', border: `2px dashed ${colorOf(hearing)}`, background: 'var(--paper-2)', fontSize: 14, color: 'var(--body)' }}>
               {t.talk.mic[hearing].hearing}<span className="blink">▌</span>
             </div>
           </div>
@@ -274,7 +281,7 @@ export const TalkScreen = ({ talk: initial, onSave, onHome, onRename }: Props) =
 
       <div style={{ flexShrink: 0, borderTop: '2px solid var(--ink)', padding: '8px 14px calc(14px + var(--safe-bottom))', display: 'flex', flexDirection: 'column', gap: 8 }}>
         {/* 녹음 중이면 그 언어 색으로 상태 한 줄, 아니면 안내(오류 등) */}
-        <div role="status" style={{ fontSize: 12, lineHeight: 1.5, fontWeight: rec ? 600 : 400, color: rec ? VOICE_COLOR[rec.lang] : 'var(--vermilion-dark)', display: rec || notice ? 'block' : 'none' }}>
+        <div role="status" style={{ fontSize: 12, lineHeight: 1.5, fontWeight: rec ? 600 : 400, color: rec ? colorOf(rec.lang) : 'var(--vermilion-dark)', display: rec || notice ? 'block' : 'none' }}>
           {rec ? <><span className="blink" aria-hidden="true">● </span>{t.talk.mic[rec.lang].status}</> : notice}
         </div>
         {mode === 'voice' ? (
@@ -282,8 +289,8 @@ export const TalkScreen = ({ talk: initial, onSave, onHome, onRename }: Props) =
             <button type="button" className="btn" onClick={() => setMode('text')} aria-label={t.talk.writeMode} disabled={rec !== null} style={{ width: 52, minHeight: 60, padding: 0, boxShadow: 'none' }}>
               <DotGlyph name="keyboard" size={22} />
             </button>
-            {micButton('ko')}
-            {micButton('ja')}
+            {micButton(lang.me)}
+            {micButton(lang.them)}
           </div>
         ) : (
           <form onSubmit={send} style={{ display: 'flex', gap: 6 }}>
@@ -297,8 +304,8 @@ export const TalkScreen = ({ talk: initial, onSave, onHome, onRename }: Props) =
         )}
       </div>
 
-      {show && <ShowBig text={show.text} lang={show.lang} kana={show.kana} pron={show.pron} onClose={() => setShow(null)} />}
-      {helperOpen && <TalkHelper turns={talk.turns} msgs={talk.helper} onMsgs={setHelper} onSay={sayFromHelper} onClose={() => setHelperOpen(false)} />}
+      {show && <ShowBig text={show.text} lang={show.lang} kana={show.kana} pron={show.pron} pronLang={lang.me} onClose={() => setShow(null)} />}
+      {helperOpen && <TalkHelper turns={talk.turns} lang={lang} msgs={talk.helper} onMsgs={setHelper} onSay={sayFromHelper} onClose={() => setHelperOpen(false)} />}
     </div>
   );
 };

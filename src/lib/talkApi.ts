@@ -1,5 +1,5 @@
 /** 대화 통역 서버 호출: 음성 인식(/api/stt), 번역·도우미·제목(/api/talk, NDJSON) */
-import type { TalkWho } from '../types';
+import type { TalkLang, TalkWho } from '../types';
 import { getAccessCode } from './storage';
 import { readNdjson } from './ndjson';
 import { dict } from '../i18n';
@@ -43,8 +43,8 @@ const post = (body: unknown, signal?: AbortSignal): Promise<Response> =>
   fetch('/api/talk', { method: 'POST', signal, headers: { 'content-type': 'application/json', 'x-access-code': code() }, body: JSON.stringify(body) });
 
 /** 번역. 필드가 완성되는 대로 onFields(지금까지 받은 필드 전부), 끝나면 최종 결과 */
-export const translate = async (text: string, turns: Ctx, onFields: (f: Readonly<Record<string, unknown>>) => void, signal?: AbortSignal): Promise<Readonly<Record<string, unknown>>> => {
-  const res = await post({ mode: 'translate', text, turns: turns.slice(-4) }, signal);
+export const translate = async (text: string, turns: Ctx, lang: TalkLang, onFields: (f: Readonly<Record<string, unknown>>) => void, signal?: AbortSignal): Promise<Readonly<Record<string, unknown>>> => {
+  const res = await post({ mode: 'translate', text, turns: turns.slice(-4), lang }, signal);
   let fields: Record<string, unknown> = {};
   let result: Record<string, unknown> | null = null;
   await readLines(res, (ev) => {
@@ -56,8 +56,8 @@ export const translate = async (text: string, turns: Ctx, onFields: (f: Readonly
 };
 
 /** 도우미. 글자가 오는 대로 onText(누적), 끝나면 전체 */
-export const askHelper = async (question: string, turns: Ctx, history: ReadonlyArray<{ role: 'me' | 'bot'; text: string }>, onText: (t: string) => void, signal?: AbortSignal): Promise<string> => {
-  const res = await post({ mode: 'ask', question, turns: turns.slice(-20), history: history.slice(-6) }, signal);
+export const askHelper = async (question: string, turns: Ctx, history: ReadonlyArray<{ role: 'me' | 'bot'; text: string }>, lang: TalkLang, onText: (t: string) => void, signal?: AbortSignal): Promise<string> => {
+  const res = await post({ mode: 'ask', question, turns: turns.slice(-20), history: history.slice(-6), lang }, signal);
   let text = '';
   let final: string | null = null;
   await readLines(res, (ev) => {
@@ -68,8 +68,8 @@ export const askHelper = async (question: string, turns: Ctx, history: ReadonlyA
   return final;
 };
 
-export const fetchTitle = async (turns: Ctx): Promise<string | null> => {
-  const res = await post({ mode: 'title', turns: turns.slice(-12) });
+export const fetchTitle = async (turns: Ctx, lang: TalkLang): Promise<string | null> => {
+  const res = await post({ mode: 'title', turns: turns.slice(-12), lang });
   if (!res.ok) return null;
   return ((await res.json()) as { title?: string | null }).title ?? null;
 };

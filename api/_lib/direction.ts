@@ -17,6 +17,14 @@ export const otherLang = (l: Lang): Lang => (l === 'ko' ? 'ja' : 'ko');
 export const currencyOf = (src: Lang): Currency => (src === 'ko' ? 'KRW' : 'JPY');
 export const dirKey = (d: Direction): string => `${d.src}-${d.dst}`;
 
+/** 대화 통역의 방향: 나(앱 언어)와 상대. 클라이언트가 대화를 만들 때의 앱 언어를 보낸다. 없으면 한→일(옛 클라이언트) */
+export type TalkDirection = { readonly me: Lang; readonly them: Lang };
+export const parseTalkDirection = (v: unknown): TalkDirection => {
+  const o = typeof v === 'object' && v !== null ? (v as { me?: unknown }) : {};
+  const me: Lang = o.me === 'ja' ? 'ja' : 'ko';
+  return { me, them: otherLang(me) };
+};
+
 const HANGUL = /[가-힣ㄱ-ㅎㅏ-ㅣ]/g;
 const KANA_KANJI = /[ぁ-ゖァ-ヺ一-鿿]/g;
 /** 이만큼만 보여도 「그 언어 글이 있다」고 본다 */

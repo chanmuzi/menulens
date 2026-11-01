@@ -3,7 +3,7 @@
  * 답 끝 「말해 볼 문장」은 카드로 떼어 「대화에 넣고 보여주기」로 내 말풍선에 넣는다. 모양은 결과 화면 챗(ChatPopup)과 같다.
  */
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import type { HelperMsg, TalkTurn } from '../types';
+import type { HelperMsg, TalkLang, TalkTurn } from '../types';
 import { askHelper } from '../lib/talkApi';
 import { contextTurns, splitSay } from '../lib/talk';
 import { DotGlyph } from '../components/DotGlyph';
@@ -11,10 +11,11 @@ import { useT } from '../i18n';
 
 type Props = {
   readonly turns: readonly TalkTurn[];
+  readonly lang: TalkLang;
   readonly msgs: readonly HelperMsg[];
   readonly onMsgs: (msgs: readonly HelperMsg[]) => void;
-  /** 「말해 볼 문장」을 대화에 넣는다 */
-  readonly onSay: (ja: string, pron: string) => void;
+  /** 「말해 볼 문장」(상대 언어)을 대화에 넣는다 */
+  readonly onSay: (text: string, pron: string) => void;
   readonly onClose: () => void;
 };
 
@@ -23,7 +24,7 @@ const bubble = (mine: boolean) => ({
   background: mine ? 'var(--ink)' : 'var(--paper)', color: mine ? 'var(--paper)' : 'var(--ink)', border: '2px solid var(--ink)', boxShadow: mine ? 'none' : '2px 2px 0 var(--ink)',
 });
 
-export const TalkHelper = ({ turns, msgs, onMsgs, onSay, onClose }: Props) => {
+export const TalkHelper = ({ turns, lang, msgs, onMsgs, onSay, onClose }: Props) => {
   const t = useT();
   const [draft, setDraft] = useState('');
   const [live, setLive] = useState<string | null>(null);
@@ -52,7 +53,7 @@ export const TalkHelper = ({ turns, msgs, onMsgs, onSay, onClose }: Props) => {
     ac.current = ctrl;
     setLive('');
     try {
-      const text = await askHelper(question, contextTurns(turns), msgs.map((m) => ({ role: m.role, text: m.text })), setLive, ctrl.signal);
+      const text = await askHelper(question, contextTurns(turns, lang), msgs.map((m) => ({ role: m.role, text: m.text })), lang, setLive, ctrl.signal);
       onMsgs([...asked, { role: 'bot', text, at: Date.now() }]);
     } catch (e) {
       if (!ctrl.signal.aborted) setError(e instanceof Error ? e.message : String(e));
@@ -88,9 +89,9 @@ export const TalkHelper = ({ turns, msgs, onMsgs, onSay, onClose }: Props) => {
                 {say && (
                   <div style={{ border: '2px solid var(--vermilion)', background: 'var(--paper-2)', padding: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
                     <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--vermilion)' }}>{t.talk.sayLabel}</span>
-                    <span lang="ja" className="jp" style={{ fontSize: 18, lineHeight: 1.45 }}>{say.ja}</span>
-                    <span style={{ fontSize: 12, color: 'var(--vermilion-dark)' }}>{say.pron}</span>
-                    <button type="button" className="btn btn--primary" onClick={() => onSay(say.ja, say.pron)} style={{ alignSelf: 'flex-end', minHeight: 36, padding: '0 12px', fontSize: 13 }}>{t.talk.sayInsert}</button>
+                    <span lang={lang.them} className={lang.them === 'ja' ? 'jp' : undefined} style={{ fontSize: 18, lineHeight: 1.45, fontWeight: lang.them === 'ja' ? undefined : 700 }}>{say.text}</span>
+                    {say.pron && <span style={{ fontSize: 12, color: 'var(--vermilion-dark)' }}>{say.pron}</span>}
+                    <button type="button" className="btn btn--primary" onClick={() => onSay(say.text, say.pron)} style={{ alignSelf: 'flex-end', minHeight: 36, padding: '0 12px', fontSize: 13 }}>{t.talk.sayInsert}</button>
                   </div>
                 )}
               </div>

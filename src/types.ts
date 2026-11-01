@@ -107,8 +107,10 @@ export type ImageMode = 'art' | 'photo';
 /** 사진이 들어온 경로. 촬영만 확인 화면을 건너뛴다 */
 export type PickSource = 'camera' | 'album' | 'paste' | 'drop';
 
-/** 대화 통역: 누가 한 말인지. me = 나(한국어 → 일본어), them = 상대(일본어 → 한국어) */
+/** 대화 통역: 누가 한 말인지. me = 나(대화의 내 언어 → 상대 언어), them = 상대 */
 export type TalkWho = 'me' | 'them';
+/** 대화의 언어: 나(대화를 만들 때의 앱 언어)와 상대. 옛 기록은 읽을 때 한→일로 채운다 */
+export type TalkLang = { readonly me: 'ko' | 'ja'; readonly them: 'ko' | 'ja' };
 
 /** 대화 한 마디. 번역은 필드가 도착하는 대로 채워진다(status 'translating' 동안 비어 있을 수 있다) */
 export type TalkTurn = {
@@ -122,9 +124,9 @@ export type TalkTurn = {
   readonly fixed: string;
   readonly ja: string;
   readonly ko: string;
-  /** ja 의 한글 발음(내 말만) */
+  /** 상대 언어 번역문을 내 글자로 읽는 발음(내 말만, 서버 규칙: 일본어는 kana → 한글, 한국어는 가타카나) */
   readonly pron: string;
-  /** ja 전체 히라가나(내 말만, 크게 보기에서) */
+  /** ja 전체 히라가나(상대 언어가 일본어일 때 내 말만, 크게 보기에서) */
   readonly kana: string;
   readonly en: string;
   readonly status: 'translating' | 'done' | 'error';
@@ -146,6 +148,7 @@ export type Talk = {
   readonly userTitle: string | null;
   readonly turns: readonly TalkTurn[];
   readonly helper: readonly HelperMsg[];
+  readonly lang: TalkLang;
 };
 
 /** 말풍선에 보일 두 언어. 기본은 한·日 */

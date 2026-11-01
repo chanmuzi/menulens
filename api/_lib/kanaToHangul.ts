@@ -46,8 +46,13 @@ export const toHiragana = (text: string): string =>
 /** 가나·ー·공백·중점·장음·촉음·발음으로만 된 글(읽기로 쓸 수 있는 글)인지 */
 export const isKana = (text: string): boolean => /^[ぁ-ゖァ-ヺーゝゞ・\s]+$/.test(text) && text.trim().length > 0;
 
-export const kanaToHangul = (input: string): string => {
-  const text = toHiragana(input.normalize('NFKC'));
+/** 조사 は·へ 는 어절 끝(띄어쓰기 앞·문장 끝)에서 わ·え 로 소리 난다(こんにちは 도 같다). 앞에 다른 어절이 있으면 홀로 선 조사(「といれ は」)도 같다. 문장 첫 글자 は 는 그대로 */
+const particles = (text: string): string => text.replace(/(?<=\S\s*)は(?=\s|$)/g, 'わ').replace(/(?<=\S\s*)へ(?=\s|$)/g, 'え');
+
+/** 가나 → 한글. particles 는 회화 문장(대화 통역)에서만 켠다: 메뉴 이름의 읽기에는 조사가 없고, は 로 끝나는 이름을 바꾸지 않기 위해서다 */
+export const kanaToHangul = (input: string, opts: { readonly particles?: boolean } = {}): string => {
+  const hira = toHiragana(input.normalize('NFKC'));
+  const text = opts.particles ? particles(hira) : hira;
   if (!isKana(text)) return '';
   const pieces: Piece[] = [];
   /** 받침을 붙일 직전 음절. 장음 「-」 는 건너뛴다(チェーン → 첸-) */

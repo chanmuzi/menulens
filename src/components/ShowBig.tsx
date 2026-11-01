@@ -1,16 +1,18 @@
-/** 상대에게 크게 보여주기: 화면 가득 일본어(또는 영어) + 히라가나, 아래에 내가 소리 내 읽을 한글 발음 */
+/** 상대에게 크게 보여주기: 화면 가득 상대 언어(또는 영어) + 히라가나(일본어일 때), 아래에 내가 소리 내 읽을 발음 */
 import { useEffect } from 'react';
 import { useT } from '../i18n';
 
 type Props = {
   readonly text: string;
-  readonly lang: 'ja' | 'en';
+  readonly lang: 'ko' | 'ja' | 'en';
   readonly kana: string;
   readonly pron: string;
+  /** 발음 글자의 언어(내 언어: 한글이면 ko, 가타카나면 ja) */
+  readonly pronLang: 'ko' | 'ja';
   readonly onClose: () => void;
 };
 
-export const ShowBig = ({ text, lang, kana, pron, onClose }: Props) => {
+export const ShowBig = ({ text, lang, kana, pron, pronLang, onClose }: Props) => {
   const t = useT();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -29,7 +31,7 @@ export const ShowBig = ({ text, lang, kana, pron, onClose }: Props) => {
       {pron && (
         <div style={{ borderTop: '2px solid var(--ink)', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
           <span className="muted small">{t.talk.myPron}</span>
-          <p style={{ margin: 0, fontSize: 17, lineHeight: 1.55, color: 'var(--vermilion-dark)' }}>{pron}</p>
+          <p lang={pronLang} style={{ margin: 0, fontSize: 17, lineHeight: 1.55, color: 'var(--vermilion-dark)' }}>{pron}</p>
         </div>
       )}
     </div>

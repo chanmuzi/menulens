@@ -3,7 +3,7 @@ import type { talk as Ko } from '../ko/talk';
 /** talk 네임스페이스 문구(日本語). 일본어 모드에서는 「나」가 일본인, 상대가 한국인이다 */
 export const talk: typeof Ko = {
   mic: {
-    // 키는 실제 음성 인식 언어(ko 버튼 = 한국어 화자, ja 버튼 = 일본어 화자). 일본인이 「나」가 되는 자리 바꿈은 통역 역방향 PR 에서
+    // 키는 실제 음성 인식 언어(ko 버튼 = 한국어 화자, ja 버튼 = 일본어 화자). 버튼 자리·색은 대화의 내 언어(talk.lang.me)가 정한다
     ko: { label: '한국어', live: '듣는 중', status: '韓国語を聞いています · 話し終わると自動で止まります · 押すとすぐ終了', hearing: '韓国語を書き起こし中' },
     ja: { label: '日本語', live: '聞いています', status: '日本語を聞いています · 話し終わると自動で止まります · 押すとすぐ終了', hearing: '日本語を書き起こし中' },
   },
@@ -25,12 +25,15 @@ export const talk: typeof Ko = {
   pairDefault: '標準',
   pairLabel: { 'ko-ja': '日·한', 'ko-en': '한·EN', 'ja-en': '日·EN' },
   pairName: { 'ko-ja': '日本語 · 한국어', 'ko-en': '한국어 · English', 'ja-en': '日本語 · English' },
-  pronToggle: '韓国語の発音を表示',
+  pronToggle: { ja: '日本語の発音を表示', ko: '韓国語の発音を表示' },
   on: 'オン',
   off: 'オフ',
   helperTitle: 'アシスタント',
   helperAsk: 'アシスタントに聞く',
-  intro: '「日本語」を押して話すと、韓国語にして表示します。相手が話すときは「한국어」を押してください。話し終わって静かになると自動で止まります。',
+  intro: {
+    ko: '「한국어」を押して話すと、日本語にして表示します。相手が話すときは「日本語」を押してください。話し終わって静かになると自動で止まります。',
+    ja: '「日本語」を押して話すと、韓国語にして表示します。相手が話すときは「한국어」を押してください。話し終わって静かになると自動で止まります。',
+  },
   tapToShow: '自分の吹き出しを押すと相手に大きく表示します',
   writeMode: '文字で入力',
   backToVoice: '音声入力に戻る',
@@ -52,7 +55,6 @@ export const talk: typeof Ko = {
   showBigTitle: '相手に大きく表示',
   myPron: '自分が読む発音',
   newTalk: '新しい会話',
-  noTurns: 'まだ会話がありません',
   responseError: '応答エラー',
   translationCut: '翻訳が途中で切れました',
   answerCut: '回答が途中で切れました',
