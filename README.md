@@ -25,3 +25,7 @@ pnpm build             # tsc + vite 빌드. 푸시 전 필수
 
 Vercel Git 연동: **main 에 merge 되면 프로덕션에 자동 배포**된다. `npx vercel` 로 직접 배포(프리뷰·`--prod`)하지 않는다.
 환경변수 목록은 `.env.example` 과 `docs/wiki/deploy-and-env.md`. 배포 환경에서는 `ACCESS_CODES` 의 초대 코드가 있어야 분석 API 를 쓸 수 있고, 비어 있으면 모두 거부한다.
+
+## 라이선스
+
+MIT. `LICENSE` 참고.
