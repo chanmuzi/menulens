@@ -54,7 +54,7 @@ type Event =
   | ({ t: 'meta' } & MetaEvent)
   | { t: 'details'; items: unknown[] }
   | { t: 'groups'; groups: ScanGroup[] }
-  | { t: 'error'; m: string }
+  | { t: 'error'; m: string; code?: 'no_vision' | 'ocr_failed' }
   | { t: 'done' };
 
 /** NDJSON 분석 스트림을 읽어 이벤트별 콜백으로 넘긴다. 서버 오류는 예외로 던진다. */
@@ -90,7 +90,8 @@ export const analyzeImage = async (base64: string, mediaType: string, h: Analyze
       case 'meta': h.onMeta({ kind: ev.kind, shop_name: ev.shop_name, title: typeof ev.title === 'string' && ev.title ? ev.title : null, notes: ev.notes ?? [] }); break;
       case 'details': h.onDetails(ev.items ?? []); break;
       case 'groups': h.onGroups(Array.isArray(ev.groups) ? ev.groups : []); break;
-      case 'error': throw new Error(ev.m || dict().lib.modelError);
+      // code 가 있으면 사용자 문구는 앱 언어 사전에서(서버 m 은 영어 진단용)
+      case 'error': throw new Error(ev.code === 'no_vision' ? dict().lib.noVision : ev.code === 'ocr_failed' ? dict().lib.ocrFailed : (ev.m || dict().lib.modelError));
       default: break;
     }
   };

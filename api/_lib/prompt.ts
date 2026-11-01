@@ -9,8 +9,6 @@ export const ICON_KEYS = [
   'wine', 'cup', 'mug', 'sandwich', 'hotdog',
 ] as const;
 
-/** 1단계(구조화·번역)와 2단계(설명) 모두 Sonnet. 벤치마크: docs/wiki/benchmarks.md */
-export const MODEL = 'claude-sonnet-5-5';
 
 const ICON_RULE = `"icon": ${JSON.stringify(ICON_KEYS)} 중 하나. 반드시 이 목록의 단어만. 주재료 기준 (돼지→pork, 닭→chicken, 소·소혀·곱창→meat, 새우→shrimp, 오징어·문어→squid, 생선·조개→fish, 가지→eggplant, 버섯→mushroom, 메추리알→egg, 치즈→cheese, 채소→salad, 커피·라테→coffee, 차·말차라테→drink, 와인·스파클링·상그리아→wine, 사케·소주·매실주·막걸리→sake, 타피오카·밀크티·스무디·프라페→cup, 코코아·우유→mug, 과일 주스→juice, 탄산→soda, 케이크·푸딩·파르페→cake, 아이스크림→icecream, 경단·떡→dessert, 샌드위치→sandwich, 핫도그→hotdog, 빵·토스트·버거→bread, 꼬치구이·꼬치튀김→yakitori, 국·찌개·탕→soup, 밥·덮밥·비빔밥→rice, 음식이 아니면→dish)`;
 

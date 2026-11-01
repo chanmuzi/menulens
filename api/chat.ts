@@ -1,6 +1,7 @@
 /**
  * POST /api/chat → NDJSON 스트림 { t:'delta', text } … { t:'done', refs: string[], sawImage } | { t:'need_image', photo } | { t:'error', m }
- * 사진 결과(항목·글줄 JSON, 종류)와 질문으로 Sonnet 에 한 번 묻는다. 사진은 클라이언트가 필요하다고 판단했을 때만 붙여 보낸다.
+ * 사진 결과(항목·글줄 JSON, 종류)와 질문으로 LLM(_lib/llm 의 제공자)에 한 번 묻는다. 사진은 클라이언트가 필요하다고 판단했을 때만 붙여 보낸다.
+ * 글자만 받는 모델(Solar 등)이면 사진을 빼고 보내며, 모델이 [사진 필요] 라고 해도 되묻지 않고 「찾지 못했어요」로 끝낸다.
  * 사진 없이 답할 수 없으면 모델이 [사진 필요] 만 내고, 그러면 need_image 이벤트로 끝낸다(클라이언트가 사진을 붙여 다시 묻는다).
  * 여러 장 묶음(photos ≥ 2)이면 항목·글줄에 사진 번호 p 가 있고, 모델은 [사진 필요: n] 으로 볼 사진을 지정한다 → need_image.photo.
  * 사진이 이미 첨부됐는데(imagePhoto) 다른 번호를 달라고 하면 한 번 더 need_image, 같은 번호면 「찾지 못했어요」로 끝낸다.
@@ -8,13 +9,11 @@
  */
 import { codeFrom, isAllowed } from './_lib/access.js';
 import { errorJson } from './_lib/http.js';
-import { MODEL } from './_lib/prompt.js';
-import { readSse } from './_lib/claude.js';
+import { llmStream, llmVision, resolveProvider, type LlmPart, type LlmRequest } from './_lib/llm.js';
 import { asciiDigits, chatSystem, currencyLine, KIND_KO, NEED_IMAGE_PREFIXES, NOT_FOUND, parseNeedImage, REFS_LINE, type ChatKind } from './_lib/chatPrompt.js';
 import { L } from './_lib/prompt.js';
 import { parseDirection } from './_lib/direction.js';
 
-const UPSTREAM = 'https://api.timelyrouter.ai/v1/messages';
 /** 항목 상한. 묶음(최대 6장)이면 사진당 30개쯤까지 들어온다 */
 const MAX_ITEMS = 200;
 /** 글줄 상한(묶음 전체, 사진별 균등) */
@@ -70,17 +69,21 @@ const toKind = (v: unknown): ChatKind => (v === 'sign' || v === 'other' ? v : 'm
 /** 대화는 user 턴으로 시작해야 한다(실패해서 답이 없는 질문이 섞이면 앞이 bot 으로 시작할 수 있다) */
 const dropLeadingBot = (h: ReadonlyArray<{ role: 'me' | 'bot'; text: string }>): ReadonlyArray<{ role: 'me' | 'bot'; text: string }> => { const i = h.findIndex((t) => t.role === 'me'); return i < 0 ? [] : h.slice(i); };
 
-const requestBody = (p: ReturnType<typeof sanitize>): unknown => {
+/** 글자만 받는 모델에 덧붙이는 안내(사진을 달라고 하지 않게) */
+const NO_VISION_NOTE = '\n\n이 대화에서는 사진을 볼 수 없습니다. [사진 필요] 를 쓰지 말고, 항목·글줄로 알 수 없는 것은 사진에 적혀 있지 않다고 답합니다.';
+
+const requestBody = (p: ReturnType<typeof sanitize>, vision: boolean): LlmRequest => {
+  const image = vision ? p.image : null;
   const context = `종류: ${KIND_KO[p.kind]}${p.shop ? ` · 가게: ${p.shop}` : ''}${p.photos > 1 ? ` · 사진 ${p.photos}장` : ''} · ${currencyLine(p.lang)}\n항목: ${JSON.stringify(p.items)}\n글줄: ${JSON.stringify(p.notes)}\n지금 보는 항목: ${p.focus ?? '없음'}`;
   const prior = p.history.map((t) => ({ role: t.role === 'me' ? 'user' : 'assistant', content: t.text }));
   // 답 언어 꼬리표: 옛 대화(다른 언어로 답한 기록)나 다른 언어 질문에 끌리지 않게 매 턴 적는다
-  const tags = [p.image ? (p.photos > 1 && p.imagePhoto ? `사진 ${p.imagePhoto} 첨부` : '사진 첨부') : '', `답: ${L[p.lang.dst].name}`].filter(Boolean).join(' · ');
-  const ask = p.image
-    ? [{ type: 'image', source: { type: 'base64', media_type: p.image.mediaType, data: p.image.data } }, { type: 'text', text: `${context}\n\n질문(${tags}): ${p.question}` }]
+  const tags = [image ? (p.photos > 1 && p.imagePhoto ? `사진 ${p.imagePhoto} 첨부` : '사진 첨부') : '', `답: ${L[p.lang.dst].name}`].filter(Boolean).join(' · ');
+  const ask: LlmPart[] = image
+    ? [{ type: 'image', mediaType: image.mediaType, data: image.data }, { type: 'text', text: `${context}\n\n질문(${tags}): ${p.question}` }]
     : [{ type: 'text', text: `${context}\n\n질문(${tags}): ${p.question}` }];
   return {
-    model: MODEL, stream: true, max_tokens: 700, thinking: { type: 'adaptive' }, output_config: { effort: 'low' }, system: chatSystem(p.kind, p.photos, p.lang),
-    messages: [...prior, { role: 'user', content: ask }],
+    maxTokens: 700, system: chatSystem(p.kind, p.photos, p.lang) + (vision ? '' : NO_VISION_NOTE),
+    messages: [...prior.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })), { role: 'user', content: ask }],
   };
 };
 
@@ -95,8 +98,8 @@ export const splitRefs = (text: string): { body: string; refs: string[] } => {
 const handler = async (req: Request): Promise<Response> => {
   if (req.method !== 'POST') return errorJson('method not allowed', 405);
   if (!isAllowed(codeFrom(req))) return errorJson('invalid access code', 401);
-  const key = process.env.TIMELY_API_KEY;
-  if (!key) return errorJson('TIMELY_API_KEY is not configured', 500);
+  try { resolveProvider(); } catch (e) { return errorJson(e instanceof Error ? e.message : String(e), 500); }
+  const vision = llmVision();
   const p = sanitize((await req.json().catch(() => ({}))) as Body);
   if (!p.question) return errorJson('question is required', 400);
 
@@ -105,14 +108,12 @@ const handler = async (req: Request): Promise<Response> => {
       const send = (o: Record<string, unknown>) => controller.enqueue(line(o));
       try {
         // 클라이언트가 끊으면 상류 생성도 멈춘다
-        const res = await fetch(UPSTREAM, { signal: req.signal, method: 'POST', headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, body: JSON.stringify(requestBody(p)) });
-        if (!res.ok || !res.body) throw new Error(`upstream ${res.status}`);
         // 첫 글자들이 [사진 필요] 인지 알기 전까지는 잠시 모아 둔다. 그 뒤로는 바로 흘려보낸다
         let head = '';
         let decided = false;
         let needImage = false;
         let full = '';
-        await readSse(res.body, (t) => {
+        await llmStream(requestBody(p, vision), (t) => {
           full += t;
           if (needImage) return;
           if (!decided) {
@@ -125,19 +126,21 @@ const handler = async (req: Request): Promise<Response> => {
             return;
           }
           send({ t: 'delta', text: t });
-        });
+        }, { signal: req.signal });
         if (needImage) {
           // 묶음에서 번호를 지정했으면 그 사진. 번호가 없거나 범위 밖이면 클라이언트가 지금 보는 사진을 붙인다
           const want = parseNeedImage(full).photo;
           const photo = want !== null && want <= p.photos ? want : null;
           // 사진을 이미 붙였는데 같은 사진(또는 번호 없이)을 또 달라고 하면 되묻지 않고 그대로 답으로 끝낸다. 다른 사진이면 한 번 더 요청
           const other = p.image !== null && photo !== null && photo !== p.imagePhoto;
+          // 사진을 못 보는 모델이 그래도 사진을 달라고 하면 되묻지 않는다(붙여 보내도 뺄 뿐이다)
+          if (!vision) { send({ t: 'delta', text: NOT_FOUND[p.lang.dst] }); send({ t: 'done', refs: [], sawImage: false }); controller.close(); return; }
           if (p.image && !other) { send({ t: 'delta', text: NOT_FOUND[p.lang.dst] }); send({ t: 'done', refs: [], sawImage: true }); controller.close(); return; }
           send({ t: 'need_image', photo }); controller.close(); return;
         }
         if (!decided && head) send({ t: 'delta', text: head });
         const { body, refs } = splitRefs(full);
-        send({ t: 'done', text: body, refs, sawImage: p.image !== null });
+        send({ t: 'done', text: body, refs, sawImage: vision && p.image !== null });
       } catch (e) {
         if (req.signal.aborted) return;
         try { send({ t: 'error', m: e instanceof Error ? e.message : String(e) }); } catch { /* 이미 닫힘 */ }

@@ -13,7 +13,7 @@
 ## 로컬 실행
 
 ```bash
-cp .env.example .env   # TIMELY_API_KEY, UPSTAGE_API_KEY 입력. ACCESS_CODES 는 로컬에서 비워 두면 모두 통과
+cp .env.example .env   # ANTHROPIC_API_KEY(권장)·UPSTAGE_API_KEY 입력. LLM 제공자는 LLM_PROVIDER 로 바꿀 수 있다(.env.example 참고). ACCESS_CODES 는 로컬에서 비워 두면 모두 통과
 pnpm install
 pnpm dev               # http://localhost:5173  (같은 Wi-Fi 의 휴대폰에선 Network 주소로 접속)
 pnpm build             # tsc + vite 빌드. 푸시 전 필수

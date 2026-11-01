@@ -1,12 +1,12 @@
 # MenuLens — 에이전트 라우터
 
-> **Version**: 1.6.0 · **Updated**: 2026-11-01
+> **Version**: 1.6.1 · **Updated**: 2026-11-01
 > **이 파일이 규약의 단일 진입점(SSoT)이다.** 아래 판정표로 작업 유형을 정하고 그 행의 경로만 로드한다.
 > 전체 grep 은 라우팅으로 못 찾을 때의 최후 수단이다. 위키 루트는 `docs/wiki/index.md`.
 
 식당 메뉴판·안내문을 찍으면 읽어주는 개인 모바일 웹 앱: 한국인은 일본어 사진을 한국어로, 일본인은 한국어 사진을 일본어로(앱 언어 설정, 원문 언어 자동 판정, 발음은 규칙). Vite + React 프론트,
-Vercel Node.js 함수 8개, Upstage OCR → Claude Sonnet(Timely Router) 2단 파이프라인.
-대화 통역은 Groq Whisper(예비 Gemini) 음성 인식 → Claude 번역(Timely, 한도 시 Anthropic 직접 키).
+Vercel Node.js 함수 8개, Upstage OCR → LLM 2단 파이프라인. LLM 은 `api/_lib/llm.ts` 의 제공자 스위치(`LLM_PROVIDER`: Timely Router·Anthropic·OpenAI·Upstage Solar, 프로덕션은 Timely 의 Claude Sonnet).
+대화 통역은 Groq Whisper(예비 Gemini) 음성 인식 → 같은 LLM 번역(Timely 일 때 한도 시 Anthropic 직접 키).
 배포 주소·초대 코드·키는 `.env`(미추적)와 Vercel 환경변수에만 있다.
 
 ## 절대 규칙 (위반 시 작업 중단)
@@ -29,7 +29,7 @@ Vercel Node.js 함수 8개, Upstage OCR → Claude Sonnet(Timely Router) 2단 �
 |---|---|---|
 | 히스토리 파악 | `docs/wiki/log/index.md` → 최신 월 샤드 → `git log` | — |
 | 구조·파이프라인 이해 | [[architecture]] | [[overlay-and-photo]] (화면 좌표·회전·라벨 규칙) |
-| 속도·모델 변경 | [[benchmarks]] (측정 기록과 재현 방법) | `api/_lib/prompt.ts` · `api/analyze.ts` |
+| 속도·모델 변경 | [[benchmarks]] (측정 기록과 재현 방법) | `api/_lib/prompt.ts` · `api/analyze.ts` · 제공자·모델 스위치는 `api/_lib/llm.ts` · [[deploy-and-env]] §LLM 제공자 |
 | 배포·환경변수·Redis(키·용량) | [[deploy-and-env]] | 절대 규칙 2·3 · 진단 키는 [[debug-store]] |
 | 사용자 실기기 케이스 재현 | [[debug-store]] | 절대 규칙 4 |
 | UI·문구·디자인 결정 | [[design-decisions]] (작업 원칙·공통·폐기, 하위 페이지 안내) | 결과 화면이면 [[decisions-result]], 입력·처리·기록이면 [[decisions-input]] · [[backlog]] |

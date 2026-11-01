@@ -15,17 +15,36 @@
 
 | 이름 | 용도 | 비고 |
 |---|---|---|
-| `TIMELY_API_KEY` | LLM(Timely Router) | 서버 전용 |
-| `ANTHROPIC_API_KEY` | 대화 통역 번역·도우미의 **예비** Claude 경로(Timely 가 402·429·한도 문구로 거절할 때만) | 서버 전용. Max 구독 월 API 크레딧에서 차감, auto-reload 끔(소진 시 호출만 멈춤) |
+| `LLM_PROVIDER` | LLM 제공자 `timely`·`anthropic`·`openai`·`upstage`·`openrouter`. 비우면 키가 있는 순서(timely → anthropic → openai → upstage) | 아래 §LLM 제공자. 프로덕션은 비워 둠(= Timely) |
+| `TIMELY_API_KEY` | LLM(Timely Router, Anthropic 호환) | 서버 전용 |
+| `ANTHROPIC_API_KEY` | LLM(Anthropic 직접). 제공자가 Timely 일 때는 대화 통역의 **예비** 경로(402·429·한도 문구로 거절할 때만) | 서버 전용. auto-reload 끔(소진 시 호출만 멈춤) |
+| `OPENAI_API_KEY` · `OPENROUTER_API_KEY` | 다른 LLM 제공자 키(쓸 때만) | 서버 전용 |
+| `LLM_MODEL` · `LLM_ICON_MODEL` · `LLM_API_KEY` · `LLM_BASE_URL` | 제공자 기본값 덮어쓰기(모델, 아이콘 생성용 상위 모델, 키, 주소) | 선택 |
 | `GROQ_API_KEY` | 대화 통역 음성 인식 기본(Groq Whisper) | 서버 전용. 무료 등급 |
 | `GEMINI_API_KEY` | 음성 인식 예비(Gemini 받아쓰기 모델) | 서버 전용. 무료 등급(입력·출력이 Google 제품 개선에 쓰일 수 있음) |
-| `UPSTAGE_API_KEY` | OCR | 서버 전용 |
+| `UPSTAGE_API_KEY` | OCR. `LLM_PROVIDER=upstage` 면 Solar 의 키도 겸한다 | 서버 전용 |
 | `ACCESS_CODES` | 초대 코드(쉼표 구분) | 배포 환경에서 비어 있으면 **전체 거부**. 실제 값은 문서에 쓰지 않는다 |
 | `REDIS_URL` | 설명 캐시·진단 저장 | Vercel Storage 에서 Redis 추가 시 자동 등록 |
 | `DEBUG_STORE` | `1` 이면 최근 스캔 보관 | 운용 기준은 [[debug-store]] |
 | `VERCEL` | 배포 환경 판정(`api/_lib/access.ts`) | Vercel 이 자동 주입, 설정 불필요. 있으면 `ACCESS_CODES` 가 비었을 때 전부 거부 |
 
 로컬은 `.env`(미추적)에 같은 이름. `pnpm dev` 가 읽는다.
+
+## LLM 제공자 (2026-11-01, PR #72)
+
+모든 LLM 호출은 `api/_lib/llm.ts` 하나로 간다. 공개 저장소를 따라 배포하는 사람이 Timely Router 계정 없이도 돌릴 수 있게 제공자를 환경변수로 뽑았다.
+
+| `LLM_PROVIDER` | 형식 | 기본 모델 | 아이콘 상위 모델 | 이미지 입력 | 비고 |
+|---|---|---|---|---|---|
+| `timely` | Anthropic Messages | `claude-sonnet-5-5` | `claude-opus-5-5` | ○ | 프로덕션 현재값(변수 비움 = 이 경로) |
+| `anthropic` | Anthropic Messages | `claude-sonnet-5-5` | `claude-opus-5-5` | ○ | **README 권장**. 키 하나로 전 기능 |
+| `openai` | OpenAI Chat Completions | `gpt-5.4-mini` | (기본 모델) | ○ | `reasoning_effort: low` |
+| `upstage` | OpenAI Chat Completions | `solar-pro4` | (기본 모델) | ✕ | OCR 과 같은 키 하나로 OCR + LLM. 글자가 없는 사진은 분석 불가(`no_vision`), 챗은 사진 없이, 도트 아이콘 생성은 격자 형식을 잘 못 지켜 기본 아이콘으로 남는다 |
+| `openrouter` | Anthropic Messages(Bearer) | 없음(`LLM_MODEL` 필수) | 없음 | ○ | 미검증 |
+
+- 사고는 `think`: 'low'(Anthropic adaptive + effort low / OpenAI reasoning_effort low / Solar 는 추론 끔) · 'off'(Anthropic between_tools, 번역·제목). 2026-11-01 합성 메뉴판 14항목 스모크: 네 제공자 모두 항목 14·설명 14·묶음 4~6, 목록 완성 6.4~11.5초([[benchmarks]]).
+- 예비 경로는 바뀌지 않았다: 기본이 `timely` 이고 `ANTHROPIC_API_KEY` 가 있으면 대화 통역(`/api/talk`)만 한도 응답에 Anthropic 직접으로 한 번 더. 다른 엔드포인트에 붙이는 건 비용 결정 사항(절대 규칙 3).
+- 제공자가 하나도 없으면 분석·챗·아이콘·통역 API 가 500 과 설정 안내 문구를 돌려준다.
 
 ## Redis 연결 경위 (2026-10-20)
 
@@ -45,7 +64,7 @@
 
 ## 비용
 
-- 호출당 과금은 LLM(Sonnet) 뿐. OCR 은 Upstage 키 과금 정책을 따른다. Vercel Hobby·Redis Free 는 무료 범위.
+- 호출당 과금은 LLM(제공자별 단가) 뿐. OCR 은 Upstage 키 과금 정책을 따른다. Vercel Hobby·Redis Free 는 무료 범위.
 - 대화 통역(2026-10-23 사용자 결정): 음성 인식은 무료 등급만 쓴다. 번역·도우미는 Timely(호출당 과금), 한도 문제일 때만 Anthropic 직접 키(Max 크레딧).
   - **Groq 무료 한도**(응답 헤더 실측, 모델별): 요청 2,000회/일, 오디오 7,200초/시간. 일 오디오 상한(28,800초설)은 헤더에 안 나와 미확인. 10초 미만 요청도 10초로 센다(공식 문서).
   - **Gemini 무료 한도**: 받아쓰기 모델 `gemini-3.5-transcribe` 분당 3회(429 응답 문구 실측). 그 밖의 수치는 AI Studio 에서만 보인다(문서 미기재).
