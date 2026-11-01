@@ -58,10 +58,18 @@ export const deployProd = () => {
   return r.status === 0 && url ? { ok: true, url } : { ok: false, detail: r.out.split('\n').slice(-3).join(' ') };
 };
 
-/** 배포 뒤 확인: 환율 API 200, 초대 코드 200 */
+/** 배포 뒤 확인: 환율 API 200, 초대 코드 200. 프로덕션 도메인은 배포 직후 잠시 404 라 최대 1분 기다린다 */
 export const smoke = async (base, code) => {
-  const out = {};
-  try { out.rate = (await fetch(`${base}/api/rate`)).status; } catch (e) { out.rate = String(e); }
-  try { out.auth = (await fetch(`${base}/api/auth`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code }) })).status; } catch (e) { out.auth = String(e); }
-  return out;
+  const probe = async () => {
+    const out = {};
+    try { out.rate = (await fetch(`${base}/api/rate`)).status; } catch (e) { out.rate = String(e); }
+    try { out.auth = (await fetch(`${base}/api/auth`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code }) })).status; } catch (e) { out.auth = String(e); }
+    return out;
+  };
+  for (let i = 0; i < 6; i++) {
+    const out = await probe();
+    if (out.rate !== 404) return out;
+    await new Promise((r) => setTimeout(r, 10000));
+  }
+  return probe();
 };
