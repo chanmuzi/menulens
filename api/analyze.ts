@@ -19,7 +19,7 @@
  *   {"t":"details","items":[{key,kana?,pron,desc,tags,photo_query}],"cached"?}  캐시 적중분 먼저, 이후 2단계 묶음마다. pron 은 서버 규칙(가나→한글, 한글→가타카나)
  *   {"t":"groups","groups":[{name,keys:[key,...]}]}           메뉴판 묶음 정리(2단계와 병렬, 메뉴판일 때만)
  *   {"t":"summary","summary","tips":[...]}              안내문·기타 요약(meta 뒤 한 번, 문단이 있을 때만)
- *   {"t":"error","m":"..."}
+ *   {"t":"error","m":"...","code"?:"no_vision"|"ocr_failed"}  code 가 있으면 클라이언트가 그 코드의 문구를 쓴다(no_vision: 글자를 못 찾았는데 모델이 사진을 못 읽음, ocr_failed: OCR 호출 실패인데 모델이 사진을 못 읽음)
  *   {"t":"done"}
  */
 import { codeFrom, isAllowed } from './_lib/access.js';
@@ -29,13 +29,12 @@ import { chunkWords } from './_lib/chunk.js';
 import { createItemParser, parseLoose } from './_lib/itemStream.js';
 import { cacheGetMany, cacheSetMany } from './_lib/cache.js';
 import { saveDebug } from './_lib/debugStore.js';
-import { groupsSystem, imageSystem, IMAGE_USER_PROMPT, MODEL, stage1System, stage2System, summarySystem } from './_lib/prompt.js';
+import { groupsSystem, imageSystem, IMAGE_USER_PROMPT, stage1System, stage2System, summarySystem } from './_lib/prompt.js';
 import { currencyOf, detectSrc, otherLang, parseLang, type Direction } from './_lib/direction.js';
 import { kanaToHangul } from './_lib/kanaToHangul.js';
 import { hangulToKana } from './_lib/hangulToKana.js';
-import { readSse } from './_lib/claude.js';
+import { llmStream, llmText, llmVision, resolveProvider, type LlmRequest } from './_lib/llm.js';
 
-const UPSTREAM = 'https://api.timelyrouter.ai/v1/messages';
 /** 이 수보다 단어가 적으면 OCR 을 믿지 않고 이미지 폴백 */
 const MIN_WORDS = 3;
 /** 2단계 병렬 호출 묶음 크기 */
@@ -58,42 +57,38 @@ type Keyed = { key: string; name: string; tr: string; group: string };
 
 const enc = new TextEncoder();
 const line = (obj: Line): Uint8Array => enc.encode(JSON.stringify(obj) + '\n');
-const headers = (key: string) => ({ 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' });
-const llm = { model: MODEL, thinking: { type: 'adaptive' }, output_config: { effort: 'low' } };
-
-const stage1Body = (d: Direction, words: readonly OcrWord[] | null, image: string, mediaType: string): unknown => ({
-  ...llm, stream: true, max_tokens: 6000,
+/** LLM 요청은 모두 _lib/llm 의 한 형태로 쓴다(제공자별 형식 변환은 거기서). 사고는 짧게(think 기본 'low') */
+const stage1Body = (d: Direction, words: readonly OcrWord[] | null, image: string, mediaType: string): LlmRequest => ({
+  maxTokens: 6000,
   system: words ? stage1System(d) : imageSystem(d),
   messages: [{
     role: 'user',
     content: words
       ? [{ type: 'text', text: '단어 목록:\n' + JSON.stringify(words) }]
-      : [{ type: 'image', source: { type: 'base64', media_type: mediaType, data: image } }, { type: 'text', text: IMAGE_USER_PROMPT }],
+      : [{ type: 'image', mediaType, data: image }, { type: 'text', text: IMAGE_USER_PROMPT }],
   }],
 });
 
-const stage2Body = (d: Direction, chunk: ReadonlyArray<{ i: number; name: string; tr: string }>): unknown => ({
-  ...llm, stream: false, max_tokens: 2500, system: stage2System(d),
+const stage2Body = (d: Direction, chunk: ReadonlyArray<{ i: number; name: string; tr: string }>): LlmRequest => ({
+  maxTokens: 2500, system: stage2System(d),
   messages: [{ role: 'user', content: JSON.stringify(chunk) }],
 });
 
-const groupsBody = (d: Direction, items: ReadonlyArray<{ i: number; name: string; tr: string; g: string }>): unknown => ({
+const groupsBody = (d: Direction, items: ReadonlyArray<{ i: number; name: string; tr: string; g: string }>): LlmRequest => ({
   // 메뉴판 전체를 한 번에 받으므로 한도는 항목 수에 비례(번호 배열 ≈ 항목당 5토큰 + 생각 토큰). 잘리면 묶음 정리가 조용히 빠진다
-  ...llm, stream: false, max_tokens: Math.min(4000, 1500 + items.length * 15), system: groupsSystem(d),
+  maxTokens: Math.min(4000, 1500 + items.length * 15), system: groupsSystem(d),
   messages: [{ role: 'user', content: JSON.stringify(items) }],
 });
 
-const summaryBody = (d: Direction, notes: ReadonlyArray<{ text: string; tr: string }>): unknown => ({
-  ...llm, stream: false, max_tokens: 1500, system: summarySystem(d),
+const summaryBody = (d: Direction, notes: ReadonlyArray<{ text: string; tr: string }>): LlmRequest => ({
+  maxTokens: 1500, system: summarySystem(d),
   messages: [{ role: 'user', content: JSON.stringify(notes) }],
 });
 
 /** 1단계 한 묶음: 스트리밍하며 항목을 즉시 전송하고, 끝나면 메타와 항목 목록을 돌려준다 */
 const KIND_RE = /"kind"\s*:\s*"(menu|sign|other)"/;
 
-const runStage1Chunk = async (key: string, d: Direction, chunkIndex: number, words: readonly OcrWord[] | null, image: string, mediaType: string, send: (o: Line) => void, onKind: (k: string) => void, signal: AbortSignal): Promise<{ meta: Stage1 | null; items: Keyed[]; raw: RawItem[] }> => {
-  const res = await fetch(UPSTREAM, { signal, method: 'POST', headers: headers(key), body: JSON.stringify(stage1Body(d, words, image, mediaType)) });
-  if (!res.ok || !res.body) throw new Error(`upstream ${res.status}: ${(await res.text().catch(() => '')).slice(0, 300)}`);
+const runStage1Chunk = async (d: Direction, chunkIndex: number, words: readonly OcrWord[] | null, image: string, mediaType: string, send: (o: Line) => void, onKind: (k: string) => void, signal: AbortSignal): Promise<{ meta: Stage1 | null; items: Keyed[]; raw: RawItem[] }> => {
   const parser = createItemParser();
   // 안내문은 items 가 비고 notes(문단)가 본문이라, 문단도 완성되는 즉시 보내 덮개가 위에서부터 차례로 뜨게 한다
   const noteParser = createItemParser('notes');
@@ -101,7 +96,7 @@ const runStage1Chunk = async (key: string, d: Direction, chunkIndex: number, wor
   const items: Keyed[] = [];
   const rawItems: RawItem[] = [];
   let kindSeen = false;
-  await readSse(res.body, (d) => {
+  await llmStream(stage1Body(d, words, image, mediaType), (d) => {
     const found = parser.push(d);
     for (const note of noteParser.push(d)) {
       if (typeof note !== 'object' || note === null) continue;
@@ -121,7 +116,7 @@ const runStage1Chunk = async (key: string, d: Direction, chunkIndex: number, wor
       rawItems.push({ ...it, key: k });
       send({ t: 'item', key: k, item: it });
     }
-  });
+  }, { signal });
   let meta: Stage1 | null = null;
   try { meta = parseLoose(parser.text()) as Stage1; } catch { meta = null; }
   // 출력이 잘리거나 꼬리가 깨져 전체 파싱에 실패해도, 이미 보낸 문단은 meta 에 남겨 화면에서 사라지지 않게 한다
@@ -130,18 +125,16 @@ const runStage1Chunk = async (key: string, d: Direction, chunkIndex: number, wor
 };
 
 /** 안내문·기타 요약. 실패하면 요약 없이 끝난다(덮개·번역문은 이미 보냈다) */
-const runSummary = async (key: string, d: Direction, notes: readonly unknown[], send: (o: Line) => void, signal: AbortSignal): Promise<void> => {
+const runSummary = async (d: Direction, notes: readonly unknown[], send: (o: Line) => void, signal: AbortSignal): Promise<void> => {
   const payload = notes.flatMap((n) => {
     const r = (typeof n === 'object' && n !== null ? n : {}) as Record<string, unknown>;
     return typeof r.text === 'string' && r.text ? [{ text: r.text, tr: typeof r.tr === 'string' ? r.tr : '' }] : [];
   });
   if (payload.length === 0) return;
   try {
-    const res = await fetch(UPSTREAM, { signal, method: 'POST', headers: headers(key), body: JSON.stringify(summaryBody(d, payload)) });
-    if (!res.ok) return;
-    const data = (await res.json()) as { content?: Array<{ type: string; text?: string }>; stop_reason?: string };
-    if (data.stop_reason === 'max_tokens') console.warn(`summary: 출력이 한도에서 잘림 (notes=${payload.length})`);
-    const parsed = parseLoose((data.content ?? []).filter((c) => c.type === 'text').map((c) => c.text ?? '').join('')) as { summary?: unknown; tips?: unknown };
+    const { text, truncated } = await llmText(summaryBody(d, payload), { signal });
+    if (truncated) console.warn(`summary: 출력이 한도에서 잘림 (notes=${payload.length})`);
+    const parsed = parseLoose(text) as { summary?: unknown; tips?: unknown };
     const summary = typeof parsed.summary === 'string' ? parsed.summary.trim() : '';
     const tips = Array.isArray(parsed.tips) ? parsed.tips.filter((t): t is string => typeof t === 'string' && t.trim() !== '').slice(0, 2) : [];
     if (summary) send({ t: 'summary', summary: summary, tips: tips });
@@ -162,7 +155,7 @@ const withPron = (dir: Direction, name: string, d: Record<string, unknown>): Rec
   return { ...d, pron: hangulToKana(name.replace(/[(（][^)）]*[)）]/g, ' ').replace(/\s+/g, ' ').trim()) };
 };
 
-const runStage2 = async (key: string, d: Direction, items: readonly Keyed[], send: (o: Line) => void, signal: AbortSignal): Promise<void> => {
+const runStage2 = async (d: Direction, items: readonly Keyed[], send: (o: Line) => void, signal: AbortSignal): Promise<void> => {
   // 캐시에 있는 메뉴는 즉시 보내고, 나머지만 LLM 에 묻는다(캐시는 방향별)
   const fetched = await cacheGetMany(d, items.filter((x) => x.name).map((x) => x.name));
   // 2026-10-31 이전에 쌓인 일→한 항목에는 읽기(kana)가 없고 모델이 지은 발음만 있다. 그런 항목은 적중으로 치지 않고 다시 받아 규칙 발음으로 바꿔 간다(사용 빈도만큼 자연 이전)
@@ -176,10 +169,7 @@ const runStage2 = async (key: string, d: Direction, items: readonly Keyed[], sen
   await Promise.all(chunks.map(async (chunk) => {
     try {
       const payload = chunk.map((x, i) => ({ i, name: x.name, tr: x.tr }));
-      const res = await fetch(UPSTREAM, { signal, method: 'POST', headers: headers(key), body: JSON.stringify(stage2Body(d, payload)) });
-      if (!res.ok) return;
-      const data = (await res.json()) as { content?: Array<{ type: string; text?: string }> };
-      const text = (data.content ?? []).filter((c) => c.type === 'text').map((c) => c.text ?? '').join('');
+      const { text } = await llmText(stage2Body(d, payload), { signal });
       const parsed = parseLoose(text) as { details?: Array<Record<string, unknown>> };
       if (!Array.isArray(parsed.details)) return;
       const out = parsed.details
@@ -195,15 +185,12 @@ const runStage2 = async (key: string, d: Direction, items: readonly Keyed[], sen
 const MIN_ITEMS_FOR_GROUPS = 8;
 
 /** 임시 group 들을 메뉴판 전체 기준으로 4~8개로 합친다. 실패하면 조용히 건너뛴다(클라이언트는 임시 group/category 로 묶는다) */
-const runGroups = async (key: string, d: Direction, items: readonly Keyed[], send: (o: Line) => void, signal: AbortSignal): Promise<void> => {
+const runGroups = async (d: Direction, items: readonly Keyed[], send: (o: Line) => void, signal: AbortSignal): Promise<void> => {
   if (items.length < MIN_ITEMS_FOR_GROUPS) return;
   try {
     const payload = items.map((x, i) => ({ i, name: x.name, tr: x.tr, g: x.group }));
-    const res = await fetch(UPSTREAM, { signal, method: 'POST', headers: headers(key), body: JSON.stringify(groupsBody(d, payload)) });
-    if (!res.ok) return;
-    const data = (await res.json()) as { content?: Array<{ type: string; text?: string }>; stop_reason?: string };
-    if (data.stop_reason === 'max_tokens') console.warn(`groups: 출력이 한도에서 잘림 (items=${items.length})`);
-    const text = (data.content ?? []).filter((c) => c.type === 'text').map((c) => c.text ?? '').join('');
+    const { text, truncated } = await llmText(groupsBody(d, payload), { signal });
+    if (truncated) console.warn(`groups: 출력이 한도에서 잘림 (items=${items.length})`);
     const parsed = parseLoose(text) as { groups?: Array<{ name?: unknown; i?: unknown }> };
     if (!Array.isArray(parsed.groups)) return;
     const seen = new Set<string>();
@@ -228,9 +215,9 @@ const handler = async (req: Request): Promise<Response> => {
   if (req.method !== 'POST') return errorJson('method not allowed', 405);
   if (!isAllowed(codeFrom(req))) return errorJson('invalid access code', 401);
 
-  const timelyKey = process.env.TIMELY_API_KEY;
   const upstageKey = process.env.UPSTAGE_API_KEY;
-  if (!timelyKey) return errorJson('TIMELY_API_KEY is not configured', 500);
+  // 제공자 미설정은 스트림을 열기 전에 500 으로 알린다
+  try { resolveProvider(); } catch (e) { return errorJson(e instanceof Error ? e.message : String(e), 500); }
 
   const body = (await req.json().catch(() => ({}))) as Body;
   if (!body.image) return errorJson('image is required', 400);
@@ -245,6 +232,7 @@ const handler = async (req: Request): Promise<Response> => {
       const send = (obj: Line) => { if (!signal.aborted) controller.enqueue(line(obj)); };
       try {
         let ocr: OcrResult | null = null;
+        let ocrFailed = false;
         if (upstageKey) {
           try {
             const r = await runOcr(image, mediaType, upstageKey, signal);
@@ -252,8 +240,15 @@ const handler = async (req: Request): Promise<Response> => {
             send({ t: 'ocr', width: r.width, height: r.height, words: r.words, rotation: r.rotation, tilt: r.tilt, ms: r.ms, used: ocr !== null });
           } catch (e) {
             if (signal.aborted) throw e;
+            ocrFailed = true;
             send({ t: 'ocr', width: 1, height: 1, words: [], rotation: 0, tilt: 0, ms: 0, used: false, error: String(e) });
           }
+        }
+        // OCR 이 글자를 못 찾으면 이미지를 직접 보는 폴백인데, 글자만 받는 모델(Solar 등)이면 여기서 끝낸다(클라이언트가 code 로 문구를 고른다).
+        // OCR 호출 자체가 실패한 것(상류 장애)은 사진 탓이 아니므로 다른 코드로 알린다
+        if (!ocr && !llmVision()) {
+          send(ocrFailed ? { t: 'error', code: 'ocr_failed', m: 'ocr failed and the model cannot read images' } : { t: 'error', code: 'no_vision', m: 'no text found and the model cannot read images' });
+          return;
         }
         // 원문 언어는 OCR 단어의 문자 체계로. OCR 을 못 썼으면 앱 언어의 반대(한국어 UI 는 일본 사진, 일본어 UI 는 한국 사진)
         const src = ocr ? detectSrc(ocr.words, dst) : otherLang(dst);
@@ -264,14 +259,14 @@ const handler = async (req: Request): Promise<Response> => {
 
         // meta.kind 는 앞 묶음의 판정을 쓰므로 처리 중 kind 도 0번 묶음의 것만 보낸다 (묶음은 동시에 시작하니 늦어지지 않는다)
         const onKind = (k: string) => send({ t: 'kind', kind: k });
-        const results = await Promise.all(chunks.map((c, i) => runStage1Chunk(timelyKey, dir, i, c, image, mediaType, send, i === 0 ? onKind : () => {}, signal)));
+        const results = await Promise.all(chunks.map((c, i) => runStage1Chunk(dir, i, c, image, mediaType, send, i === 0 ? onKind : () => {}, signal)));
         const first = results.find((r) => r.meta)?.meta ?? null;
         const notes = results.flatMap((r) => (Array.isArray(r.meta?.notes) ? r.meta!.notes! : []));
         send({ t: 'meta', kind: first?.kind ?? 'menu', shop_name: first?.shop_name ?? null, title: autoTitle(first), notes });
         const all = results.flatMap((r) => r.items);
         // 안내문·기타는 요리 설명(2단계)이 필요 없다. 생략하면 그만큼 빨리 끝난다
-        if (all.length > 0 && (first?.kind ?? 'menu') === 'menu') await Promise.all([runStage2(timelyKey, dir, all, send, signal), runGroups(timelyKey, dir, all, send, signal)]);
-        else if ((first?.kind ?? 'menu') !== 'menu') await runSummary(timelyKey, dir, notes, send, signal);
+        if (all.length > 0 && (first?.kind ?? 'menu') === 'menu') await Promise.all([runStage2(dir, all, send, signal), runGroups(dir, all, send, signal)]);
+        else if ((first?.kind ?? 'menu') !== 'menu') await runSummary(dir, notes, send, signal);
         // 2단계 도중 끊기면 묶음별 catch 가 삼켜 여기까지 오므로, 중단된 스캔은 진단 저장도 하지 않는다
         if (signal.aborted) return;
         send({ t: 'done' });

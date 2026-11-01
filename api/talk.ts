@@ -1,5 +1,5 @@
 /**
- * POST /api/talk — 대화 통역의 글자 쪽(번역·도우미·제목). Claude 는 Timely 가 기본, 한도 문제면 Anthropic 직접 키(_lib/claude).
+ * POST /api/talk — 대화 통역의 글자 쪽(번역·도우미·제목). LLM 은 _lib/llm 의 제공자. 기본이 Timely 이고 한도 문제면 Anthropic 직접 키로 한 번 더(fallback).
  * - { mode:'translate', text, turns } → NDJSON { t:'field', k, v }(필드가 완성되는 대로) … { t:'done', result, via } | { t:'error', m }
  * - { mode:'ask', turns, history, question } → NDJSON { t:'delta', text } … { t:'done', text, via } | { t:'error', m }
  * - { mode:'title', turns } → { title }
@@ -8,8 +8,7 @@
  */
 import { codeFrom, isAllowed } from './_lib/access.js';
 import { errorJson, json } from './_lib/http.js';
-import { MODEL } from './_lib/prompt.js';
-import { callClaude, readSse } from './_lib/claude.js';
+import { llmStream, llmText, type LlmRequest } from './_lib/llm.js';
 import { askSystem, titleSystem, translateSystem } from './_lib/talkPrompt.js';
 import { parseTalkDirection, type TalkDirection } from './_lib/direction.js';
 import { pronOf, sayWithPron, stripSayPron } from './_lib/talkPron.js';
@@ -53,32 +52,25 @@ const stream = (run: (send: (o: Record<string, unknown>) => void) => Promise<voi
     },
   }), { status: 200, headers: { 'content-type': 'application/x-ndjson; charset=utf-8', 'cache-control': 'no-store' } });
 
-const upstream = async (body: unknown, signal: AbortSignal) => {
-  const r = await callClaude(body, signal);
-  if (!r.res.ok || !r.res.body) {
-    // 상류 오류 본문(조직·요청 id 등)은 서버 로그에만 남기고 클라이언트에는 상태 코드만 준다(chat.ts 와 같게)
-    console.error('[talk] upstream', r.via, r.res.status, (await r.res.text().catch(() => '')).slice(0, 300));
-    throw new Error(`upstream ${r.res.status}`);
-  }
-  return r;
-};
+/** 상류 오류 본문은 _lib/llm 이 서버 로그에만 남기고 클라이언트에는 상태 코드만 간다(UpstreamError) */
+const stream_ = (r: LlmRequest, onText: (t: string) => void, signal: AbortSignal) => llmStream(r, onText, { signal, fallback: true });
 
 const translate = (b: Body, d: TalkDirection, signal: AbortSignal): Response => {
   const text = str(b.text, MAX_TEXT);
   if (!text) return errorJson('text is required', 400);
   const turns = toTurns(b.turns, 4);
   return stream(async (send) => {
-    const r = await upstream({
-      model: MODEL, stream: true, max_tokens: 800, thinking: { type: 'between_tools' }, system: translateSystem(d),
-      messages: [{ role: 'user', content: `앞선 대화:\n${transcript(turns)}\n\n입력: ${text}` }],
-    }, signal);
     let full = '';
     const sent = new Set<string>();
-    await readSse(r.res.body!, (t) => {
+    // 짧은 구조화 출력이라 생각 없이(think off)
+    const r = await stream_({
+      maxTokens: 800, think: 'off', system: translateSystem(d),
+      messages: [{ role: 'user', content: `앞선 대화:\n${transcript(turns)}\n\n입력: ${text}` }],
+    }, (t) => {
       full += t;
       // 모델이 pron 을 내더라도 흘리지 않는다(발음은 아래에서 규칙으로)
       for (const [k, v] of closedFields(full)) if (k !== 'pron' && !sent.has(k)) { sent.add(k); send({ t: 'field', k, v }); }
-    });
+    }, signal);
     const parsed = JSON.parse(full.replace(/^```(?:json)?\s*|```\s*$/g, '').trim()) as Record<string, unknown>;
     // 내 말(상대 언어로 번역된 것)에만 발음을 붙인다. 상대 말은 내가 읽기만 하면 된다
     const mine = parsed.lang !== d.them;
@@ -101,12 +93,11 @@ const ask = (b: Body, d: TalkDirection, signal: AbortSignal): Response => {
   const start = prior.findIndex((m) => m.role === 'user');
   const history = start < 0 ? [] : prior.slice(start);
   return stream(async (send) => {
-    const r = await upstream({
-      model: MODEL, stream: true, max_tokens: 700, thinking: { type: 'adaptive' }, output_config: { effort: 'low' }, system: askSystem(d),
-      messages: [...history, { role: 'user', content: `대화 기록:\n${transcript(turns)}\n\n질문: ${question}` }],
-    }, signal);
     let full = '';
-    await readSse(r.res.body!, (t) => { full += t; send({ t: 'delta', text: t }); });
+    const r = await stream_({
+      maxTokens: 700, system: askSystem(d),
+      messages: [...history, { role: 'user', content: `대화 기록:\n${transcript(turns)}\n\n질문: ${question}` }],
+    }, (t) => { full += t; send({ t: 'delta', text: t }); }, signal);
     send({ t: 'done', text: sayWithPron(full, d), via: r.via });
   }, signal);
 };
@@ -114,10 +105,14 @@ const ask = (b: Body, d: TalkDirection, signal: AbortSignal): Response => {
 const title = async (b: Body, d: TalkDirection, signal: AbortSignal): Promise<Response> => {
   const turns = toTurns(b.turns, 12);
   if (turns.length === 0) return errorJson('turns are required', 400);
-  const r = await callClaude({ model: MODEL, max_tokens: 80, thinking: { type: 'between_tools' }, system: titleSystem(d), messages: [{ role: 'user', content: transcript(turns) }] }, signal);
-  if (!r.res.ok) return errorJson(`upstream ${r.res.status}`, 502);
-  const data = (await r.res.json()) as { content?: Array<{ type: string; text?: string }> };
-  const text = (data.content ?? []).filter((c) => c.type === 'text').map((c) => c.text ?? '').join('').trim().split('\n')[0] ?? '';
+  let out: string;
+  try {
+    const r = await llmText({ maxTokens: 80, think: 'off', system: titleSystem(d), messages: [{ role: 'user', content: transcript(turns) }] }, { signal, fallback: true });
+    // 제목이 비어 나가면 원인이 안 보이므로 한도에서 잘린 것은 로그에 남긴다(OpenAI 형식은 추론 토큰도 max_completion_tokens 안에서 센다)
+    if (r.truncated) console.warn(`[talk] title: 출력이 한도에서 잘림 (via=${r.via}, turns=${turns.length})`);
+    out = r.text;
+  } catch (e) { return errorJson(e instanceof Error ? e.message : String(e), 502); }
+  const text = out.trim().split('\n')[0] ?? '';
   return json({ title: text.slice(0, 40) || null });
 };
 
