@@ -4,6 +4,11 @@
 
 [English summary](#english-summary)
 
+## 빠른 시작
+
+- **코딩 에이전트와 함께**: 저장소를 열고 Claude Code 에서 `/menulens-setup` 을 치면 어떤 기능을 쓸지·어떤 키가 필요한지 묻고 끝까지 안내합니다(절차는 `.claude/skills/menulens-setup/SKILL.md`, 다른 에이전트도 같은 문서를 따르면 됩니다).
+- **터미널만으로**: `pnpm install && pnpm bootstrap`. 기능과 LLM 제공자를 고르고 키를 입력하면(화면에 안 보임) 살아 있는 키인지 확인해 `.env` 에 쓰고, 원하면 Vercel 프로젝트 생성부터 첫 배포까지 해 줍니다. 다시 실행하면 기존 값을 유지하고, `pnpm bootstrap --check` 는 확인만 합니다.
+
 ## 무엇을 하나
 
 - **메뉴판**: 사진 위에 번호 배지를 얹은 오버레이와 카드 보기. 항목마다 번역, 요리 설명, 가격과 환산(¥↔₩), 도트 아이콘. 수량을 고르면 점원에게 보여 줄 주문 문구(원문 + 발음)를 만들어 줍니다. 사진에 대해 챗으로 물어볼 수 있습니다.
@@ -55,8 +60,8 @@ OCR 이 글자를 거의 못 찾을 때만 이미지를 모델에 직접 보여 
 
 ```bash
 git clone https://github.com/chanmuzi/menulens.git && cd menulens
-cp .env.example .env   # ANTHROPIC_API_KEY 와 UPSTAGE_API_KEY 를 채운다. ACCESS_CODES 는 로컬에서 비워 두면 모두 통과
 pnpm install
+pnpm bootstrap         # 질문에 답하면 .env 를 만든다. 손으로 하려면 cp .env.example .env 뒤 ANTHROPIC_API_KEY 와 UPSTAGE_API_KEY 를 채운다
 pnpm dev               # http://localhost:5173  (같은 Wi-Fi 의 휴대폰에선 터미널에 뜨는 Network 주소로 접속)
 pnpm build             # tsc + vite 빌드. 푸시 전 필수
 ```
@@ -64,6 +69,8 @@ pnpm build             # tsc + vite 빌드. 푸시 전 필수
 `pnpm dev` 가 `api/` 의 서버 함수를 같은 프로세스에서 돌리므로 Vercel CLI 없이 전체 흐름을 로컬에서 볼 수 있습니다. 아이콘을 추가하거나 고쳤으면 `pnpm icons` 로 CSS 를 다시 만듭니다.
 
 ## Vercel 에 배포하기
+
+`pnpm bootstrap` 의 마지막 단계가 아래를 대신해 줍니다(`npx vercel login` 만 먼저). 손으로 하려면:
 
 1. 이 저장소를 fork 합니다.
 2. Vercel 대시보드에서 **Add New → Project** 로 fork 를 import 합니다. 프레임워크는 Vite 로 자동 인식되고, 서버 함수는 `api/` 폴더에서 자동으로 잡힙니다(`vercel.json` 에 리전 도쿄 `hnd1`, 함수 120초, 요청 취소 설정이 들어 있습니다. 리전은 자기 여행지에 가깝게 바꾸세요).
@@ -112,6 +119,6 @@ MenuLens is a personal mobile web app that reads restaurant menus and signs from
 
 **Pipeline**: photo → Upstage Document OCR (words with coordinates) → LLM stage 1 structures the word list into items (streamed) → LLM stage 2 adds descriptions in parallel (cached in Redis). The LLM only sees the image when OCR finds almost no text, or when the chat needs the photo.
 
-**You need**: an LLM key (Anthropic recommended; OpenAI, Upstage Solar and Timely Router are supported via `LLM_PROVIDER`), an Upstage API key for OCR, optionally Groq/Gemini keys for speech recognition, a Vercel account (Hobby) and optionally a free Redis. Copy `.env.example` to `.env`, `pnpm install`, `pnpm dev`. To deploy: fork, import into Vercel, set `ANTHROPIC_API_KEY`, `UPSTAGE_API_KEY` and `ACCESS_CODES` (an invite code that keeps strangers from spending your keys), deploy, add to your phone's home screen.
+**You need**: an LLM key (Anthropic recommended; OpenAI, Upstage Solar and Timely Router are supported via `LLM_PROVIDER`), an Upstage API key for OCR, optionally Groq/Gemini keys for speech recognition, a Vercel account (Hobby) and optionally a free Redis. **Quick start**: `pnpm install && pnpm bootstrap` asks which features and provider you want, takes the keys (hidden input, validated with a free call), writes `.env`, and can create the Vercel project, upload the variables and make the first deployment. With Claude Code, `/menulens-setup` runs the same flow as an interview. Manual path: copy `.env.example` to `.env`, `pnpm dev`; to deploy, fork, import into Vercel, set `ANTHROPIC_API_KEY`, `UPSTAGE_API_KEY` and `ACCESS_CODES` (an invite code that keeps strangers from spending your keys), deploy, add to your phone's home screen.
 
 `AGENTS.md` and `docs/wiki/` are the working conventions and the decision/measurement log used while building this with a coding agent; they are published as reference, not as a template that works out of the box. MIT licensed.
