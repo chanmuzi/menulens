@@ -65,8 +65,8 @@ export const ResultScreen = ({ scan, batch, view, onView, showMarks, onShowMarks
   const currentOrder = order[scan.id] ?? {};
   const lines = batchLines(batch, order);
   const hasMenu = batch.some((s) => s.kind === 'menu');
-  /** 주문 UI 를 보일지(order.ts 의 주문서 기준과 같다) */
-  const canOrder = canOrderScan(scan);
+  /** 주문 UI 를 보일지(order.ts 의 주문서 기준과 같다: 메뉴판이고 묶음의 첫 메뉴판과 원문 언어가 같을 때) */
+  const canOrder = canOrderScan(scan, batch);
   const streaming = scan.status === 'streaming' || scan.status === 'reading';
   const detailing = scan.status === 'detailing';
   const counts: Record<string, number> = {};
@@ -128,7 +128,7 @@ export const ResultScreen = ({ scan, batch, view, onView, showMarks, onShowMarks
       {orderOpen && <OrderSheet lines={lines} rate={rate} photos={batch.length} onQty={setQtyOf} onClear={() => { setOrder(clearedBatchOrder); setOrderOpen(false); }} onClose={() => setOrderOpen(false)} />}
       {!orderOpen && !selectedItem && !chatOpen && <ChatFab title={chatTitle(scan.kind)} buttonRef={fabRef} unread={unread} barHeight={barHeight} onClick={openChat} />}
       {chatMounted && <ChatPopup batch={batch} scan={scan} open={chatOpen} focus={chatFocus} onClearFocus={() => setChatFocus(null)} onOpenItem={jumpTo} onClose={closeChat} onAnswered={() => { if (!chatOpenRef.current) setUnread((n) => n + 1); }} />}
-      {selectedItem && <ItemSheet item={selectedItem} rate={rate} currency={scan.currency} srcLang={scan.lang.src} mode={mode} onClose={() => setSelected(null)} qty={isMenu && canOrder ? (currentOrder[selectedItem.id] ?? 0) : null} onQty={(q) => setQty(selectedItem.id, q)} pending={scan.status !== 'done' && scan.status !== 'error'} onAsk={openChat} />}
+      {selectedItem && <ItemSheet item={selectedItem} rate={rate} currency={scan.currency} lang={scan.lang} mode={mode} onClose={() => setSelected(null)} qty={isMenu && canOrder ? (currentOrder[selectedItem.id] ?? 0) : null} onQty={(q) => setQty(selectedItem.id, q)} pending={scan.status !== 'done' && scan.status !== 'error'} onAsk={openChat} />}
     </div>
   );
 };

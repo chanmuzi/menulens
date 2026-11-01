@@ -1,15 +1,16 @@
 import { useEffect } from 'react';
-import type { Currency, ImageMode, MenuItem, Rate } from '../types';
+import type { Currency, ImageMode, MenuItem, Rate, ScanLang } from '../types';
 import { formatConverted, formatPrice, payable } from '../lib/money';
+import { buildOneOrderText } from '../lib/order';
 import { ItemImage } from '../components/ItemImage';
 import { QtyStepper } from '../components/QtyStepper';
 import { PixelIcon } from '../components/PixelIcon';
 import { useT, tagLabel } from '../i18n';
 
-type Props = { readonly item: MenuItem; readonly rate: Rate | null; readonly currency: Currency; /** 원문 언어(일본어면 세리프 글꼴) */ readonly srcLang: 'ja' | 'ko'; readonly mode: ImageMode; readonly onClose: () => void; /** null 이면 주문 기능 없음(안내문) */ readonly qty?: number | null; readonly onQty?: (qty: number) => void; /** 설명이 아직 올 수 있는가(스캔 진행 중). 기록에서 연 미완 스캔은 false 라 깜빡이지 않는다 */ readonly pending?: boolean; /** 이 항목을 맥락으로 챗 열기 */ readonly onAsk?: () => void };
+type Props = { readonly item: MenuItem; readonly rate: Rate | null; readonly currency: Currency; /** 사진의 방향(원문·앱 언어). 원문이 일본어면 세리프 글꼴, 주문 문구의 언어와 발음도 이것으로 */ readonly lang: ScanLang; readonly mode: ImageMode; readonly onClose: () => void; /** null 이면 주문 기능 없음(안내문) */ readonly qty?: number | null; readonly onQty?: (qty: number) => void; /** 설명이 아직 올 수 있는가(스캔 진행 중). 기록에서 연 미완 스캔은 false 라 깜빡이지 않는다 */ readonly pending?: boolean; /** 이 항목을 맥락으로 챗 열기 */ readonly onAsk?: () => void };
 
-/** 메뉴 하나의 상세 바텀시트. 주문할 때 보여줄 일본어 문구와 한글 발음을 함께 보여준다. */
-export const ItemSheet = ({ item, rate, currency, srcLang, mode, onClose, qty = null, onQty, pending = false, onAsk }: Props) => {
+/** 메뉴 하나의 상세 바텀시트. 주문할 때 보여줄 원문 문구와 발음을 함께 보여준다(order.ts 규칙). */
+export const ItemSheet = ({ item, rate, currency, lang, mode, onClose, qty = null, onQty, pending = false, onAsk }: Props) => {
   const t = useT();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -17,7 +18,8 @@ export const ItemSheet = ({ item, rate, currency, srcLang, mode, onClose, qty = 
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const pron = item.pron || item.tr.replace(/\s*[(（].*?[)）]\s*$/, '');
+  const srcLang = lang.src;
+  const one = item.category !== '기타' ? buildOneOrderText(item, lang) : null;
 
   return (
     <div role="dialog" aria-modal="true" aria-labelledby="sheet-title" style={{ position: 'fixed', inset: 0, zIndex: 20, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
@@ -48,11 +50,11 @@ export const ItemSheet = ({ item, rate, currency, srcLang, mode, onClose, qty = 
             <QtyStepper qty={qty} onChange={onQty} label={item.tr} />
           </div>
         )}
-        {item.category !== '기타' && srcLang === 'ja' && <div style={{ background: 'var(--paper-dark)', border: '2px solid var(--ink)', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {one && <div style={{ background: 'var(--paper-dark)', border: '2px solid var(--ink)', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
           <span className="dot small" style={{ color: 'var(--vermilion)' }}>{t.result.showWhenOrdering}</span>
-          <span className="jp" style={{ fontSize: 18 }}>{item.name}を ひとつ ください。</span>
-          <span style={{ fontSize: 13, fontWeight: 500 }}>{pron}오 히토츠 쿠다사이</span>
-          <span className="muted small">「{item.tr} 하나 주세요」</span>
+          <span lang={srcLang} className={srcLang === 'ja' ? 'jp' : undefined} style={{ fontSize: 18, fontWeight: srcLang === 'ja' ? undefined : 600 }}>{one.src}</span>
+          {one.pron && <span style={{ fontSize: 13, fontWeight: 500 }}>{one.pron}</span>}
+          {lang.src !== lang.dst && <span className="muted small">{one.tr}</span>}
         </div>}
         {onAsk && <button type="button" className="btn" onClick={onAsk} style={{ gap: 6 }}><PixelIcon icon="bubble" size={1} />{t.result.ask}</button>}
         <button type="button" className="btn" onClick={onClose}>{t.common.close}</button>

@@ -43,6 +43,7 @@ src/
                 TalkBubble(말풍선 세 줄) ShowBig(크게 보여주기) TalkRow(대화 기록 줄)
                 ConfirmDialog(지우기 확인) RenameDialog(이름 고치기) ChatFab OrderBar QtyStepper CropBox InstallHint PixelIcon Segmented ProgressBlocks ItemImage TopBar
   lib/          image api scan(정규화·unionBox·applyDetails) coverLayout(덮개/번호 판정·글자 맞춤) sample(덮개 배경·글자색) icons(키워드 우선) iconStore pixel kind(종류별 문구)
+                order(주문 수량·묶음 줄·주문 언어 기준) orderText(주문 문구 조립, 순수 함수: 원문 언어별 틀, 발음은 `api/_lib/hangulToKana.ts` 를 클라이언트가 직접 import — 의존성 없는 순수 함수라 양쪽에서 쓴다, node 전용 모듈을 넣지 말 것. 검사 `node --experimental-strip-types --test scripts/bench/order_test.ts`) money(통화·환산)
                 upgrade(빈 스캔 기본값·옛 기록 변환: 2026-10-31 필드 중립화 이전 키 name_ja 등을 name/tr 로) history(기록 묶음·제목 규칙) when(날짜·요일·12시간제) storage(저장 큐·이름 고치기·썸네일 채우기·홈 탭·대화 화면 설정) db(IndexedDB) thumb(168px 썸네일) batch(runLimited)
                 groups chat order(묶음 전체 수량 BatchOrder·주문 문구) money(통화별 표기·양방향 환산 formatMoney/formatConverted/splitMoney) crop clipboard drop platform photos savePhoto(묶음 전부 공유) version
                 talk(마디·말풍선 언어·제목·「말해 볼 문장」) talkApi(/api/stt·/api/talk) talkStore(IndexedDB menulens-talk) ndjson(스트림 줄 읽기: chat·talkApi 공용) recorder(녹음·소리 크기·무음 거르기)

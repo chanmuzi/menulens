@@ -1,8 +1,8 @@
-/** 주문 문구 시트: 담은 목록·합계, 직원에게 보여줄 일본어(크게), 한글 발음, 뜻. 복사·비우기. 묶음이면 줄마다 어느 사진에서 담았는지 번호를 단다. */
+/** 주문 문구 시트: 담은 목록·합계, 직원에게 보여줄 원문(크게), 앱 언어 글자로 읽는 발음, 뜻. 복사·비우기. 묶음이면 줄마다 어느 사진에서 담았는지 번호를 단다. */
 import { useEffect, useState } from 'react';
 import type { Rate } from '../types';
 import { formatConverted, formatMoney, formatPrice } from '../lib/money';
-import { buildOrderText, linesCurrency, orderModes, total, totalCount, type OrderLine, type OrderMode } from '../lib/order';
+import { buildOrderText, linesCurrency, linesLang, orderModes, total, totalCount, type OrderLine, type OrderMode } from '../lib/order';
 import { QtyStepper } from '../components/QtyStepper';
 import { Segmented } from '../components/Segmented';
 import { useT } from '../i18n';
@@ -25,16 +25,19 @@ export const OrderSheet = ({ lines, rate, photos, onQty, onClear, onClose }: Pro
   const text = buildOrderText(lines, mode);
   const [sum, hasUnknown] = total(lines);
   const currency = linesCurrency(lines);
+  const lang = linesLang(lines);
+  // 원문이 일본어면 세리프(jp) 글꼴. 한국어 원문은 기본 글꼴
+  const srcClass = lang.src === 'ja' ? 'jp' : undefined;
   const converted = formatConverted(sum, currency, rate);
   const copy = async () => {
-    try { await navigator.clipboard.writeText(text.ja); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* 클립보드 불가 */ }
+    try { await navigator.clipboard.writeText(text.src); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* 클립보드 불가 */ }
   };
 
   if (big) {
-    // 직원에게 보여주는 화면: 일본어만 크게
+    // 직원에게 보여주는 화면: 원문만 크게
     return (
       <div role="dialog" aria-modal="true" aria-label={t.order.bigAria} style={{ position: 'fixed', inset: 0, zIndex: 30, background: 'var(--paper-2)', display: 'flex', flexDirection: 'column', padding: 'calc(16px + var(--safe-top)) 24px calc(16px + var(--safe-bottom))', gap: 16 }}>
-        <div className="jp" style={{ flex: 1, fontSize: 30, lineHeight: 1.5, whiteSpace: 'pre-wrap', overflow: 'auto', display: 'flex', alignItems: 'center' }}>{text.ja}</div>
+        <div lang={lang.src} className={srcClass} style={{ flex: 1, fontSize: 30, lineHeight: 1.5, whiteSpace: 'pre-wrap', overflow: 'auto', display: 'flex', alignItems: 'center', fontWeight: lang.src === 'ja' ? undefined : 600 }}>{text.src}</div>
         <button type="button" className="btn" onClick={() => setBig(false)}>{t.order.backFromBig}</button>
       </div>
     );
@@ -55,7 +58,7 @@ export const OrderSheet = ({ lines, rate, photos, onQty, onClear, onClose }: Pro
             <li key={`${scanId}/${item.id}`} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.tr}</div>
-                <div className={`${currency === 'JPY' ? 'jp ' : ''}muted`} style={{ fontSize: 12, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div className={`${lang.src === 'ja' ? 'jp ' : ''}muted`} style={{ fontSize: 12, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name} · {formatPrice(item, currency)}</span>
                   {photos > 1 && <span className="dot" style={{ flexShrink: 0, fontSize: 10, padding: '0 4px', lineHeight: '16px', background: 'var(--ink)', color: 'var(--paper)' }}>{t.order.photoN(photo)}</span>}
                 </div>
@@ -77,13 +80,13 @@ export const OrderSheet = ({ lines, rate, photos, onQty, onClear, onClose }: Pro
             <span className="dot small" style={{ color: 'var(--vermilion)' }}>{t.order.showStaff}</span>
             <Segmented size="small" label={t.order.modeLabel} value={mode} onChange={setMode} options={orderModes()} />
           </div>
-          <p className="jp" style={{ margin: 0, fontSize: 17, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{text.ja}</p>
-          <p style={{ margin: 0, fontSize: 13, fontWeight: 500, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{text.pron}</p>
-          <p className="muted small" style={{ margin: 0, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{text.ko}</p>
+          <p lang={lang.src} className={srcClass} style={{ margin: 0, fontSize: 17, lineHeight: 1.5, whiteSpace: 'pre-wrap', fontWeight: lang.src === 'ja' ? undefined : 600 }}>{text.src}</p>
+          {text.pron && <p style={{ margin: 0, fontSize: 13, fontWeight: 500, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{text.pron}</p>}
+          {lang.src !== lang.dst && <p className="muted small" style={{ margin: 0, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{text.tr}</p>}
         </div>
 
         <div style={{ display: 'flex', gap: 8 }}>
-          <button type="button" className="btn" onClick={() => void copy()} style={{ flex: 1 }}>{copied ? t.common.copied : t.order.copyPhrase}</button>
+          <button type="button" className="btn" onClick={() => void copy()} style={{ flex: 1 }}>{copied ? t.common.copied : t.order.copyPhrase(lang.src)}</button>
           <button type="button" className="btn btn--primary" onClick={() => setBig(true)} style={{ flex: 1, fontWeight: 600 }}>{t.order.showBig}</button>
         </div>
         <button type="button" className="btn btn--quiet" onClick={onClose}>{t.common.close}</button>
