@@ -2,10 +2,7 @@
 
 ## Vercel
 
-> **배포 중단 중(2026-11-01, PR #74·#75·#76)**: 저장소 공개를 앞두고 사용자 결정으로 프로덕션을 내렸다. GitHub 홈페이지 필드 비움. PR #74 의 `vercel.json` `git.deploymentEnabled: false` 는 포크한 사람의 자동 배포까지 막아 #76 에서 뺐다(프로젝트가 없으니 어차피 배포가 생기지 않는다).
-> **단, 배포본만 지우려던 `vercel rm menulens` 가 Vercel 프로젝트를 통째로 삭제했다**(에이전트 실수. `vercel rm <프로젝트명>` 은 프로젝트 삭제다. 배포본 하나를 지우려면 배포 URL 을 넘겨야 한다). 사라진 것: 프로젝트, 프로덕션 환경변수, Git 연동, 도메인 `menulens-psi.vercel.app`. 남은 것: 환경변수 값은 전부 로컬 `.env`(미추적)에 있고, Redis Cloud 저장소는 프로젝트와 별개라 살아 있다(삭제 직후 1,426 키·6.75MB 확인). 아래 「프로젝트 `menulens`(Hobby). GitHub 연동」 서술은 되살릴 때까지 적용되지 않는다.
->
-> **되살리기**: `npx vercel login` 뒤 `pnpm bootstrap` 을 돌리면 기존 `.env` 값을 그대로 쓰고(Enter) Vercel 단계에서 프로젝트 생성 → 환경변수 → GitHub 연결 → 첫 배포 → 스모크까지 한다(PR #76, 임시 프로젝트로 끝까지 검증). `REDIS_URL` 은 `.env` 값을 그대로 올리거나 Storage 탭에서 기존 Redis 를 Connect. 새 자동 도메인이 생기므로 휴대폰 홈 화면 앱은 다시 추가. 초대 코드는 그대로 써도 된다.
+> **배포 중단과 재개(2026-11-01, PR #74~#77)**: 저장소 공개를 앞두고 사용자 결정으로 프로덕션을 내렸는데, 배포본만 지우려던 `vercel rm menulens` 가 **프로젝트를 통째로 삭제**했다(에이전트 실수. `vercel rm <프로젝트명>` 은 프로젝트 삭제다. 배포본 하나는 배포 URL 을 넘긴다). 환경변수 값은 로컬 `.env` 에 전부 있었고 Redis Cloud 저장소는 프로젝트와 별개라 살아 있었다. 같은 날 캡처를 위해 `pnpm bootstrap` 의 Vercel 단계로 프로젝트 `menulens` 를 다시 만들고(환경변수 7개 + `ANTHROPIC_API_KEY` 는 따로 추가, GitHub 연결, 첫 배포) 재개했다. **자동 도메인이 바뀌었다**(옛 `menulens-psi` 주소는 죽음. 새 주소는 `.env`·Vercel 에만, 문서에 적지 않는다). 휴대폰 홈 화면 앱은 다시 추가해야 한다. GitHub 홈페이지 필드는 비워 둔다. `DEBUG_STORE` 는 넣지 않았다(기본 꺼짐).
 
 - 프로젝트 `menulens`(Hobby). GitHub `chanmuzi/menulens` 연동 → **main push = 프로덕션 배포**. `npx vercel` 직접 배포(프리뷰·`--prod`)는 쓰지 않는다. 프로덕션은 merge 로만(CLAUDE.md). 배포 상태는 `npx vercel api "/v6/deployments?projectId=menulens&target=production&limit=3"` 로 커밋별 READY 를 확인한다.
 - **프리뷰 배포는 쓰지 않는다**(2026-10-21 결정). 브랜치 푸시마다 Vercel 이 프리뷰를 만들지만 ① Preview 환경에 `ACCESS_CODES`·`UPSTAGE_API_KEY`·`TIMELY_API_KEY` 가 없고(Production 전용)
