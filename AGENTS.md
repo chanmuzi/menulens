@@ -1,6 +1,6 @@
 # MenuLens — 에이전트 라우터
 
-> **Version**: 1.6.4 · **Updated**: 2026-11-01
+> **Version**: 1.6.5 · **Updated**: 2026-11-01
 > **이 파일이 규약의 단일 진입점(SSoT)이다.** 아래 판정표로 작업 유형을 정하고 그 행의 경로만 로드한다.
 > 전체 grep 은 라우팅으로 못 찾을 때의 최후 수단이다. 위키 루트는 `docs/wiki/index.md`.
 
@@ -50,7 +50,8 @@ Vercel Node.js 함수 8개, Upstage OCR → LLM 2단 파이프라인. LLM 은 `a
 2. 로컬 서버 `pnpm dev` 는 `api/` 핸들러를 같은 프로세스에서 실행한다(Vercel CLI 불필요). `.env` 가 있어야 한다.
 3. 브라우저 확인은 헤드리스 Chrome(playwright-core, 390×844)으로 흐름을 돌려 캡처를 보고 판단한다 — 절차는 [[architecture]] §검증.
    Safari 실기기 전용 동작(공유 시트, 핀치, 카메라)은 재현 불가 → 사용자 확인을 요청하고 그 사실을 보고에 적는다.
-4. 배포 후에는 프로덕션 API 를 직접 호출해 스모크 확인한다(auth 401/200, rate, analyze 스트림).
+4. **배포 후 프로덕션 스모크는 `node scripts/bench/smoke.mjs <주소>` 로 한다**(주소는 `.env` 의 배포 주소, 초대 코드는 `.env` 에서 읽음). 함수 8개를 전부 친다: 앱 셸·`version.json`, auth 틀린 코드 401·초대 코드 200, rate 환율, analyze(합성 메뉴판 항목·설명·묶음·done), chat(글자 답), talk(번역 done·via), stt(macOS 합성 음성, 없으면 건너뜀 표시), icon(생성 1 또는 실패 1). 하나라도 ✗ 면 배포 실패로 보고 원인을 고친다. LLM 호출 4회가 들어가므로 배포당 한 번만 돌린다.
+   **도메인이 바뀐 배포**(프로젝트 재생성 등)는 스모크가 통과해도 기기의 홈 화면 앱은 옛 주소를 물고 있어 모든 API 가 404 다. 보고에 「홈 화면 앱 재설치 필요」를 적는다(2026-11-01 음성 인식 404 사례).
 5. 측정한 시간은 [[benchmarks]] 에 표로 남긴다. 체감 기준은 「목록 완성」 시점이다.
 
 ## 기록 의무 (모든 작업 공통)
@@ -83,7 +84,7 @@ Vercel Node.js 함수 8개, Upstage OCR → LLM 2단 파이프라인. LLM 은 `a
 4. **리뷰 반영** — 지적을 고치고 2 를 다시 통과. 받아들이지 않은 지적은 이유와 함께 보고에 적는다.
 5. **커밋·PR** — `git-claw:commit` / `git-claw:pr`. PR 본문에 "로컬 리뷰 N건 반영(미반영 M건: 사유)" 한 줄.
 6. **merge → 프로덕션 배포** — 보고 전에 PR 을 merge 한다(Git 절차 3, 예외도 거기). main 푸시로 Vercel 이 자동 배포하므로 `npx vercel` 로 직접 배포하지 않는다.
-   Vercel 프로덕션 Ready 는 **merge 커밋 기준**으로 확인한다(`npx vercel api "/v6/deployments?projectId=menulens&target=production&limit=1"` 의 커밋 해시·state, [[deploy-and-env]]). `vercel ls` 표 출력은 깨져 읽히지 않을 수 있어 근거로 쓰지 않는다. 그다음 프로덕션 API 스모크(auth 401/200, rate)를 돌리고 마무리 세트까지 끝낸다.
+   Vercel 프로덕션 Ready 는 **merge 커밋 기준**으로 확인한다(`npx vercel api "/v6/deployments?projectId=menulens&target=production&limit=1"` 의 커밋 해시·state, [[deploy-and-env]]). `vercel ls` 표 출력은 깨져 읽히지 않을 수 있어 근거로 쓰지 않는다. 그다음 `node scripts/bench/smoke.mjs <주소>`(검증 절차 4)를 돌려 「모두 통과」를 보고에 붙이고 마무리 세트까지 끝낸다. 문서만 바꾼 PR 도 같은 스크립트로 확인한다(LLM 호출 4회, 소액). 합성 사진을 만들 Pillow 가 없는 환경이면 `--image <사진>` 을 준다.
    프리뷰 배포는 쓰지 않는다 — Preview 환경에 비밀 변수가 없고 배포 보호(Vercel Authentication)로 302 되어 실기기 확인이 안 된다([[deploy-and-env]]).
 7. **보고** — 배포가 끝난 상태에서 **사용자가 프로덕션 실기기에서 확인할 항목**을 짧게 적어 보고한다. 문제가 나오면 `fix/…` 브랜치로 후속 PR.
 
