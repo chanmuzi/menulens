@@ -49,7 +49,7 @@ src/
                 talk(마디·말풍선 언어·제목·「말해 볼 문장」) talkApi(/api/stt·/api/talk) talkStore(IndexedDB menulens-talk) ndjson(스트림 줄 읽기: chat·talkApi 공용) recorder(녹음·소리 크기·무음 거르기)
   styles/       global.css(토큰·픽셀 프레임·애니메이션) pixel-icons.css(생성: scripts/px_icons.py)
   i18n/         lang(앱 언어 ko|ja: 기기 언어 기본, localStorage menulens.lang, useLang) index(useT·dict) ko/·ja/ 네임스페이스 사전(common data home history confirm processing result order chat talk lib tips app). 화면은 useT(), lib 은 호출 시점 dict()
-scripts/bench/  벤치·진단 스크립트        scripts/bootstrap/  처음 세팅 마법사(pnpm bootstrap: prompt·env·providers·vercel)        docs/wiki/   이 위키        vite-plugin-dev-api.ts  로컬에서 api/ 실행
+scripts/bench/  벤치·진단 스크립트(smoke.mjs 배포 스모크)        scripts/bootstrap/  처음 세팅 마법사(pnpm bootstrap: prompt·env·providers·vercel)        docs/wiki/   이 위키        vite-plugin-dev-api.ts  로컬에서 api/ 실행
 .claude/skills/ pixel-icon(아이콘 제작) menulens-setup(온보딩 인터뷰, /menulens-setup)
 ```
 
@@ -59,7 +59,7 @@ scripts/bench/  벤치·진단 스크립트        scripts/bootstrap/  처음 �
 - 브라우저 흐름: 세션 scratchpad 에 `playwright-core` 를 설치하고 `chromium.launch({ channel: 'chrome' })` 으로 390×844 화면을 돌린다.
   표준 흐름 = 코드 입력 → 앨범 input 에 테스트 이미지 → 결과 화면(`button[aria-label="홈으로"]`) 대기 → 카드/오버레이 캡처.
   테스트 이미지는 `scripts/bench/make_menu_*.py`(세로쓰기 短冊 8개, 기울어진 가로 14개)·`make_sign.py`(그라데이션 종이 위 안내 5줄) 로 생성.
-- 프로덕션 스모크: `/api/auth`(틀린 코드 401), `/api/rate`, `/api/analyze` NDJSON 을 직접 호출. 대화 통역은 `/api/stt`(합성 음성 m4a, `scripts/bench/talk_stt.mjs` 가 만드는 것과 같은 방식)·`/api/talk` translate.
+- 프로덕션 스모크: `node scripts/bench/smoke.mjs <주소>` 가 함수 8개(앱 셸·version·auth·rate·analyze·chat·talk·stt·icon)를 한 번에 친다. stt 는 macOS `say` 합성 음성(`talk_stt.mjs` 와 같은 방식), analyze 는 `make_menu_tilted.py` 합성 메뉴판. 표로 출력하고 실패가 있으면 종료 코드 1.
 - Safari 실기기 전용(공유 시트·핀치·카메라)은 재현 불가 → 사용자 확인 요청.
 
 ## 아이콘 생성 (2026-10-20)
