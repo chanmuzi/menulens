@@ -4,6 +4,7 @@
  */
 import type { Talk } from '../types';
 import { hasIndexedDb } from './db';
+import { upgradeTalk } from './talk';
 
 const DB_NAME = 'menulens-talk';
 const STORE = 'talks';
@@ -42,7 +43,8 @@ const writeFallback = (list: readonly Talk[]): void => {
   try { localStorage.setItem(FALLBACK_KEY, JSON.stringify(list.slice(0, MAX_FALLBACK))); } catch { /* 저장 못 해도 화면의 대화는 이어진다 */ }
 };
 
-const byRecent = (list: readonly Talk[]): readonly Talk[] => [...list].sort((a, b) => b.updatedAt - a.updatedAt);
+/** 최근에 이어 말한 것이 앞. 옛 기록은 읽을 때 형식을 맞춘다(언어 없음 → 한→일) */
+const byRecent = (list: readonly Talk[]): readonly Talk[] => [...list].map(upgradeTalk).sort((a, b) => b.updatedAt - a.updatedAt);
 
 /** 전체 대화, 최근에 이어 말한 것이 앞 */
 export const loadTalks = async (): Promise<readonly Talk[]> => {

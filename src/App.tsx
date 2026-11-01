@@ -21,9 +21,9 @@ import { ConfirmDialog } from './components/ConfirmDialog';
 import { RenameDialog } from './components/RenameDialog';
 import { TalkScreen } from './screens/TalkScreen';
 import { loadTalks, removeTalk, saveTalk } from './lib/talkStore';
-import { newTalk, talkTitle } from './lib/talk';
+import { newTalk, talkLangFor, talkTitle } from './lib/talk';
 import type { HomeTab } from './lib/storage';
-import { dict, useT } from './i18n';
+import { dict, getLang, useT } from './i18n';
 import { emptyScan, upgrade } from './lib/upgrade';
 
 type Route = 'gate' | 'home' | 'history' | 'confirm' | 'processing' | 'result' | 'talk';
@@ -389,7 +389,7 @@ export const App = () => {
         onRename={setRenaming}
         onRemove={setRemoving}
         talks={talks}
-        onNewTalk={() => openTalk(newTalk())}
+        onNewTalk={() => openTalk(newTalk(talkLangFor(getLang())))}
         onOpenTalk={openTalk}
         onRenameTalk={setRenamingTalk}
         onRemoveTalk={setRemovingTalk}

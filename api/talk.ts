@@ -3,16 +3,19 @@
  * - { mode:'translate', text, turns } → NDJSON { t:'field', k, v }(필드가 완성되는 대로) … { t:'done', result, via } | { t:'error', m }
  * - { mode:'ask', turns, history, question } → NDJSON { t:'delta', text } … { t:'done', text, via } | { t:'error', m }
  * - { mode:'title', turns } → { title }
- * turns 는 앞선 대화 [{ who:'me'|'them', src, tr }] (최근 것만 잘라 보낸다)
+ * turns 는 앞선 대화 [{ who:'me'|'them', src, tr }] (최근 것만 잘라 보낸다). lang {me} 는 대화의 내 언어(앱 언어), 없으면 ko.
+ * 발음(pron)은 모델이 아니라 규칙으로: 상대 언어가 일본어면 kana → 한글(kanaToHangul), 한국어면 번역문 → 가타카나(hangulToKana). 도우미의 「말해 볼 문장」 발음도 같다.
  */
 import { codeFrom, isAllowed } from './_lib/access.js';
 import { errorJson, json } from './_lib/http.js';
 import { MODEL } from './_lib/prompt.js';
 import { callClaude, readSse } from './_lib/claude.js';
-import { ASK_SYSTEM, TITLE_SYSTEM, TRANSLATE_SYSTEM } from './_lib/talkPrompt.js';
+import { askSystem, titleSystem, translateSystem } from './_lib/talkPrompt.js';
+import { parseTalkDirection, type TalkDirection } from './_lib/direction.js';
+import { pronOf, sayWithPron, stripSayPron } from './_lib/talkPron.js';
 
 type Turn = { who: 'me' | 'them'; src: string; tr: string };
-type Body = { mode?: string; text?: string; question?: string; turns?: unknown; history?: unknown };
+type Body = { mode?: string; text?: string; question?: string; turns?: unknown; history?: unknown; lang?: unknown };
 
 const MAX_TEXT = 500;
 const enc = new TextEncoder();
@@ -60,52 +63,58 @@ const upstream = async (body: unknown, signal: AbortSignal) => {
   return r;
 };
 
-const translate = (b: Body, signal: AbortSignal): Response => {
+const translate = (b: Body, d: TalkDirection, signal: AbortSignal): Response => {
   const text = str(b.text, MAX_TEXT);
   if (!text) return errorJson('text is required', 400);
   const turns = toTurns(b.turns, 4);
   return stream(async (send) => {
     const r = await upstream({
-      model: MODEL, stream: true, max_tokens: 800, thinking: { type: 'between_tools' }, system: TRANSLATE_SYSTEM,
+      model: MODEL, stream: true, max_tokens: 800, thinking: { type: 'between_tools' }, system: translateSystem(d),
       messages: [{ role: 'user', content: `앞선 대화:\n${transcript(turns)}\n\n입력: ${text}` }],
     }, signal);
     let full = '';
     const sent = new Set<string>();
     await readSse(r.res.body!, (t) => {
       full += t;
-      for (const [k, v] of closedFields(full)) if (!sent.has(k)) { sent.add(k); send({ t: 'field', k, v }); }
+      // 모델이 pron 을 내더라도 흘리지 않는다(발음은 아래에서 규칙으로)
+      for (const [k, v] of closedFields(full)) if (k !== 'pron' && !sent.has(k)) { sent.add(k); send({ t: 'field', k, v }); }
     });
-    const result = JSON.parse(full.replace(/^```(?:json)?\s*|```\s*$/g, '').trim()) as Record<string, unknown>;
-    send({ t: 'done', result, via: r.via });
+    const parsed = JSON.parse(full.replace(/^```(?:json)?\s*|```\s*$/g, '').trim()) as Record<string, unknown>;
+    // 내 말(상대 언어로 번역된 것)에만 발음을 붙인다. 상대 말은 내가 읽기만 하면 된다
+    const mine = parsed.lang !== d.them;
+    const pron = mine ? pronOf(d, str(parsed[d.them], MAX_TEXT), str(parsed.kana, MAX_TEXT)) : '';
+    if (pron) send({ t: 'field', k: 'pron', v: pron });
+    send({ t: 'done', result: { ...parsed, pron }, via: r.via });
   }, signal);
 };
 
-const ask = (b: Body, signal: AbortSignal): Response => {
+const ask = (b: Body, d: TalkDirection, signal: AbortSignal): Response => {
   const question = str(b.question, 300);
   if (!question) return errorJson('question is required', 400);
   const turns = toTurns(b.turns, 20);
   const prior = (Array.isArray(b.history) ? b.history : []).slice(-6).map((m) => {
     const r = (m ?? {}) as Record<string, unknown>;
-    return { role: r.role === 'bot' ? 'assistant' as const : 'user' as const, content: str(r.text, 600) };
+    // 앱이 붙인 발음 괄호는 떼고 보낸다(모델이 그 형식을 따라 괄호에 한글을 쓰면 규칙 변환이 안 된다)
+    return { role: r.role === 'bot' ? 'assistant' as const : 'user' as const, content: r.role === 'bot' ? stripSayPron(str(r.text, 600)) : str(r.text, 600) };
   }).filter((m) => m.content);
   // 대화는 user 턴으로 시작해야 한다
   const start = prior.findIndex((m) => m.role === 'user');
   const history = start < 0 ? [] : prior.slice(start);
   return stream(async (send) => {
     const r = await upstream({
-      model: MODEL, stream: true, max_tokens: 700, thinking: { type: 'adaptive' }, output_config: { effort: 'low' }, system: ASK_SYSTEM,
+      model: MODEL, stream: true, max_tokens: 700, thinking: { type: 'adaptive' }, output_config: { effort: 'low' }, system: askSystem(d),
       messages: [...history, { role: 'user', content: `대화 기록:\n${transcript(turns)}\n\n질문: ${question}` }],
     }, signal);
     let full = '';
     await readSse(r.res.body!, (t) => { full += t; send({ t: 'delta', text: t }); });
-    send({ t: 'done', text: full.trim(), via: r.via });
+    send({ t: 'done', text: sayWithPron(full, d), via: r.via });
   }, signal);
 };
 
-const title = async (b: Body, signal: AbortSignal): Promise<Response> => {
+const title = async (b: Body, d: TalkDirection, signal: AbortSignal): Promise<Response> => {
   const turns = toTurns(b.turns, 12);
   if (turns.length === 0) return errorJson('turns are required', 400);
-  const r = await callClaude({ model: MODEL, max_tokens: 80, thinking: { type: 'between_tools' }, system: TITLE_SYSTEM, messages: [{ role: 'user', content: transcript(turns) }] }, signal);
+  const r = await callClaude({ model: MODEL, max_tokens: 80, thinking: { type: 'between_tools' }, system: titleSystem(d), messages: [{ role: 'user', content: transcript(turns) }] }, signal);
   if (!r.res.ok) return errorJson(`upstream ${r.res.status}`, 502);
   const data = (await r.res.json()) as { content?: Array<{ type: string; text?: string }> };
   const text = (data.content ?? []).filter((c) => c.type === 'text').map((c) => c.text ?? '').join('').trim().split('\n')[0] ?? '';
@@ -116,10 +125,11 @@ const handler = async (req: Request): Promise<Response> => {
   if (req.method !== 'POST') return errorJson('method not allowed', 405);
   if (!isAllowed(codeFrom(req))) return errorJson('invalid access code', 401);
   const b = (await req.json().catch(() => ({}))) as Body;
+  const d = parseTalkDirection(b.lang);
   try {
-    if (b.mode === 'translate') return translate(b, req.signal);
-    if (b.mode === 'ask') return ask(b, req.signal);
-    if (b.mode === 'title') return await title(b, req.signal);
+    if (b.mode === 'translate') return translate(b, d, req.signal);
+    if (b.mode === 'ask') return ask(b, d, req.signal);
+    if (b.mode === 'title') return await title(b, d, req.signal);
     return errorJson('unknown mode', 400);
   } catch (e) {
     return errorJson(e instanceof Error ? e.message : String(e), 500);
