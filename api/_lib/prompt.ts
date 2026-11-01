@@ -18,7 +18,7 @@ const ICON_RULE = `"icon": ${JSON.stringify(ICON_KEYS)} 중 하나. 반드시 �
  * 방향별 문구 조각. 프롬프트 본문은 한국어로 쓰고(모델은 이해한다) 원문·대상 언어와 나라·통화만 바꾼다.
  * 분류(category)·태그는 앱 내부 코드라 어느 방향이든 한국어 값 그대로 받는다(화면에서 번역해 보인다).
  */
-const L: Readonly<Record<Lang, { name: string; reader: string; country: string; unit: string }>> = {
+export const L: Readonly<Record<Lang, { name: string; reader: string; country: string; unit: string }>> = {
   ja: { name: '일본어', reader: '일본인 여행객', country: '일본', unit: '엔' },
   ko: { name: '한국어', reader: '한국인 여행객', country: '한국', unit: '원' },
 };

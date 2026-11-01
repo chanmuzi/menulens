@@ -6,6 +6,12 @@ export type Direction = { readonly src: Lang; readonly dst: Lang };
 export type Currency = 'JPY' | 'KRW';
 
 export const parseLang = (v: unknown): Lang => (v === 'ja' ? 'ja' : 'ko');
+/** 클라이언트가 보낸 사진의 방향 {src,dst}. 문자열이면 analyze 와 같이 dst 로 보고 src 는 그 반대. 없거나 깨졌으면 일→한(옛 클라이언트) */
+export const parseDirection = (v: unknown): Direction => {
+  const o = typeof v === 'object' && v !== null ? (v as { src?: unknown; dst?: unknown }) : { dst: v };
+  const dst = parseLang(o.dst);
+  return { src: o.src === 'ko' || o.src === 'ja' ? o.src : otherLang(dst), dst };
+};
 export const otherLang = (l: Lang): Lang => (l === 'ko' ? 'ja' : 'ko');
 /** 가격 통화는 원문 언어(사진이 있는 나라)를 따른다 */
 export const currencyOf = (src: Lang): Currency => (src === 'ko' ? 'KRW' : 'JPY');

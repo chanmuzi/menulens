@@ -4,12 +4,15 @@
  * 사진 없이 답할 수 없으면 모델이 [사진 필요] 만 내고, 그러면 need_image 이벤트로 끝낸다(클라이언트가 사진을 붙여 다시 묻는다).
  * 여러 장 묶음(photos ≥ 2)이면 항목·글줄에 사진 번호 p 가 있고, 모델은 [사진 필요: n] 으로 볼 사진을 지정한다 → need_image.photo.
  * 사진이 이미 첨부됐는데(imagePhoto) 다른 번호를 달라고 하면 한 번 더 need_image, 같은 번호면 「찾지 못했어요」로 끝낸다.
+ * lang {src,dst} 는 사진의 방향(analyze 의 lang 이벤트 값): 답은 dst 언어. 없으면 일→한(옛 클라이언트).
  */
 import { codeFrom, isAllowed } from './_lib/access.js';
 import { errorJson } from './_lib/http.js';
 import { MODEL } from './_lib/prompt.js';
 import { readSse } from './_lib/claude.js';
-import { chatSystem, KIND_KO, NEED_IMAGE_PREFIX, parseNeedImage, type ChatKind } from './_lib/chatPrompt.js';
+import { asciiDigits, chatSystem, currencyLine, KIND_KO, NEED_IMAGE_PREFIXES, NOT_FOUND, parseNeedImage, REFS_LINE, type ChatKind } from './_lib/chatPrompt.js';
+import { L } from './_lib/prompt.js';
+import { parseDirection } from './_lib/direction.js';
 
 const UPSTREAM = 'https://api.timelyrouter.ai/v1/messages';
 /** 항목 상한. 묶음(최대 6장)이면 사진당 30개쯤까지 들어온다 */
@@ -27,7 +30,7 @@ const MAX_IMAGE_B64 = 3_000_000;
 type Item = { k: string; src: string; tr: string; price: number | null; desc: string; group: string | null; p?: number };
 type Note = { src: string; tr: string; p?: number };
 type Turn = { role: 'me' | 'bot'; text: string };
-type Body = { shop?: string | null; kind?: string; photos?: number; items?: Item[]; notes?: Note[]; focus?: string | null; question?: string; history?: Turn[]; image?: { data: string; mediaType: string } | null; imagePhoto?: number | null };
+type Body = { shop?: string | null; kind?: string; photos?: number; lang?: unknown; items?: Item[]; notes?: Note[]; focus?: string | null; question?: string; history?: Turn[]; image?: { data: string; mediaType: string } | null; imagePhoto?: number | null };
 
 const enc = new TextEncoder();
 const line = (obj: Record<string, unknown>): Uint8Array => enc.encode(JSON.stringify(obj) + '\n');
@@ -49,6 +52,7 @@ const sanitize = (b: Body) => {
   return {
   shop: str(b.shop, 60) || null,
   kind: toKind(b.kind),
+  lang: parseDirection(b.lang),
   photos,
   items: capPerPhoto((Array.isArray(b.items) ? b.items : []).map((it) => ({
     k: str(it?.k, 12), src: str(it?.src, 60), tr: str(it?.tr, 60), price: typeof it?.price === 'number' ? it.price : null, desc: str(it?.desc, 60), group: str(it?.group, 12) || null,
@@ -67,24 +71,25 @@ const toKind = (v: unknown): ChatKind => (v === 'sign' || v === 'other' ? v : 'm
 const dropLeadingBot = (h: ReadonlyArray<{ role: 'me' | 'bot'; text: string }>): ReadonlyArray<{ role: 'me' | 'bot'; text: string }> => { const i = h.findIndex((t) => t.role === 'me'); return i < 0 ? [] : h.slice(i); };
 
 const requestBody = (p: ReturnType<typeof sanitize>): unknown => {
-  const context = `종류: ${KIND_KO[p.kind]}${p.shop ? ` · 가게: ${p.shop}` : ''}${p.photos > 1 ? ` · 사진 ${p.photos}장` : ''}\n항목: ${JSON.stringify(p.items)}\n글줄: ${JSON.stringify(p.notes)}\n지금 보는 항목: ${p.focus ?? '없음'}`;
+  const context = `종류: ${KIND_KO[p.kind]}${p.shop ? ` · 가게: ${p.shop}` : ''}${p.photos > 1 ? ` · 사진 ${p.photos}장` : ''} · ${currencyLine(p.lang)}\n항목: ${JSON.stringify(p.items)}\n글줄: ${JSON.stringify(p.notes)}\n지금 보는 항목: ${p.focus ?? '없음'}`;
   const prior = p.history.map((t) => ({ role: t.role === 'me' ? 'user' : 'assistant', content: t.text }));
-  const attached = p.photos > 1 && p.imagePhoto ? `사진 ${p.imagePhoto} 첨부` : '사진 첨부';
+  // 답 언어 꼬리표: 옛 대화(다른 언어로 답한 기록)나 다른 언어 질문에 끌리지 않게 매 턴 적는다
+  const tags = [p.image ? (p.photos > 1 && p.imagePhoto ? `사진 ${p.imagePhoto} 첨부` : '사진 첨부') : '', `답: ${L[p.lang.dst].name}`].filter(Boolean).join(' · ');
   const ask = p.image
-    ? [{ type: 'image', source: { type: 'base64', media_type: p.image.mediaType, data: p.image.data } }, { type: 'text', text: `${context}\n\n질문(${attached}): ${p.question}` }]
-    : [{ type: 'text', text: `${context}\n\n질문: ${p.question}` }];
+    ? [{ type: 'image', source: { type: 'base64', media_type: p.image.mediaType, data: p.image.data } }, { type: 'text', text: `${context}\n\n질문(${tags}): ${p.question}` }]
+    : [{ type: 'text', text: `${context}\n\n질문(${tags}): ${p.question}` }];
   return {
-    model: MODEL, stream: true, max_tokens: 700, thinking: { type: 'adaptive' }, output_config: { effort: 'low' }, system: chatSystem(p.kind, p.photos),
+    model: MODEL, stream: true, max_tokens: 700, thinking: { type: 'adaptive' }, output_config: { effort: 'low' }, system: chatSystem(p.kind, p.photos, p.lang),
     messages: [...prior, { role: 'user', content: ask }],
   };
 };
 
-/** 끝의 「참조: …」 줄을 떼어 낸다 */
+/** 끝의 「참조: …」 줄을 떼어 낸다(일본어 답의 「参照：」·전각 숫자도 받는다) */
 export const splitRefs = (text: string): { body: string; refs: string[] } => {
-  const m = text.match(/(^|\n)\s*참조[:：]\s*([^\n]*)\s*$/);
+  const m = text.match(REFS_LINE);
   if (!m) return { body: text.trim(), refs: [] };
   // 키는 「묶음:순번」, 묶음 사진이면 「사진번호-묶음:순번」
-  return { body: text.slice(0, m.index).trim(), refs: m[2]!.replace(/：/g, ':').split(/[,、\s]+/).map((s) => s.trim()).filter((s) => /^(\d+-)?\d+:\d+$/.test(s)) };
+  return { body: text.slice(0, m.index).trim(), refs: asciiDigits(m[2]!).replace(/：/g, ':').split(/[,、\s]+/).map((s) => s.trim()).filter((s) => /^(\d+-)?\d+:\d+$/.test(s)) };
 };
 
 const handler = async (req: Request): Promise<Response> => {
@@ -113,8 +118,8 @@ const handler = async (req: Request): Promise<Response> => {
           if (!decided) {
             head += t;
             const trimmed = head.trimStart();
-            if (trimmed.startsWith(NEED_IMAGE_PREFIX)) { needImage = true; return; }
-            if (trimmed.length < NEED_IMAGE_PREFIX.length && NEED_IMAGE_PREFIX.startsWith(trimmed)) return;
+            if (NEED_IMAGE_PREFIXES.some((pre) => trimmed.startsWith(pre))) { needImage = true; return; }
+            if (NEED_IMAGE_PREFIXES.some((pre) => trimmed.length < pre.length && pre.startsWith(trimmed))) return;
             decided = true;
             send({ t: 'delta', text: head });
             return;
@@ -127,7 +132,7 @@ const handler = async (req: Request): Promise<Response> => {
           const photo = want !== null && want <= p.photos ? want : null;
           // 사진을 이미 붙였는데 같은 사진(또는 번호 없이)을 또 달라고 하면 되묻지 않고 그대로 답으로 끝낸다. 다른 사진이면 한 번 더 요청
           const other = p.image !== null && photo !== null && photo !== p.imagePhoto;
-          if (p.image && !other) { send({ t: 'delta', text: '사진에서도 찾지 못했어요.' }); send({ t: 'done', refs: [], sawImage: true }); controller.close(); return; }
+          if (p.image && !other) { send({ t: 'delta', text: NOT_FOUND[p.lang.dst] }); send({ t: 'done', refs: [], sawImage: true }); controller.close(); return; }
           send({ t: 'need_image', photo }); controller.close(); return;
         }
         if (!decided && head) send({ t: 'delta', text: head });

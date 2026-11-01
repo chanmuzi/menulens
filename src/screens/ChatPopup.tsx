@@ -73,7 +73,7 @@ export const ChatPopup = ({ batch, scan, open, focus, onClearFocus, onOpenItem, 
     ac.current?.abort();
     const ctrl = new AbortController();
     ac.current = ctrl;
-    const context = chatContext(batch, scan.kind);
+    const context = chatContext(batch, scan.kind, (batch.find((s) => s.id === chatKey) ?? scan).lang);
     const focusKey = focus ? itemKey(currentPhoto, focus.id, photos) : null;
     const imageOf = (n: number) => imagePart(batch[n - 1]?.imageDataUrl ?? '');
     // 처음부터 사진이 필요해 보이면 질문이 부른 사진(「2번 사진 아래 작은 글씨」), 없으면 지금 보는 사진을 붙인다. 모델이 다른 장을 지정하면 그 장을 한 번 더
