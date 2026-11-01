@@ -54,6 +54,18 @@ test('한글 → 가타카나: 주문 문구의 고정 부분(src/lib/order.ts �
   for (const [ko, want] of cases) assert.equal(hangulToKana(ko), want, ko);
 });
 
+test('문장 발음(대화 통역): 조사 규칙은 옵션, 문장부호가 섞이면 비운다', () => {
+  assert.equal(kanaToHangul('といれは どこですか', { particles: true }), '토이레와 도코데스카');
+  assert.equal(kanaToHangul('といれは どこですか'), '토이레하 도코데스카', '메뉴 이름 경로(기본)는 조사 규칙 없음');
+  assert.equal(kanaToHangul('これを ください'), '코레오 쿠다사이');
+  assert.equal(kanaToHangul('えきへ いきます', { particles: true }), '에키에 이키마스');
+  assert.equal(kanaToHangul('こんにちは', { particles: true }), '콘니치와');
+  assert.equal(kanaToHangul('はい', { particles: true }), '하이', '문장 첫 は 는 그대로');
+  assert.equal(kanaToHangul('トイレはどこですか？'), '', '문장부호가 섞이면 비운다(talkPron 이 먼저 뗀다)');
+  assert.equal(hangulToKana('화장실은 어디예요?'), 'ファジャンシルン オディイェヨ?');
+  assert.equal(hangulToKana('이거 주세요.'), 'イゴ チュセヨ.');
+});
+
 test('한글 → 가타카나: 한글이 아닌 글자는 그대로', () => {
   assert.equal(hangulToKana('삼겹살 (1인분 180g)'), 'サムギョプサル (1インブン 180g)');
   assert.equal(hangulToKana('ABC'), 'ABC');
