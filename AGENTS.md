@@ -1,10 +1,10 @@
 # MenuLens — 에이전트 라우터
 
-> **Version**: 1.5.1 · **Updated**: 2026-10-23
+> **Version**: 1.6.0 · **Updated**: 2026-11-01
 > **이 파일이 규약의 단일 진입점(SSoT)이다.** 아래 판정표로 작업 유형을 정하고 그 행의 경로만 로드한다.
 > 전체 grep 은 라우팅으로 못 찾을 때의 최후 수단이다. 위키 루트는 `docs/wiki/index.md`.
 
-일본 식당 메뉴판·안내문을 찍으면 한국어로 읽어주는 개인 모바일 웹 앱. Vite + React 프론트,
+식당 메뉴판·안내문을 찍으면 읽어주는 개인 모바일 웹 앱: 한국인은 일본어 사진을 한국어로, 일본인은 한국어 사진을 일본어로(앱 언어 설정, 원문 언어 자동 판정, 발음은 규칙). Vite + React 프론트,
 Vercel Node.js 함수 8개, Upstage OCR → Claude Sonnet(Timely Router) 2단 파이프라인.
 대화 통역은 Groq Whisper(예비 Gemini) 음성 인식 → Claude 번역(Timely, 한도 시 Anthropic 직접 키).
 배포 주소·초대 코드·키는 `.env`(미추적)와 Vercel 환경변수에만 있다.
@@ -38,12 +38,13 @@ Vercel Node.js 함수 8개, Upstage OCR → Claude Sonnet(Timely Router) 2단 �
 | 입력·여러 장·처리 중·기록 목록·이름 고치기 | [[decisions-input]] | [[architecture]] 파일 지도 |
 | 대화 통역(말하기·번역·도우미·대화 기록) | [[decisions-talk]] | [[architecture]] §stt·talk · [[deploy-and-env]] 키·무료 한도 |
 | 아이콘 추가·매칭 수정 | [[icons]] | `.claude/skills/pixel-icon` |
+| 앱 언어·번역 방향·발음 규칙 | [[design-decisions]] §앱 언어·역방향 분석 | `api/_lib/direction.ts` · `prompt.ts`(방향 함수) · 발음 규칙 `kanaToHangul.ts`·`hangulToKana.ts`·`talkPron.ts` · 검사 `scripts/bench/*_test.ts` · 문구는 `src/i18n` |
 | 남은 과제 착수 | [[backlog]] | 해당 페이지 |
 | 위키 쓰기 (신설·수정) | `docs/wiki/index.md` → 대상 페이지 | 신규 페이지는 인덱스에 등재 |
 
 ## 검증 절차 (코드 변경 공통)
 
-1. `pnpm build` — tsc `--noEmit` 과 vite 빌드. 실패하면 푸시하지 않는다.
+1. `pnpm build` — tsc `--noEmit` 과 vite 빌드. 실패하면 푸시하지 않는다. 발음·언어 판정·주문 문구 규칙을 건드렸으면 `node --experimental-strip-types --import ./scripts/bench/register-ts.mjs --test scripts/bench/rules_test.ts scripts/bench/talk_test.ts scripts/bench/order_test.ts` 도 통과해야 한다.
 2. 로컬 서버 `pnpm dev` 는 `api/` 핸들러를 같은 프로세스에서 실행한다(Vercel CLI 불필요). `.env` 가 있어야 한다.
 3. 브라우저 확인은 헤드리스 Chrome(playwright-core, 390×844)으로 흐름을 돌려 캡처를 보고 판단한다 — 절차는 [[architecture]] §검증.
    Safari 실기기 전용 동작(공유 시트, 핀치, 카메라)은 재현 불가 → 사용자 확인을 요청하고 그 사실을 보고에 적는다.
