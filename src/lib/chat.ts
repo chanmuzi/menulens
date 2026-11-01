@@ -1,6 +1,6 @@
 /** 사진 챗: 서버에 보낼 맥락 만들기, NDJSON 답 스트림 읽기, 묶음별 대화 저장(localStorage). 제목은 kind.ts 의 chatTitle.
  *  여러 장 묶음이면 사진 전부의 항목·글줄을 한 맥락으로 보내고(항목 키 「사진번호-묶음:순번」), 사진은 모델이 번호로 지정한 한 장만 붙인다. */
-import type { MenuItem, Scan, ScanKind } from '../types';
+import type { MenuItem, Scan, ScanKind, ScanLang } from '../types';
 import { getAccessCode } from './storage';
 import { readNdjson } from './ndjson';
 import { dict } from '../i18n';
@@ -9,17 +9,18 @@ import { ApiError, emptyResponseError } from './apiError';
 /** 대화 한 줄. refs 는 저장용 참조 「사진 id/항목 id」(불러올 때 옛 형식을 바꾼다). sawScan 은 어느 사진을 봤는지(묶음일 때 표시용, 옛 대화에는 없다) */
 export type ChatMsg = { readonly role: 'me' | 'bot'; readonly text: string; readonly refs: readonly string[]; readonly sawImage: boolean; readonly sawScan?: string | null; readonly at: number };
 
-/** 질문 속 사진 번호(「2번 사진」「사진 2」「두 번째 사진/장」). 없으면 null */
-const PHOTO_NO = /(\d+)\s*번째?\s*(?:사진|장)|사진\s*(\d+)|(첫|두|세|네|다섯|여섯)\s*번째\s*(?:사진|장)/;
-const ORDINAL: Readonly<Record<string, number>> = { 첫: 1, 두: 2, 세: 3, 네: 4, 다섯: 5, 여섯: 6 };
+/** 질문 속 사진 번호(「2번 사진」「사진 2」「두 번째 사진/장」, 일본어 「2枚目(の写真)」「2番目」「写真2」「二枚目」). 없으면 null. 전각 숫자(일본어 IME)는 NFKC 로 반각으로 */
+const PHOTO_NO = /(\d+)\s*(?:번째?\s*(?:사진|장)|(?:枚目|番目|つ目)(?:\s*の\s*写真)?)|(?:사진|写真)\s*(\d+)|(첫|두|세|네|다섯|여섯)\s*번째\s*(?:사진|장)|(一|二|三|四|五|六)(?:枚目|番目|つ目)(?:\s*の\s*写真)?/;
+const ORDINAL: Readonly<Record<string, number>> = { 첫: 1, 두: 2, 세: 3, 네: 4, 다섯: 5, 여섯: 6, 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6 };
+const norm = (q: string): string => q.normalize('NFKC');
 export const photoInQuestion = (q: string): number | null => {
-  const m = q.match(PHOTO_NO);
+  const m = norm(q).match(PHOTO_NO);
   if (!m) return null;
-  return m[1] ? Number(m[1]) : m[2] ? Number(m[2]) : (ORDINAL[m[3]!] ?? null);
+  return m[1] ? Number(m[1]) : m[2] ? Number(m[2]) : (ORDINAL[m[3] ?? m[4] ?? ''] ?? null);
 };
-/** 이런 말이 들어간 질문은 처음부터 사진을 붙인다(서버가 [사진 필요] 로 되묻는 왕복을 줄인다). 「2번 사진에는 뭐가 있어?」처럼 사진 번호만 부르는 말은 힌트가 아니다 */
-const IMAGE_HINT = /놓친|놓침|빠진|빠뜨|사진|그림|작은 글|작게|어디|위치|색|몇 번째|안 보|못 본/;
-export const wantsImage = (q: string): boolean => IMAGE_HINT.test(q.replace(PHOTO_NO, ' '));
+/** 이런 말이 들어간 질문은 처음부터 사진을 붙인다(서버가 [사진 필요] 로 되묻는 왕복을 줄인다). 「2번 사진에는 뭐가 있어?」「2枚目の写真には何がある?」처럼 사진 번호만 부르는 말은 힌트가 아니다. 「色々」「景色」「どこの料理」는 힌트가 아니다 */
+const IMAGE_HINT = /놓친|놓침|빠진|빠뜨|사진|그림|작은 글|작게|어디|위치|색|몇 번째|안 보|못 본|写真|見逃|抜け|小さい字|小さく|どこに|どこか|位置|何色|色は|色が|何番目|見えな|載ってな/;
+export const wantsImage = (q: string): boolean => IMAGE_HINT.test(norm(q).replace(PHOTO_NO, ' '));
 
 /** 서버에 보내는 항목 키: 한 장이면 항목 id 그대로, 묶음이면 「사진번호-id」(id 「묶음:순번」은 사진마다 겹친다) */
 export const itemKey = (photo: number, id: string, photos: number): string => (photos > 1 ? `${photo}-${id}` : id);
@@ -56,15 +57,17 @@ const perPhoto = (max: number, photos: number): number => (photos > 1 ? Math.flo
 
 export type ChatContext = {
   readonly shop: string | null; readonly kind: ScanKind; readonly photos: number;
+  /** 사진의 방향(원문·번역 언어). 서버는 번역 언어로 답한다 */
+  readonly lang: ScanLang;
   readonly items: ReadonlyArray<{ k: string; src: string; tr: string; price: number | null; desc: string; group: string | null; p?: number }>;
   readonly notes: ReadonlyArray<{ src: string; tr: string; p?: number }>;
 };
-/** 묶음 전체의 결과를 서버에 보낼 축약 JSON 으로. 설명은 60자까지. 묶음이면 항목·글줄에 사진 번호 p */
-export const chatContext = (batch: readonly Scan[], kind: ScanKind): ChatContext => {
+/** 묶음 전체의 결과를 서버에 보낼 축약 JSON 으로. 설명은 60자까지. 묶음이면 항목·글줄에 사진 번호 p. 방향은 지금 보는 사진의 것 */
+export const chatContext = (batch: readonly Scan[], kind: ScanKind, lang: ScanLang): ChatContext => {
   const photos = batch.length;
   const p = (i: number) => (photos > 1 ? { p: i + 1 } : {});
   return {
-    shop: batch.find((s) => s.shopName)?.shopName ?? null, kind, photos,
+    shop: batch.find((s) => s.shopName)?.shopName ?? null, kind, photos, lang,
     items: batch.flatMap((s, i) => s.items.slice(0, perPhoto(MAX_ITEMS, photos)).map((it) => ({ k: itemKey(i + 1, it.id, photos), src: it.name, tr: it.tr, price: it.price, desc: it.desc.slice(0, 60), group: it.group, ...p(i) }))),
     notes: batch.flatMap((s, i) => s.notes.slice(0, perPhoto(MAX_NOTES, photos)).map((n) => ({ src: n.text, tr: n.tr, ...p(i) }))),
   };
@@ -104,7 +107,7 @@ export const askMenu = async (
 };
 
 /** 스트리밍 중 화면에 보이는 본문에서 끝의 「참조: …」 줄을 뗀다. 완료본은 서버가 정리해 보낸다 */
-export const stripRefs = (text: string): string => text.trimEnd().replace(/(^|\n)\s*참조[:：][^\n]*$/, '').trimEnd();
+export const stripRefs = (text: string): string => text.trimEnd().replace(/(^|\n)\s*(?:참조|参照)[:：][^\n]*$/, '').trimEnd();
 
 /** storage.ts 의 removeScans/clearScans 가 같은 접두어로 지운다. 묶음의 대화는 사진 하나(ChatPopup 이 고른 완료된 첫 사진)의 키 아래 둔다 */
 const KEY = (scanId: string): string => `ml.chat.${scanId}`;
