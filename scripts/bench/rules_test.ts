@@ -46,6 +46,14 @@ test('원문 언어 판정: 앱 언어가 기대하는 외국어 글자가 있�
   assert.equal(detectSrc([], 'ja'), 'ko');
 });
 
+test('한글 → 가타카나: 주문 문구의 고정 부분(src/lib/order.ts 가 같은 규칙으로 만든다)', () => {
+  const cases: ReadonlyArray<readonly [string, string]> = [
+    ['저기요, 주문할게요.', 'チョギヨ, チュムンハルゲヨ.'], ['저기요, 추가 주문할게요.', 'チョギヨ, チュガ チュムンハルゲヨ.'], ['이상이요.', 'イサンイヨ.'], ['주세요', 'チュセヨ'],
+    ['하나', 'ハナ'], ['둘', 'トゥル'], ['셋', 'セッ'], ['넷', 'ネッ'], ['다섯', 'タソッ'], ['여섯', 'ヨソッ'], ['일곱', 'イルゴプ'], ['여덟', 'ヨドル'], ['아홉', 'アホプ'], ['열', 'ヨル'], ['2인분', '2インブン'],
+  ];
+  for (const [ko, want] of cases) assert.equal(hangulToKana(ko), want, ko);
+});
+
 test('한글 → 가타카나: 한글이 아닌 글자는 그대로', () => {
   assert.equal(hangulToKana('삼겹살 (1인분 180g)'), 'サムギョプサル (1インブン 180g)');
   assert.equal(hangulToKana('ABC'), 'ABC');

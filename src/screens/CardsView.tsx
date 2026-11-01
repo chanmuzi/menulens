@@ -12,7 +12,7 @@ import { useT, tagLabel } from '../i18n';
 /** 전체 · 묶음(g:라벨) · 매운맛 */
 type Filter = '전체' | '매운맛' | `g:${string}`;
 
-type Props = { readonly scan: Scan; readonly rate: Rate | null; readonly mode: ImageMode; readonly onMode: (m: ImageMode) => void; readonly onSelect: (item: MenuItem) => void; readonly order: Order; /** 없으면 주문 기능 없음(아직 주문 문구가 없는 방향) */ readonly onQty?: (id: string, qty: number) => void };
+type Props = { readonly scan: Scan; readonly rate: Rate | null; readonly mode: ImageMode; readonly onMode: (m: ImageMode) => void; readonly onSelect: (item: MenuItem) => void; readonly order: Order; /** 없으면 주문 기능 없음(묶음의 주문 언어와 다른 사진) */ readonly onQty?: (id: string, qty: number) => void };
 
 
 /** 카드에 보여줄 배지는 고르는 데 도움이 되는 것만 최대 2개(사용자 결정 2026-10-21). 음료·튀김·채식 같은 분류성 태그는 상세 시트에만 */

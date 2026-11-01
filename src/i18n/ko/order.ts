@@ -12,13 +12,23 @@ export const order = {
   excludeNoPrice: '(가격 미표기 제외)',
   showStaff: '직원에게 보여주세요',
   modeLabel: '주문 상황',
-  /** 직원에게 보여줄 문구 복사(ko 모드는 일본어, ja 모드는 한국어) */
-  copyPhrase: '일본어 복사',
+  /** 직원에게 보여줄 문구(사진 원문) 복사. 원문 언어를 받는다 */
+  copyPhrase: (src: 'ja' | 'ko'): string => (src === 'ja' ? '일본어 복사' : '한국어 복사'),
   showBig: '크게 보여주기',
   bigAria: '직원에게 보여주기',
   backFromBig: '돌아가기',
   /** 상황(첫 주문·추가 주문·항목만) */
   modes: { first: '첫 주문', more: '추가 주문', plain: '항목만' },
+  /** 주문 문구의 뜻 줄(앞 인사·뒤 인사)과 목록 구분 부호. 원문은 orderText.ts 의 FRAMES_JA·FRAMES_KO */
+  frames: {
+    first: { head: '실례합니다, 주문할게요.', tail: '이상입니다.' },
+    more: { head: '실례합니다, 추가로 주문할게요.', tail: '이상입니다.' },
+    plain: { head: '', tail: '부탁해요.' },
+    sep: ',',
+    end: '.',
+  },
+  /** 상세 시트의 한 개 주문 문구 뜻 */
+  oneOrder: (tr: string) => `「${tr} 하나 주세요」`,
   /** 수량 스테퍼 aria */
   qtyGroup: (label: string) => `${label} 수량`,
   minusOne: (label: string) => `${label} 하나 빼기`,
