@@ -51,14 +51,15 @@ export type Provider = {
 
 type Preset = Omit<Provider, 'key'> & { readonly keyEnv: string };
 
-const PRESETS: Readonly<Record<ProviderId, Preset>> = {
+/** 제공자 프리셋. scripts/bootstrap/providers.mjs 의 표와 이름·키 환경변수·자동 선택 순서가 같아야 한다(scripts/bench/bootstrap_test.ts 가 검사) */
+export const PRESETS: Readonly<Record<ProviderId, Preset>> = {
   timely: { id: 'timely', format: 'anthropic', url: 'https://api.timelyrouter.ai/v1/messages', auth: 'x-api-key', keyEnv: 'TIMELY_API_KEY', model: 'claude-sonnet-5-5', iconModel: 'claude-opus-5-5', vision: true, reasoningLow: null, reasoningOff: null },
   anthropic: { id: 'anthropic', format: 'anthropic', url: 'https://api.anthropic.com/v1/messages', auth: 'x-api-key', keyEnv: 'ANTHROPIC_API_KEY', model: 'claude-sonnet-5-5', iconModel: 'claude-opus-5-5', vision: true, reasoningLow: null, reasoningOff: null },
   openrouter: { id: 'openrouter', format: 'anthropic', url: 'https://openrouter.ai/api/v1/messages', auth: 'bearer', keyEnv: 'OPENROUTER_API_KEY', model: '', iconModel: null, vision: true, reasoningLow: null, reasoningOff: null },
   openai: { id: 'openai', format: 'openai', url: 'https://api.openai.com/v1/chat/completions', auth: 'bearer', keyEnv: 'OPENAI_API_KEY', model: 'gpt-5.4-mini', iconModel: null, vision: true, reasoningLow: 'low', reasoningOff: 'none' },
   upstage: { id: 'upstage', format: 'openai', url: 'https://api.upstage.ai/v1/chat/completions', auth: 'bearer', keyEnv: 'UPSTAGE_API_KEY', model: 'solar-pro4', iconModel: null, vision: false, reasoningLow: null, reasoningOff: null },
 };
-const AUTO_ORDER: readonly ProviderId[] = ['timely', 'anthropic', 'openai', 'upstage'];
+export const AUTO_ORDER: readonly ProviderId[] = ['timely', 'anthropic', 'openai', 'upstage'];
 
 const isProviderId = (v: string | undefined): v is ProviderId => v !== undefined && v in PRESETS;
 
@@ -102,8 +103,11 @@ const QUOTA_TEXT = /quota|credit balance|insufficient[_ ](?:quota|credit|funds)|
 export const isQuotaError = (status: number, body: string): boolean =>
   QUOTA_STATUS.has(status) || ((status === 400 || status === 403) && QUOTA_TEXT.test(body));
 
+/** 상류 오류(상태 코드와 경로만). 생성자 매개변수 속성은 strip-only 로더(scripts/bench)가 못 읽어 일반 필드로 둔다 */
 export class UpstreamError extends Error {
-  constructor(readonly status: number, readonly via: ProviderId) { super(`upstream ${status}`); }
+  readonly status: number;
+  readonly via: ProviderId;
+  constructor(status: number, via: ProviderId) { super(`upstream ${status}`); this.status = status; this.via = via; }
 }
 
 // ── 요청 본문 ────────────────────────────────────────────────────────────────

@@ -2,10 +2,10 @@
 
 ## Vercel
 
-> **배포 중단 중(2026-11-01, PR #74·#75)**: 저장소 공개를 앞두고 사용자 결정으로 프로덕션을 내렸다. `vercel.json` 에 `git.deploymentEnabled: false`(push 가 배포를 만들지 않음), GitHub 홈페이지 필드 비움.
+> **배포 중단 중(2026-11-01, PR #74·#75·#76)**: 저장소 공개를 앞두고 사용자 결정으로 프로덕션을 내렸다. GitHub 홈페이지 필드 비움. PR #74 의 `vercel.json` `git.deploymentEnabled: false` 는 포크한 사람의 자동 배포까지 막아 #76 에서 뺐다(프로젝트가 없으니 어차피 배포가 생기지 않는다).
 > **단, 배포본만 지우려던 `vercel rm menulens` 가 Vercel 프로젝트를 통째로 삭제했다**(에이전트 실수. `vercel rm <프로젝트명>` 은 프로젝트 삭제다. 배포본 하나를 지우려면 배포 URL 을 넘겨야 한다). 사라진 것: 프로젝트, 프로덕션 환경변수, Git 연동, 도메인 `menulens-psi.vercel.app`. 남은 것: 환경변수 값은 전부 로컬 `.env`(미추적)에 있고, Redis Cloud 저장소는 프로젝트와 별개라 살아 있다(삭제 직후 1,426 키·6.75MB 확인). 아래 「프로젝트 `menulens`(Hobby). GitHub 연동」 서술은 되살릴 때까지 적용되지 않는다.
 >
-> **되살리기 절차**: ① 대시보드 Add New → Project 에서 `chanmuzi/menulens` import(이름 `menulens`, Vite 자동 인식) ② Settings → Environment Variables 에 `.env` 의 값을 Production 에 넣기(`printf '%s' "$값" | npx vercel env add 이름 production` 으로 화면에 값이 남지 않게. `REDIS_URL` 은 Storage 탭에서 기존 Redis 를 Connect 하거나 `.env` 값을 그대로) ③ `vercel.json` 의 `git.deploymentEnabled` 를 지우는 PR → merge 로 첫 배포 ④ 로컬 `.vercel/` 은 옛 프로젝트 id 라 `npx vercel link` 로 다시 연결 ⑤ 새 자동 도메인이 생기므로 휴대폰 홈 화면 앱은 다시 추가. 초대 코드 값은 그대로 써도 된다.
+> **되살리기**: `npx vercel login` 뒤 `pnpm bootstrap` 을 돌리면 기존 `.env` 값을 그대로 쓰고(Enter) Vercel 단계에서 프로젝트 생성 → 환경변수 → GitHub 연결 → 첫 배포 → 스모크까지 한다(PR #76, 임시 프로젝트로 끝까지 검증). `REDIS_URL` 은 `.env` 값을 그대로 올리거나 Storage 탭에서 기존 Redis 를 Connect. 새 자동 도메인이 생기므로 휴대폰 홈 화면 앱은 다시 추가. 초대 코드는 그대로 써도 된다.
 
 - 프로젝트 `menulens`(Hobby). GitHub `chanmuzi/menulens` 연동 → **main push = 프로덕션 배포**. `npx vercel` 직접 배포(프리뷰·`--prod`)는 쓰지 않는다. 프로덕션은 merge 로만(CLAUDE.md). 배포 상태는 `npx vercel api "/v6/deployments?projectId=menulens&target=production&limit=3"` 로 커밋별 READY 를 확인한다.
 - **프리뷰 배포는 쓰지 않는다**(2026-10-21 결정). 브랜치 푸시마다 Vercel 이 프리뷰를 만들지만 ① Preview 환경에 `ACCESS_CODES`·`UPSTAGE_API_KEY`·`TIMELY_API_KEY` 가 없고(Production 전용)
@@ -15,6 +15,10 @@
 - Node ESM 주의: `api/` 의 상대 import 는 `.js` 확장자 필수(없으면 FUNCTION_INVOCATION_FAILED).
 - **요청 취소**: Node 함수는 `vercel.json` `functions["api/*.ts"].supportsCancellation: true` 가 있어야 클라이언트가 끊었을 때 `request.signal` 이 abort 되고 함수가 종료된다(기본 꺼짐). `/api/analyze`·`/api/chat` 이 이 signal 을 상류 fetch 에 넘긴다. 참고: https://vercel.com/changelog/node-js-vercel-functions-now-support-per-path-request-cancellation
 - iOS 홈 화면 앱은 시작 페이지를 오래 캐시한다 → 빌드마다 `version.json` 을 내고 앱이 열릴 때 비교해 다르면 1회 새로고침(`src/lib/version.ts`).
+
+## 처음 세팅 마법사 (2026-11-01, PR #76)
+
+`pnpm bootstrap`(`scripts/bootstrap/`, 표준 라이브러리만): 기능(사진만 / +대화 통역) → LLM 제공자 → 필요한 키만 터미널에서 숨겨 받아 무료 조회(모델 목록) 한 번으로 생존 확인 → 초대 코드(후보 제안) → Redis(선택, AUTH+PING) → `.env`(권한 600, 모르는 줄 보존) → Vercel(선택: `project add` → `link` → `env add`(stdin) → `git connect` → `deploy --prod` → `/api/rate`·`/api/auth` 스모크). `--check` 는 질문 없이 확인만, `--env`·`--project`·`--skip-vercel` 옵션. 에이전트용 절차는 `.claude/skills/menulens-setup/SKILL.md`(`/menulens-setup`): 키 값은 채팅에 받지 않고 결정과 안내만 한다.
 
 ## 환경변수 (프로덕션)
 

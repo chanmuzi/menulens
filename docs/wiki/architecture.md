@@ -49,7 +49,8 @@ src/
                 talk(마디·말풍선 언어·제목·「말해 볼 문장」) talkApi(/api/stt·/api/talk) talkStore(IndexedDB menulens-talk) ndjson(스트림 줄 읽기: chat·talkApi 공용) recorder(녹음·소리 크기·무음 거르기)
   styles/       global.css(토큰·픽셀 프레임·애니메이션) pixel-icons.css(생성: scripts/px_icons.py)
   i18n/         lang(앱 언어 ko|ja: 기기 언어 기본, localStorage menulens.lang, useLang) index(useT·dict) ko/·ja/ 네임스페이스 사전(common data home history confirm processing result order chat talk lib tips app). 화면은 useT(), lib 은 호출 시점 dict()
-scripts/bench/  벤치·진단 스크립트        docs/wiki/   이 위키        vite-plugin-dev-api.ts  로컬에서 api/ 실행
+scripts/bench/  벤치·진단 스크립트        scripts/bootstrap/  처음 세팅 마법사(pnpm bootstrap: prompt·env·providers·vercel)        docs/wiki/   이 위키        vite-plugin-dev-api.ts  로컬에서 api/ 실행
+.claude/skills/ pixel-icon(아이콘 제작) menulens-setup(온보딩 인터뷰, /menulens-setup)
 ```
 
 ## 검증
