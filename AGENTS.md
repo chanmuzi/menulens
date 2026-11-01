@@ -1,6 +1,6 @@
 # MenuLens — 에이전트 라우터
 
-> **Version**: 1.6.2 · **Updated**: 2026-11-01
+> **Version**: 1.6.3 · **Updated**: 2026-11-01
 > **이 파일이 규약의 단일 진입점(SSoT)이다.** 아래 판정표로 작업 유형을 정하고 그 행의 경로만 로드한다.
 > 전체 grep 은 라우팅으로 못 찾을 때의 최후 수단이다. 위키 루트는 `docs/wiki/index.md`.
 
@@ -16,7 +16,7 @@ Vercel Node.js 함수 8개, Upstage OCR → LLM 2단 파이프라인. LLM 은 `a
    **저장소는 공개(public)다.** 개인 정보(이메일·실명·연락처), 사용자 사진·진단 데이터 원문, 사진 속 사적인 글(메시지 등)은 커밋·PR·위키에 넣지 않는다(위키에는 요약 숫자와 일반화한 서술만).
    초대 코드는 저장소에서 보이는 문자열(GitHub 계정명·프로젝트명·예시 값)과 같으면 안 된다. 커밋 전 의심되면 `.env` 값으로 추적 파일을 grep 해 확인한다(값은 출력하지 않는다).
 2. **`main` push = 프로덕션 배포.** Vercel Git 연동으로 main 에 푸시되면 즉시 배포된다.
-   **2026-11-01 부터 자동 배포를 꺼 두었다**(`vercel.json` `git.deploymentEnabled: false`, 배포본도 내림. 사용자 결정, [[deploy-and-env]] §배포 중단). 되살리기 전까지 「Vercel READY 확인·프로덕션 스모크」 단계는 건너뛰고 보고에 「배포 중단 중」이라고 적는다. 되살리려면 그 설정을 지우는 PR 뒤 Vercel 대시보드에서 Redeploy.
+   **2026-11-01 부터 배포 중단 중**(Vercel 프로젝트가 없다. 사용자 결정, 경위와 되살리기는 [[deploy-and-env]] §배포 중단 중). 되살리기 전까지 「Vercel READY 확인·프로덕션 스모크」 단계는 건너뛰고 보고에 「배포 중단 중」이라고 적는다. 되살리기는 `pnpm bootstrap`(Vercel 단계)으로 한다. 이때 마법사가 하는 첫 `vercel deploy --prod` 는 **프로젝트가 없을 때 한 번만 허용되는 예외**이고, 프로젝트가 생긴 뒤의 반영은 「작업 완료 프로토콜」 6 대로 merge 로만 한다. `vercel.json` 의 자동 배포 끄기 설정은 포크한 사람의 배포를 막으므로 두지 않는다(PR #76 에서 제거).
    깨진 상태로 푸시하지 않는다: `pnpm build`(tsc 포함)가 통과하고, 가능하면 로컬 브라우저 흐름까지 확인한 뒤 푸시한다.
 3. **비용이 드는 호출은 LLM 뿐이어야 한다.** 새 외부 서비스·유료 플랜·대시보드 설정 변경은 사용자 확인 후에만.
    무료 범위: Vercel Hobby, Redis Cloud Free(30MB), Upstage/Timely 는 호출당 과금.
@@ -39,13 +39,14 @@ Vercel Node.js 함수 8개, Upstage OCR → LLM 2단 파이프라인. LLM 은 `a
 | 입력·여러 장·처리 중·기록 목록·이름 고치기 | [[decisions-input]] | [[architecture]] 파일 지도 |
 | 대화 통역(말하기·번역·도우미·대화 기록) | [[decisions-talk]] | [[architecture]] §stt·talk · [[deploy-and-env]] 키·무료 한도 |
 | 아이콘 추가·매칭 수정 | [[icons]] | `.claude/skills/pixel-icon` |
+| 처음 세팅·키·배포 준비(클론한 사람의 온보딩) | `.claude/skills/menulens-setup/SKILL.md` | `scripts/bootstrap/`(마법사) · [[deploy-and-env]] · 키 값은 채팅에 받지 않는다 |
 | 앱 언어·번역 방향·발음 규칙 | [[design-decisions]] §앱 언어·역방향 분석 | `api/_lib/direction.ts` · `prompt.ts`(방향 함수) · 발음 규칙 `kanaToHangul.ts`·`hangulToKana.ts`·`talkPron.ts` · 검사 `scripts/bench/*_test.ts` · 문구는 `src/i18n` |
 | 남은 과제 착수 | [[backlog]] | 해당 페이지 |
 | 위키 쓰기 (신설·수정) | `docs/wiki/index.md` → 대상 페이지 | 신규 페이지는 인덱스에 등재 |
 
 ## 검증 절차 (코드 변경 공통)
 
-1. `pnpm build` — tsc `--noEmit` 과 vite 빌드. 실패하면 푸시하지 않는다. 발음·언어 판정·주문 문구 규칙을 건드렸으면 `node --experimental-strip-types --import ./scripts/bench/register-ts.mjs --test scripts/bench/rules_test.ts scripts/bench/talk_test.ts scripts/bench/order_test.ts` 도 통과해야 한다.
+1. `pnpm build` — tsc `--noEmit` 과 vite 빌드. 실패하면 푸시하지 않는다. 발음·언어 판정·주문 문구 규칙이나 LLM 제공자 표를 건드렸으면 `node --experimental-strip-types --import ./scripts/bench/register-ts.mjs --test scripts/bench/rules_test.ts scripts/bench/talk_test.ts scripts/bench/order_test.ts scripts/bench/bootstrap_test.ts` 도 통과해야 한다.
 2. 로컬 서버 `pnpm dev` 는 `api/` 핸들러를 같은 프로세스에서 실행한다(Vercel CLI 불필요). `.env` 가 있어야 한다.
 3. 브라우저 확인은 헤드리스 Chrome(playwright-core, 390×844)으로 흐름을 돌려 캡처를 보고 판단한다 — 절차는 [[architecture]] §검증.
    Safari 실기기 전용 동작(공유 시트, 핀치, 카메라)은 재현 불가 → 사용자 확인을 요청하고 그 사실을 보고에 적는다.
