@@ -2,7 +2,10 @@
 
 ## Vercel
 
-> **배포 중단 중(2026-11-01, PR #74)**: 저장소 공개를 앞두고 사용자 결정으로 프로덕션 배포본을 전부 지우고(`vercel rm menulens`) `vercel.json` 에 `git.deploymentEnabled: false` 를 두어 push 가 배포를 만들지 않게 했다. 프로젝트·환경변수·Redis 는 그대로다. 되살리기: 그 설정을 지우는 PR → merge → 대시보드 Deployments 에서 Redeploy(또는 `vercel.json` 수정 뒤 main push). 그동안 아래 「main push = 프로덕션 배포」 서술은 적용되지 않는다. GitHub 저장소의 홈페이지 필드도 비웠다.
+> **배포 중단 중(2026-11-01, PR #74·#75)**: 저장소 공개를 앞두고 사용자 결정으로 프로덕션을 내렸다. `vercel.json` 에 `git.deploymentEnabled: false`(push 가 배포를 만들지 않음), GitHub 홈페이지 필드 비움.
+> **단, 배포본만 지우려던 `vercel rm menulens` 가 Vercel 프로젝트를 통째로 삭제했다**(에이전트 실수. `vercel rm <프로젝트명>` 은 프로젝트 삭제다. 배포본 하나를 지우려면 배포 URL 을 넘겨야 한다). 사라진 것: 프로젝트, 프로덕션 환경변수, Git 연동, 도메인 `menulens-psi.vercel.app`. 남은 것: 환경변수 값은 전부 로컬 `.env`(미추적)에 있고, Redis Cloud 저장소는 프로젝트와 별개라 살아 있다(삭제 직후 1,426 키·6.75MB 확인). 아래 「프로젝트 `menulens`(Hobby). GitHub 연동」 서술은 되살릴 때까지 적용되지 않는다.
+>
+> **되살리기 절차**: ① 대시보드 Add New → Project 에서 `chanmuzi/menulens` import(이름 `menulens`, Vite 자동 인식) ② Settings → Environment Variables 에 `.env` 의 값을 Production 에 넣기(`printf '%s' "$값" | npx vercel env add 이름 production` 으로 화면에 값이 남지 않게. `REDIS_URL` 은 Storage 탭에서 기존 Redis 를 Connect 하거나 `.env` 값을 그대로) ③ `vercel.json` 의 `git.deploymentEnabled` 를 지우는 PR → merge 로 첫 배포 ④ 로컬 `.vercel/` 은 옛 프로젝트 id 라 `npx vercel link` 로 다시 연결 ⑤ 새 자동 도메인이 생기므로 휴대폰 홈 화면 앱은 다시 추가. 초대 코드 값은 그대로 써도 된다.
 
 - 프로젝트 `menulens`(Hobby). GitHub `chanmuzi/menulens` 연동 → **main push = 프로덕션 배포**. `npx vercel` 직접 배포(프리뷰·`--prod`)는 쓰지 않는다. 프로덕션은 merge 로만(CLAUDE.md). 배포 상태는 `npx vercel api "/v6/deployments?projectId=menulens&target=production&limit=3"` 로 커밋별 READY 를 확인한다.
 - **프리뷰 배포는 쓰지 않는다**(2026-10-21 결정). 브랜치 푸시마다 Vercel 이 프리뷰를 만들지만 ① Preview 환경에 `ACCESS_CODES`·`UPSTAGE_API_KEY`·`TIMELY_API_KEY` 가 없고(Production 전용)
