@@ -2,6 +2,8 @@
 
 ## Vercel
 
+> **배포 중단 중(2026-11-01, PR #74)**: 저장소 공개를 앞두고 사용자 결정으로 프로덕션 배포본을 전부 지우고(`vercel rm menulens`) `vercel.json` 에 `git.deploymentEnabled: false` 를 두어 push 가 배포를 만들지 않게 했다. 프로젝트·환경변수·Redis 는 그대로다. 되살리기: 그 설정을 지우는 PR → merge → 대시보드 Deployments 에서 Redeploy(또는 `vercel.json` 수정 뒤 main push). 그동안 아래 「main push = 프로덕션 배포」 서술은 적용되지 않는다. GitHub 저장소의 홈페이지 필드도 비웠다.
+
 - 프로젝트 `menulens`(Hobby). GitHub `chanmuzi/menulens` 연동 → **main push = 프로덕션 배포**. `npx vercel` 직접 배포(프리뷰·`--prod`)는 쓰지 않는다. 프로덕션은 merge 로만(CLAUDE.md). 배포 상태는 `npx vercel api "/v6/deployments?projectId=menulens&target=production&limit=3"` 로 커밋별 READY 를 확인한다.
 - **프리뷰 배포는 쓰지 않는다**(2026-10-21 결정). 브랜치 푸시마다 Vercel 이 프리뷰를 만들지만 ① Preview 환경에 `ACCESS_CODES`·`UPSTAGE_API_KEY`·`TIMELY_API_KEY` 가 없고(Production 전용)
   ② 배포 보호(Vercel Authentication)가 켜져 있어 모든 요청이 `vercel.com/sso-api` 로 302 된다. 그래서 실기기 확인은 merge 후 프로덕션에서 한다(AGENTS.md 「작업 완료 프로토콜」 6).
