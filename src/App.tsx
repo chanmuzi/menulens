@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useScreenScroll, type ScreenKey } from './lib/useScreenScroll';
 import type { ImageMode, Note, OcrWord, PickSource, Rate, Scan, ScanKind, Talk } from './types';
 import { hasFiles } from './lib/drop';
 import { analyzeImage, checkStoredCode, fetchRate } from './lib/api';
@@ -27,6 +28,8 @@ import { dict, getLang, useT } from './i18n';
 import { emptyScan, upgrade } from './lib/upgrade';
 
 type Route = 'gate' | 'home' | 'history' | 'confirm' | 'processing' | 'result' | 'talk';
+/** 결과·대화 화면의 ◀ 가 돌아갈 목록. 홈의 최근 목록에서 열었으면 홈, 전체 보기에서 열었으면 전체 보기 */
+type Origin = 'home' | 'history';
 
 const toKind = (k: string): ScanKind => (k === 'sign' || k === 'other' ? k : 'menu');
 
@@ -68,6 +71,7 @@ export const App = () => {
   const [talks, setTalks] = useState<readonly Talk[]>([]);
   const [currentTalk, setCurrentTalk] = useState<Talk | null>(null);
   const [historyTab, setHistoryTab] = useState<HomeTab>('menu');
+  const [origin, setOrigin] = useState<Origin>('home');
   const [removingTalk, setRemovingTalk] = useState<Talk | null>(null);
   const [renamingTalk, setRenamingTalk] = useState<Talk | null>(null);
   const persistTalk = useCallback((t: Talk) => { void saveTalk(t).then(setTalks); }, []);
@@ -271,24 +275,39 @@ export const App = () => {
     if (route === 'processing' && (current?.status === 'detailing' || current?.status === 'done')) setRoute('result');
   }, [route, current?.status]);
 
-  const goHome = () => { abortAll(); setBatch([]); setCurrentId(null); setPending([]); setLeaving(false); setResultView('overlay'); setShowMarks(true); setRoute('home'); };
+  /** 묶음을 닫고 들어온 목록으로 돌아간다(새로 찍은 사진은 홈, 전체 보기에서 연 기록은 전체 보기) */
+  const goBack = () => { abortAll(); setBatch([]); setCurrentId(null); setPending([]); setLeaving(false); setResultView('overlay'); setShowMarks(true); setRoute(origin); };
   /** 아직 읽는 중인(돈이 드는 호출이 열려 있는) 사진 수. 기록에서 연 묶음은 전부 끝난 상태라 0 */
   // 모음 화면의 미리 읽기는 사용자가 시작한 읽기가 아니고 저장되지도 않으니 묻지 않는다(나가면 그냥 끊는다)
   const busy = route === 'confirm' ? 0 : batch.filter((s) => s.status !== 'done' && s.status !== 'error').length;
-  /** 홈으로: 읽는 중이면 중단할지 먼저 묻는다(뒤에서 계속 돌며 비용이 들지 않게) */
-  const requestHome = () => { if (busy > 0) setLeaving(true); else goHome(); };
+  /** 나가기: 읽는 중이면 중단할지 먼저 묻는다(뒤에서 계속 돌며 비용이 들지 않게) */
+  const requestBack = () => { if (busy > 0) setLeaving(true); else goBack(); };
+  /** ◀ 의 이름(화면 읽기용). 돌아갈 곳에 맞춘다 */
+  const backLabel = origin === 'history' ? t.common.backToList : t.common.home;
   // 어느 경로든 모음 화면으로(한 장이어도 더 찍기·앨범 추가·자르기가 가능하게). 촬영은 그동안 첫 장을 미리 읽는다
   const pick = (input: readonly File[], source: PickSource) => {
     const list = input.slice(0, BATCH_MAX);
     setDropped(input.length - list.length);
     setPending(list);
     setCropAt(null);
+    setOrigin('home');
     setRoute('confirm');
     if (source === 'camera') prewarm(list[0]!);
   };
   /** 미리 읽는 중인 첫 장 파일(모음 화면 표시용) */
   const reading = batch.length === 1 && route === 'confirm' ? (files.current.get(batch[0]!.id) ?? null) : null;
   const changeMode = (m: ImageMode) => { saveImageMode(m); setMode(m); };
+
+  // 지금 그릴 화면(아래 분기와 같은 조건). 화면이 바뀔 때 스크롤을 맨 위로, 목록으로 돌아오면 보던 자리로
+  const processingShown = current !== null && (route === 'processing' || (route === 'result' && (current.status === 'error' || current.status === 'preparing' || current.status === 'reading')));
+  const screen: ScreenKey = route === 'gate' ? 'gate'
+    : route === 'talk' && currentTalk ? 'talk'
+    : processingShown ? 'processing'
+    : route === 'result' && current ? 'result'
+    : route === 'confirm' && cropAt && pending[cropAt.index] ? 'crop'
+    : route === 'confirm' && pending.length > 0 ? 'confirm'
+    : route === 'history' ? 'history' : 'home';
+  useScreenScroll(screen);
 
   if (route === 'gate') return <GateScreen onEnter={() => setRoute('home')} />;
   /** 대화 이름 고치기: 저장된 최신본에 반영하고(아직 저장 전이면 화면 것만), 열린 대화에도 내려보낸다 */
@@ -306,12 +325,12 @@ export const App = () => {
     <ConfirmDialog title={t.app.removeTalkTitle} confirmLabel={t.common.remove} body={t.app.removeTalkBody(talkTitle(removingTalk))}
       onCancel={() => setRemovingTalk(null)} onConfirm={() => { void removeTalk(removingTalk.id).then(setTalks); setRemovingTalk(null); }} />
   );
-  const openTalk = (t: Talk) => { setCurrentTalk(t); setRoute('talk'); };
-  if (route === 'talk' && currentTalk) {
+  const openTalk = (t: Talk, from: Origin) => { setCurrentTalk(t); setOrigin(from); setRoute('talk'); };
+  if (screen === 'talk' && currentTalk) {
     // 이름 고치기 대상은 화면이 들고 있는 최신본(제목·마디가 App 것보다 앞설 수 있다)
-    return <><TalkScreen key={currentTalk.id} talk={currentTalk} onSave={persistTalk} onHome={() => { setCurrentTalk(null); setRoute('home'); }} onRename={setRenamingTalk} />{talkRenameDialog}</>;
+    return <><TalkScreen key={currentTalk.id} talk={currentTalk} onSave={persistTalk} onBack={() => { setCurrentTalk(null); setRoute(origin); }} backLabel={backLabel} onRename={setRenamingTalk} />{talkRenameDialog}</>;
   }
-  const leaveDialog = leaving && <LeaveDialog busy={busy} detailingOnly={batch.every((s) => s.status === 'detailing' || s.status === 'done' || s.status === 'error')} onStay={() => setLeaving(false)} onLeave={goHome} />;
+  const leaveDialog = leaving && <LeaveDialog busy={busy} detailingOnly={batch.every((s) => s.status === 'detailing' || s.status === 'done' || s.status === 'error')} onStay={() => setLeaving(false)} onLeave={goBack} leaveLabel={origin === 'history' ? t.confirm.leave.leaveList : t.confirm.leave.leave} />;
   /** 이름 고치기: 기록과 지금 열린 묶음을 함께 바꾼다(열린 묶음이 나중에 다시 저장돼도 이름이 남게) */
   const rename = (g: ScanGroup, userTitle: string | null) => {
     const ids = g.scans.map((s) => s.id);
@@ -324,21 +343,21 @@ export const App = () => {
       onCancel={() => setRenaming(null)} onSave={(name) => rename(renaming, name)} />
   );
   // 결과 화면에서 띠로 실패·대기 중 사진을 고르면 처리 화면(오류·다시 시도·진행 표시)을 보여준다. route 는 그대로 두어 완료된 사진으로 돌아오면 결과가 보인다
-  const showProcessing = current !== null && (route === 'processing' || (route === 'result' && (current.status === 'error' || current.status === 'preparing' || current.status === 'reading')));
-  if (showProcessing && current) {
-    return <><ProcessingScreen scan={current} batch={batch} onSwitch={switchTo} onAdd={addScans} onCancel={requestHome} onPeek={() => setRoute('result')} onRetry={() => retryOne(current.id)} />{leaveDialog}</>;
+  if (screen === 'processing' && current) {
+    return <><ProcessingScreen scan={current} batch={batch} onSwitch={switchTo} onAdd={addScans} onCancel={requestBack} cancelLabel={origin === 'history' ? t.processing.cancelList : t.processing.cancelHome} onPeek={() => setRoute('result')} onRetry={() => retryOne(current.id)} />{leaveDialog}</>;
   }
-  if (route === 'result' && current) {
+  if (screen === 'result' && current) {
     // key 는 묶음 단위(첫 사진 id): 주문서가 사진 사이에 유지된다. 사진에 딸린 선택·챗은 ResultScreen 이 사진이 바뀔 때 닫는다
     const group = groupScans(batch)[0]!;
-    return <><ResultScreen key={batch[0]!.id} scan={current} batch={batch} view={resultView} onView={setResultView} showMarks={showMarks} onShowMarks={setShowMarks} title={groupTitle(group)} onRename={() => setRenaming(group)} onSwitch={switchTo} onAdd={addScans} rate={rate} mode={mode} onMode={changeMode} onHome={requestHome} originalFiles={batch.map((s) => files.current.get(s.id) ?? null)} />{leaveDialog}{renameDialog}</>;
+    return <><ResultScreen key={batch[0]!.id} scan={current} batch={batch} view={resultView} onView={setResultView} showMarks={showMarks} onShowMarks={setShowMarks} title={groupTitle(group)} onRename={() => setRenaming(group)} onSwitch={switchTo} onAdd={addScans} rate={rate} mode={mode} onMode={changeMode} onBack={requestBack} backLabel={backLabel} originalFiles={batch.map((s) => files.current.get(s.id) ?? null)} />{leaveDialog}{renameDialog}</>;
   }
   // 목록에는 사진이 없다. 결과 화면으로 가기 전에 사진 한 건만 읽는다
   // 묶음으로 읽은 스캔은 같은 묶음 전부를 찍은 순서로 띠에 올린다(사진은 띠 썸네일용으로 모두 읽음, 묶음은 최대 BATCH_MAX 장)
-  const openScan = (g: ScanGroup) => {
+  const openScan = (g: ScanGroup, from: Origin) => {
     void Promise.all(g.scans.map(async (x) => upgrade({ ...x, imageDataUrl: await loadScanImage(x) }))).then((list) => {
       setBatch(list);
       setCurrentId(g.scans[0]!.id);
+      setOrigin(from);
       setRoute('result');
     });
   };
@@ -350,7 +369,7 @@ export const App = () => {
       body={t.app.removeScanBody(groupTitle(removing), removing.scans.length)}
       onCancel={() => setRemoving(null)} onConfirm={() => { remove(removing); setRemoving(null); }} />
   );
-  if (route === 'confirm' && cropAt && pending[cropAt.index]) {
+  if (screen === 'crop' && cropAt) {
     // 모음에서 한 장 자르기: 잘라서 그 자리에 바꿔 넣는다. 영역을 안 바꿨으면 원본 그대로
     const back = () => setCropAt(null);
     const applyCrop = (f: File) => {
@@ -362,18 +381,18 @@ export const App = () => {
     };
     return <CropScreen file={pending[cropAt.index]!} onConfirm={applyCrop} onCancel={back} />;
   }
-  if (route === 'confirm' && pending.length > 0) {
+  if (screen === 'confirm') {
     // 미리 읽던 첫 장을 모음에서 빼면 그 읽기도 멈춘다
     const change = (list: readonly File[]) => { setPending(list); if (reading && !list.includes(reading)) { abortScan(batch[0]!.id); setBatch([]); setCurrentId(null); } };
     // 자르는 동안에도 미리 읽기는 계속 돈다(들어갔다 그냥 나오면 그대로 이어 받는다)
     const crop = (index: number) => setCropAt({ index, wasReading: reading !== null && reading === pending[index] });
-    return <><ConfirmBatchScreen files={pending} dropped={dropped} onChange={change} reading={reading} onConfirm={(list) => { setPending([]); void startScans(list); }} onCrop={crop} onCancel={requestHome} />{leaveDialog}</>;
+    return <><ConfirmBatchScreen files={pending} dropped={dropped} onChange={change} reading={reading} onConfirm={(list) => { setPending([]); void startScans(list); }} onCrop={crop} onCancel={requestBack} />{leaveDialog}</>;
   }
-  if (route === 'history') {
+  if (screen === 'history') {
     return (
       <>
-        <HistoryScreen scans={scans} installHint={installHint} onBack={() => setRoute('home')} onOpen={openScan} onRename={setRenaming} onRemove={setRemoving} onClear={() => void clearScans().then(setScans)}
-          tab={historyTab} onTab={setHistoryTab} talks={talks} onOpenTalk={openTalk} onRenameTalk={setRenamingTalk} onRemoveTalk={setRemovingTalk} />
+        <HistoryScreen scans={scans} installHint={installHint} onBack={() => setRoute('home')} onOpen={(g) => openScan(g, 'history')} onRename={setRenaming} onRemove={setRemoving} onClear={() => void clearScans().then(setScans)}
+          tab={historyTab} onTab={setHistoryTab} talks={talks} onOpenTalk={(x) => openTalk(x, 'history')} onRenameTalk={setRenamingTalk} onRemoveTalk={setRemovingTalk} />
         {removeDialog}{renameDialog}{talkRemoveDialog}{talkRenameDialog}
       </>
     );
@@ -385,12 +404,12 @@ export const App = () => {
         installHint={installHint}
         onPick={pick}
         onShowAll={() => { setHistoryTab('menu'); setRoute('history'); }}
-        onOpen={openScan}
+        onOpen={(g) => openScan(g, 'home')}
         onRename={setRenaming}
         onRemove={setRemoving}
         talks={talks}
-        onNewTalk={() => openTalk(newTalk(talkLangFor(getLang())))}
-        onOpenTalk={openTalk}
+        onNewTalk={() => openTalk(newTalk(talkLangFor(getLang())), 'home')}
+        onOpenTalk={(x) => openTalk(x, 'home')}
         onRenameTalk={setRenamingTalk}
         onRemoveTalk={setRemovingTalk}
         onShowAllTalks={() => { setHistoryTab('talk'); setRoute('history'); }}

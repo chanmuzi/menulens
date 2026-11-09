@@ -11,6 +11,7 @@ export const common: typeof Ko = {
   copied: 'コピーしました',
   retry: 'もう一度',
   home: 'ホームへ',
+  backToList: '一覧へ',
   showAll: 'すべて見る',
   edit: '編集',
   done: '完了',

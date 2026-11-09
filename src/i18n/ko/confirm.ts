@@ -51,6 +51,7 @@ export const confirm = {
     bodyReading: '지금 나가면 읽기를 멈추고, 읽던 사진은 기록에 남지 않아요.',
     stay: '계속 읽기',
     leave: '중단하고 홈으로',
+    leaveList: '중단하고 목록으로',
   },
   /** 기록 이름 고치기 팝업 */
   rename: {

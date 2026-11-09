@@ -6,6 +6,7 @@
 > **11-02 다시 내림(PR #80)**: 캡처가 끝나 사용자 결정으로 배포본 7건을 URL 로 하나씩 지우고(`vercel rm <배포 URL>`, 프로젝트명이 아님) `vercel git disconnect` 로 Git 연결을 끊었다. **프로젝트 `menulens`·환경변수 8개·도메인 2개(`menulens-psi`, `menulens-one`)·Redis 는 그대로**라 되살리면 홈 화면 앱과 기기 기록이 그대로 돌아온다. 되살리기: `npx vercel git connect`(저장소 다시 연결) → main 에 merge 또는 `pnpm bootstrap` Vercel 단계(배포본이 없을 때만 첫 `deploy --prod` 허용) → `node scripts/bench/smoke.mjs <주소>`.
 > **11-04 재개(PR #81)**: 사용자 요청으로 `npx vercel git connect --yes` 로 저장소를 다시 연결하고(프로젝트·환경변수 8개·도메인 2개는 그대로였음) 이 문서 PR 을 main 에 merge 해 첫 배포를 일으켰다. `deploy --prod` 는 쓰지 않았다. 확인은 merge 커밋 기준 READY + `smoke.mjs`.
 > **11-05 다시 내림(PR #82)**: 사용자 요청으로 `vercel git disconnect` 먼저(문서 PR merge 가 배포를 일으키지 않게) → 문서 PR merge → 배포본 2건(merge 커밋·브랜치 커밋)을 URL 로 삭제. 프로젝트·환경변수 8개·도메인 2개·Redis 유지. 되살리기는 위와 같다.
+> **11-09 재개(PR #83 에서 문서 반영)**: 사용자 요청으로 `npx vercel git connect --yes` 후, merge 할 커밋이 없어 Vercel API `POST /v13/deployments`(`gitSource`: GitHub `main` HEAD `84c7b2e`, `target: production`)로 Git 기반 배포를 한 번 만들었다. 로컬 파일 업로드가 아니라 main push 자동 배포와 같은 소스다. READY + `smoke.mjs` 통과. 이후 반영은 다시 merge 로만.
 
 - 프로젝트 `menulens`(Hobby). GitHub `chanmuzi/menulens` 연동 → **main push = 프로덕션 배포**. `npx vercel` 직접 배포(프리뷰·`--prod`)는 쓰지 않는다. 프로덕션은 merge 로만(CLAUDE.md). 배포 상태는 `npx vercel api "/v6/deployments?projectId=menulens&target=production&limit=3"` 로 커밋별 READY 를 확인한다.
 - **프리뷰 배포는 쓰지 않는다**(2026-10-21 결정). 브랜치 푸시마다 Vercel 이 프리뷰를 만들지만 ① Preview 환경에 `ACCESS_CODES`·`UPSTAGE_API_KEY`·`TIMELY_API_KEY` 가 없고(Production 전용)

@@ -19,9 +19,9 @@ import { useT } from '../i18n';
 
 /** 보기 방식. App 이 들고 있어 읽는 중 사진(처리 중 화면)을 거쳐 돌아와도 유지된다 */
 export type ResultView = 'overlay' | 'cards';
-type Props = { readonly scan: Scan; readonly batch: readonly Scan[]; readonly view: ResultView; readonly onView: (v: ResultView) => void; /** 오버레이의 번역 표시(배지·덮개) 켜짐 */ readonly showMarks: boolean; readonly onShowMarks: (on: boolean) => void; /** 기록 이름(고친 이름 또는 자동 제목). 누르면 onRename */ readonly title: string; readonly onRename: () => void; readonly onSwitch: (id: string) => void; readonly onAdd: ((files: readonly File[]) => void) | undefined; readonly rate: Rate | null; readonly mode: ImageMode; readonly onMode: (m: ImageMode) => void; readonly onHome: () => void; /** 묶음 순서대로의 원본 파일(없으면 null → 화면용 사진으로 저장) */ readonly originalFiles: readonly (File | null)[] };
+type Props = { readonly scan: Scan; readonly batch: readonly Scan[]; readonly view: ResultView; readonly onView: (v: ResultView) => void; /** 오버레이의 번역 표시(배지·덮개) 켜짐 */ readonly showMarks: boolean; readonly onShowMarks: (on: boolean) => void; /** 기록 이름(고친 이름 또는 자동 제목). 누르면 onRename */ readonly title: string; readonly onRename: () => void; readonly onSwitch: (id: string) => void; readonly onAdd: ((files: readonly File[]) => void) | undefined; readonly rate: Rate | null; readonly mode: ImageMode; readonly onMode: (m: ImageMode) => void; /** ◀: 들어온 목록으로(홈 또는 전체 보기) */ readonly onBack: () => void; /** ◀ 의 이름(「홈으로」·「목록으로」) */ readonly backLabel: string; /** 묶음 순서대로의 원본 파일(없으면 null → 화면용 사진으로 저장) */ readonly originalFiles: readonly (File | null)[] };
 
-export const ResultScreen = ({ scan, batch, view, onView, showMarks, onShowMarks, title, onRename, onSwitch, onAdd, rate, mode, onMode, onHome, originalFiles }: Props) => {
+export const ResultScreen = ({ scan, batch, view, onView, showMarks, onShowMarks, title, onRename, onSwitch, onAdd, rate, mode, onMode, onBack, backLabel, originalFiles }: Props) => {
   const t = useT();
   const isMenu = scan.kind === 'menu';
   // 안내문·기타는 카드가 의미 없으니 오버레이만 보여준다(view 는 App 상태)
@@ -75,7 +75,7 @@ export const ResultScreen = ({ scan, batch, view, onView, showMarks, onShowMarks
 
   return (
     <div className="app">
-      <TopBar onBack={onHome} backLabel={t.common.home} center={
+      <TopBar onBack={onBack} backLabel={backLabel} center={
         isMenu ? (
           <Segmented shadow label={t.result.viewLabel} value={view} onChange={onView} options={[{ value: 'overlay', label: t.result.viewOverlay }, { value: 'cards', label: t.result.viewCards }]} />
         ) : (
