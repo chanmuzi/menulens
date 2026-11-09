@@ -8,6 +8,7 @@ import { askHelper } from '../lib/talkApi';
 import { contextTurns, splitSay } from '../lib/talk';
 import { DotGlyph } from '../components/DotGlyph';
 import { useT } from '../i18n';
+import { useBackLayer } from '../lib/backNav';
 
 type Props = {
   readonly turns: readonly TalkTurn[];
@@ -26,6 +27,8 @@ const bubble = (mine: boolean) => ({
 
 export const TalkHelper = ({ turns, lang, msgs, onMsgs, onSay, onClose }: Props) => {
   const t = useT();
+  // 시스템 뒤로 가기(안드로이드 뒤로 버튼, Safari 스와이프)와 Escape 는 화면을 옮기기 전에 이것부터 닫는다
+  useBackLayer(true, onClose);
   const [draft, setDraft] = useState('');
   const [live, setLive] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -35,11 +38,6 @@ export const TalkHelper = ({ turns, lang, msgs, onMsgs, onSay, onClose }: Props)
 
   useEffect(() => { listRef.current?.scrollTo({ top: listRef.current.scrollHeight }); }, [msgs, live]);
   useEffect(() => () => ac.current?.abort(), []);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
 
   const ask = async (q: string) => {
     const question = q.trim();

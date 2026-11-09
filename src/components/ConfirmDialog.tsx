@@ -1,6 +1,6 @@
 /** 되돌릴 수 없는 동작 전 확인 팝업(기록 지우기 등). 모양은 LeaveDialog 와 같고, 기본 포커스는 안전한 쪽(취소)에 둔다. */
-import { useEffect } from 'react';
 import { useT } from '../i18n';
+import { useBackLayer } from '../lib/backNav';
 
 type Props = {
   readonly title: string;
@@ -12,11 +12,8 @@ type Props = {
 
 export const ConfirmDialog = ({ title, body, confirmLabel, onCancel, onConfirm }: Props) => {
   const t = useT();
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onCancel]);
+  // 시스템 뒤로 가기(안드로이드 뒤로 버튼, Safari 스와이프)와 Escape 는 화면을 옮기기 전에 이것부터 닫는다
+  useBackLayer(true, onCancel);
   return (
     <div role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-body" style={{ position: 'fixed', inset: 0, zIndex: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <button type="button" tabIndex={-1} aria-hidden="true" onClick={onCancel} style={{ position: 'absolute', inset: 0, background: 'rgba(42,33,27,.45)', border: 0, cursor: 'pointer' }} />

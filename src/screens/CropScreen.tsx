@@ -4,6 +4,7 @@ import { TopBar } from '../components/TopBar';
 import { CropBox } from '../components/CropBox';
 import { cropFile, FULL_RECT, isFullRect, type CropRect } from '../lib/crop';
 import { useT } from '../i18n';
+import { useBackLayer } from '../lib/backNav';
 
 type Props = { readonly file: File; readonly onConfirm: (file: File) => void; readonly onCancel: () => void };
 
@@ -19,6 +20,8 @@ export const CropScreen = ({ file, onConfirm, onCancel }: Props) => {
 
   const [rect, setRect] = useState<CropRect>(FULL_RECT);
   const [busy, setBusy] = useState(false);
+  // 자르는 동안 ◀ 를 숨기는 것과 같이 시스템 뒤로 가기도 받지 않는다(빈 겹이 받아 화면을 그대로 둔다). 나간 뒤 끝난 자르기가 미리 읽기를 다시 시작하지 않게
+  useBackLayer(busy, () => {});
   const [error, setError] = useState<string | null>(null);
   const cropped = !isFullRect(rect);
 

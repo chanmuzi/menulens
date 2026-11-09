@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useScreenScroll, type ScreenKey } from './lib/useScreenScroll';
+import { useBackScreen } from './lib/backNav';
 import type { ImageMode, Note, OcrWord, PickSource, Rate, Scan, ScanKind, Talk } from './types';
 import { hasFiles } from './lib/drop';
 import { analyzeImage, checkStoredCode, fetchRate } from './lib/api';
@@ -308,6 +309,20 @@ export const App = () => {
     : route === 'confirm' && pending.length > 0 ? 'confirm'
     : route === 'history' ? 'history' : 'home';
   useScreenScroll(screen);
+  /** 화면마다 「한 단계 뒤로」. ◀ 와 시스템 뒤로 가기(안드로이드 뒤로 버튼, Safari 스와이프)가 같은 함수를 부른다. 홈은 null(뒤로 가기로 앱을 나간다) */
+  const leaveTalk = () => { setCurrentTalk(null); setRoute(origin); };
+  const leaveHistory = () => setRoute('home');
+  const leaveCrop = () => setCropAt(null);
+  const screenBack: Record<ScreenKey, (() => void) | null> = {
+    gate: null, home: null, history: leaveHistory, talk: leaveTalk, crop: leaveCrop,
+    confirm: requestBack, processing: requestBack, result: requestBack,
+  };
+  /** 홈에서 몇 번 들어왔나(방문 기록 칸 수). 기록을 연 화면은 전체 보기에서 왔으면 한 칸 더 */
+  const openedDepth = origin === 'history' ? 2 : 1;
+  const screenDepth: Record<ScreenKey, number> = {
+    gate: 0, home: 0, history: 1, confirm: 1, crop: 2, processing: openedDepth, result: openedDepth, talk: openedDepth,
+  };
+  useBackScreen(screenBack[screen], screenDepth[screen]);
 
   if (route === 'gate') return <GateScreen onEnter={() => setRoute('home')} />;
   /** 대화 이름 고치기: 저장된 최신본에 반영하고(아직 저장 전이면 화면 것만), 열린 대화에도 내려보낸다 */
@@ -328,7 +343,7 @@ export const App = () => {
   const openTalk = (t: Talk, from: Origin) => { setCurrentTalk(t); setOrigin(from); setRoute('talk'); };
   if (screen === 'talk' && currentTalk) {
     // 이름 고치기 대상은 화면이 들고 있는 최신본(제목·마디가 App 것보다 앞설 수 있다)
-    return <><TalkScreen key={currentTalk.id} talk={currentTalk} onSave={persistTalk} onBack={() => { setCurrentTalk(null); setRoute(origin); }} backLabel={backLabel} onRename={setRenamingTalk} />{talkRenameDialog}</>;
+    return <><TalkScreen key={currentTalk.id} talk={currentTalk} onSave={persistTalk} onBack={leaveTalk} backLabel={backLabel} onRename={setRenamingTalk} />{talkRenameDialog}</>;
   }
   const leaveDialog = leaving && <LeaveDialog busy={busy} detailingOnly={batch.every((s) => s.status === 'detailing' || s.status === 'done' || s.status === 'error')} onStay={() => setLeaving(false)} onLeave={goBack} leaveLabel={origin === 'history' ? t.confirm.leave.leaveList : t.confirm.leave.leave} />;
   /** 이름 고치기: 기록과 지금 열린 묶음을 함께 바꾼다(열린 묶음이 나중에 다시 저장돼도 이름이 남게) */
@@ -371,15 +386,14 @@ export const App = () => {
   );
   if (screen === 'crop' && cropAt) {
     // 모음에서 한 장 자르기: 잘라서 그 자리에 바꿔 넣는다. 영역을 안 바꿨으면 원본 그대로
-    const back = () => setCropAt(null);
     const applyCrop = (f: File) => {
       const original = pending[cropAt.index];
       setPending((list) => list.map((x, i) => (i === cropAt.index ? f : x)));
       // 실제로 잘라서 파일이 바뀐 경우에만 원본 미리 읽기를 버리고 잘린 사진으로 다시 시작한다(그대로 쓰기·취소는 이어 간다)
       if (cropAt.wasReading && f !== original) { if (batch[0]) abortScan(batch[0].id); prewarm(f); }
-      back();
+      leaveCrop();
     };
-    return <CropScreen file={pending[cropAt.index]!} onConfirm={applyCrop} onCancel={back} />;
+    return <CropScreen file={pending[cropAt.index]!} onConfirm={applyCrop} onCancel={leaveCrop} />;
   }
   if (screen === 'confirm') {
     // 미리 읽던 첫 장을 모음에서 빼면 그 읽기도 멈춘다
@@ -391,7 +405,7 @@ export const App = () => {
   if (screen === 'history') {
     return (
       <>
-        <HistoryScreen scans={scans} installHint={installHint} onBack={() => setRoute('home')} onOpen={(g) => openScan(g, 'history')} onRename={setRenaming} onRemove={setRemoving} onClear={() => void clearScans().then(setScans)}
+        <HistoryScreen scans={scans} installHint={installHint} onBack={leaveHistory} onOpen={(g) => openScan(g, 'history')} onRename={setRenaming} onRemove={setRemoving} onClear={() => void clearScans().then(setScans)}
           tab={historyTab} onTab={setHistoryTab} talks={talks} onOpenTalk={(x) => openTalk(x, 'history')} onRenameTalk={setRenamingTalk} onRemoveTalk={setRemovingTalk} />
         {removeDialog}{renameDialog}{talkRemoveDialog}{talkRenameDialog}
       </>

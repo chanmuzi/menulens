@@ -6,20 +6,20 @@ import { buildOrderText, linesCurrency, linesLang, orderModes, total, totalCount
 import { QtyStepper } from '../components/QtyStepper';
 import { Segmented } from '../components/Segmented';
 import { useT } from '../i18n';
+import { useBackLayer } from '../lib/backNav';
 
 type Props = { readonly lines: readonly OrderLine[]; readonly rate: Rate | null; /** 묶음의 사진 수. 2장 이상이면 줄에 「사진 N」 표시 */ readonly photos: number; readonly onQty: (scanId: string, id: string, qty: number) => void; readonly onClear: () => void; readonly onClose: () => void };
 
 export const OrderSheet = ({ lines, rate, photos, onQty, onClear, onClose }: Props) => {
   const t = useT();
+  // 시스템 뒤로 가기(안드로이드 뒤로 버튼, Safari 스와이프)와 Escape 는 화면을 옮기기 전에 이것부터 닫는다
+  useBackLayer(true, onClose);
   const [big, setBig] = useState(false);
+  // 크게 보기는 시트 위의 한 겹: 뒤로 가기는 먼저 주문서로 돌아온다
+  useBackLayer(big, () => setBig(false));
   const [copied, setCopied] = useState(false);
   // 상황(첫 주문·추가 주문·항목만). 시트를 열 때마다 첫 주문으로 시작한다
   const [mode, setMode] = useState<OrderMode>('first');
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
   useEffect(() => { if (lines.length === 0) onClose(); }, [lines.length, onClose]);
 
   const text = buildOrderText(lines, mode);

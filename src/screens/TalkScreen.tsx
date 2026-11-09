@@ -17,6 +17,7 @@ import { ShowBig } from '../components/ShowBig';
 import { DotGlyph } from '../components/DotGlyph';
 import { TalkHelper } from './TalkHelper';
 import { useT, type Dict } from '../i18n';
+import { useBackLayer } from '../lib/backNav';
 
 type Props = {
   readonly talk: Talk;
@@ -64,6 +65,7 @@ export const TalkScreen = ({ talk: initial, onSave, onBack, backLabel, onRename 
   const [hearing, setHearing] = useState<Lang | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [picker, setPicker] = useState(false);
+  useBackLayer(picker, () => setPicker(false));
   const [show, setShow] = useState<Show | null>(null);
   const [helperOpen, setHelperOpen] = useState(false);
   const recRef = useRef<RecorderHandle | null>(null);

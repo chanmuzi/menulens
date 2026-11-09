@@ -11,6 +11,7 @@ import type { InstallHint as Hint } from '../lib/platform';
 import { dayHead, timeLabel, type DayHead } from '../lib/when';
 import { groupScans, type ScanGroup } from '../lib/history';
 import { useT } from '../i18n';
+import { useBackLayer } from '../lib/backNav';
 
 type Props = {
   readonly scans: readonly Scan[];
@@ -49,6 +50,7 @@ const DayHeader = ({ head }: { readonly head: DayHead }) => (
 export const HistoryScreen = ({ scans, installHint, onBack, onOpen, onRename, onRemove, onClear, tab, onTab, talks, onOpenTalk, onRenameTalk, onRemoveTalk }: Props) => {
   const t = useT();
   const [confirming, setConfirming] = useState(false);
+  useBackLayer(confirming, () => setConfirming(false));
   const all = groupScans(scans);
   const days = groupByDay(all, (g) => g.at);
   const talkDays = groupByDay(talks, (t) => t.updatedAt);
