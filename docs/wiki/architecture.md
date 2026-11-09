@@ -41,7 +41,7 @@ src/
                 Talk(대화 통역: 말풍선·말하기·글로 쓰기·표시 언어) TalkHelper(도우미 시트)
   components/   NoticeCovers(안내문 문단 덮개·번호) MenuPhoto(회전·기울기·확대·핀치 줌) BatchStrip(사진 띠·더 찍기) ScanRow(기록 줄) DotGlyph(연필·휴지통·카메라·말풍선 등 10×10, Segmented 의 icon)
                 TalkBubble(말풍선 세 줄) ShowBig(크게 보여주기) TalkRow(대화 기록 줄)
-                ConfirmDialog(지우기 확인) RenameDialog(이름 고치기) ChatFab OrderBar QtyStepper CropBox InstallHint PixelIcon Segmented ProgressBlocks ItemImage TopBar
+                ConfirmDialog(지우기 확인) RenameDialog(이름 고치기) ChatFab ToTopFab(맨 위로) OrderBar QtyStepper CropBox InstallHint PixelIcon Segmented ProgressBlocks ItemImage TopBar
   lib/          image api scan(정규화·unionBox·applyDetails) coverLayout(덮개/번호 판정·글자 맞춤) sample(덮개 배경·글자색) icons(키워드 우선) iconStore pixel kind(종류별 문구)
                 order(주문 수량·묶음 줄·주문 언어 기준) orderText(주문 문구 조립, 순수 함수: 원문 언어별 틀, 발음은 `api/_lib/hangulToKana.ts` 를 클라이언트가 직접 import — 의존성 없는 순수 함수라 양쪽에서 쓴다, node 전용 모듈을 넣지 말 것. 검사 `node --experimental-strip-types --test scripts/bench/order_test.ts`) money(통화·환산)
                 upgrade(빈 스캔 기본값·옛 기록 변환: 2026-10-31 필드 중립화 이전 키 name_ja 등을 name/tr 로) history(기록 묶음·제목 규칙) when(날짜·요일·12시간제) storage(저장 큐·이름 고치기·썸네일 채우기·홈 탭·대화 화면 설정) db(IndexedDB) thumb(168px 썸네일) batch(runLimited)

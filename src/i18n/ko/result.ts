@@ -7,6 +7,8 @@ export const result = {
   /** 사진 저장 버튼과 결과 안내 */
   savePhotosAria: (n: number) => (n > 1 ? `사진 ${n}장을 기기에 저장` : '사진을 기기에 저장'),
   savePhotoTitle: '사진 저장',
+  /** 오른쪽 아래, 말풍선 위의 맨 위로 버튼 */
+  toTop: '맨 위로',
   saveShared: (n: number) => `공유 시트에서 「이미지 저장」을 누르면 ${n > 1 ? `${n}장이 ` : ''}사진 앱에 들어가요`,
   saveOpened: (total: number) => `새 탭의 사진을 길게 눌러 저장하세요${total > 1 ? ' (첫 장만 열었어요. 나머지는 사진을 옮겨 가며 저장)' : ''}`,
   saveUnsupported: '이 브라우저에선 저장을 지원하지 않아요',
