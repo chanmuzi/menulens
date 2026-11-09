@@ -5,6 +5,7 @@ export const processing: typeof Ko = {
   title: { unknown: '読み取り中', menu: 'メニューを読み取り中', sign: '案内を読み取り中', other: '文字を読み取り中' },
   failedTitle: '読み取れませんでした',
   cancelHome: 'キャンセルしてホームへ',
+  cancelList: 'キャンセルして一覧へ',
   progressMenuAria: (n: number) => `メニュー ${n}件`,
   progressTranslating: '翻訳中',
   prepareBusy: '写真を整理中',

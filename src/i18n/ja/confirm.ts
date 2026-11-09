@@ -48,6 +48,7 @@ export const confirm: typeof Ko = {
     bodyReading: '今出ると読み取りを止め、読んでいた写真は記録に残りません。',
     stay: '読み続ける',
     leave: '中止してホームへ',
+    leaveList: '中止して一覧へ',
   },
   rename: {
     title: '名前を変更',

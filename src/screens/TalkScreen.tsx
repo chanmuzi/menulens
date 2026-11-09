@@ -22,7 +22,10 @@ type Props = {
   readonly talk: Talk;
   /** 마디가 끝날 때마다(번역 중인 마디가 없을 때) 저장한다 */
   readonly onSave: (talk: Talk) => void;
-  readonly onHome: () => void;
+  /** ◀: 들어온 목록으로(홈 또는 전체 보기) */
+  readonly onBack: () => void;
+  /** ◀ 의 이름(「홈으로」·「목록으로」) */
+  readonly backLabel: string;
   readonly onRename: (talk: Talk) => void;
 };
 
@@ -43,7 +46,7 @@ const waitLabel = (t: TalkDict, s: number): string => (s < 60 ? t.wait.seconds(s
 const sttNotice = (t: TalkDict, retryAfter: number | null): string =>
   retryAfter !== null ? t.sttLimited(waitLabel(t, retryAfter)) : t.sttUnavailable;
 
-export const TalkScreen = ({ talk: initial, onSave, onHome, onRename }: Props) => {
+export const TalkScreen = ({ talk: initial, onSave, onBack, backLabel, onRename }: Props) => {
   const t = useT();
   const [talk, setTalk] = useState(initial);
   const talkRef = useRef(talk);
@@ -224,7 +227,7 @@ export const TalkScreen = ({ talk: initial, onSave, onHome, onRename }: Props) =
   return (
     <div style={{ height: '100dvh', maxWidth: 480, margin: '0 auto', display: 'flex', flexDirection: 'column' }}>
       <header style={{ flexShrink: 0, padding: 'calc(2px + max(var(--safe-top) + 8px, var(--edge-top))) 12px 8px 6px', borderBottom: '2px solid var(--ink)', display: 'flex', alignItems: 'center', gap: 6 }}>
-        <button type="button" className="btn btn--icon" aria-label={t.common.home} onClick={onHome}>◀</button>
+        <button type="button" className="btn btn--icon" aria-label={backLabel} onClick={onBack}>◀</button>
         <button type="button" onClick={() => onRename(talk)} aria-label={t.talk.renameAria(talkTitle(talk))}
           style={{ flex: 1, minWidth: 0, minHeight: 44, textAlign: 'left', background: 'none', border: 0, padding: 0, cursor: 'pointer', color: 'inherit', font: 'inherit', fontSize: 15, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {talkTitle(talk)}

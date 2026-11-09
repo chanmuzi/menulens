@@ -6,6 +6,7 @@ export const processing = {
   title: { unknown: '읽는 중', menu: '메뉴판 읽는 중', sign: '안내문 읽는 중', other: '글자 읽는 중' } as Readonly<Record<ScanKind | 'unknown', string>>,
   failedTitle: '읽지 못했어요',
   cancelHome: '취소하고 홈으로',
+  cancelList: '취소하고 목록으로',
   /** 진행 게이지의 보조 기술용 설명 */
   progressMenuAria: (n: number) => `메뉴 ${n}개 찾음`,
   progressTranslating: '번역하는 중',

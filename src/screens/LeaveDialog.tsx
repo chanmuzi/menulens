@@ -1,4 +1,4 @@
-/** 홈으로 나가기 전 확인. 읽는 중인 사진이 있으면 그 호출을 끊을지 묻는다(뒤에서 계속 돌면 OCR·LLM 비용이 든다). */
+/** 나가기(홈 또는 전체 보기로) 전 확인. 읽는 중인 사진이 있으면 그 호출을 끊을지 묻는다(뒤에서 계속 돌면 OCR·LLM 비용이 든다). */
 import { useEffect } from 'react';
 import { useT } from '../i18n';
 
@@ -9,9 +9,11 @@ type Props = {
   readonly detailingOnly: boolean;
   readonly onStay: () => void;
   readonly onLeave: () => void;
+  /** 나가기 버튼 이름(「중단하고 홈으로」·「중단하고 목록으로」) */
+  readonly leaveLabel: string;
 };
 
-export const LeaveDialog = ({ busy, detailingOnly, onStay, onLeave }: Props) => {
+export const LeaveDialog = ({ busy, detailingOnly, onStay, onLeave, leaveLabel }: Props) => {
   const t = useT();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onStay(); };
@@ -28,7 +30,7 @@ export const LeaveDialog = ({ busy, detailingOnly, onStay, onLeave }: Props) => 
         </p>
         <div style={{ display: 'flex', gap: 8 }}>
           <button type="button" className="btn btn--primary" onClick={onStay} autoFocus style={{ flex: 1 }}>{t.confirm.leave.stay}</button>
-          <button type="button" className="btn" onClick={onLeave} style={{ flex: 1 }}>{t.confirm.leave.leave}</button>
+          <button type="button" className="btn" onClick={onLeave} style={{ flex: 1 }}>{leaveLabel}</button>
         </div>
       </div>
     </div>

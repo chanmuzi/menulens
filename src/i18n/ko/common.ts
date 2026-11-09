@@ -10,6 +10,8 @@ export const common = {
   copied: '복사했어요',
   retry: '다시 시도',
   home: '홈으로',
+  /** 전체 보기에서 연 기록의 ◀ */
+  backToList: '목록으로',
   showAll: '전체 보기',
   edit: '고치기',
   done: '완료',

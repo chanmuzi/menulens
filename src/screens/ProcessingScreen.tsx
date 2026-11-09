@@ -8,7 +8,7 @@ import { BatchStrip } from '../components/BatchStrip';
 import { pickSignTip, pickTip } from '../data/tips';
 import { useT, type Dict } from '../i18n';
 
-type Props = { readonly scan: Scan; readonly batch: readonly Scan[]; readonly onSwitch: (id: string) => void; readonly onAdd: ((files: readonly File[]) => void) | undefined; readonly onCancel: () => void; readonly onPeek: () => void; readonly onRetry: () => void };
+type Props = { readonly scan: Scan; readonly batch: readonly Scan[]; readonly onSwitch: (id: string) => void; readonly onAdd: ((files: readonly File[]) => void) | undefined; readonly onCancel: () => void; /** 취소 버튼 이름(「취소하고 홈으로」·「취소하고 목록으로」) */ readonly cancelLabel: string; readonly onPeek: () => void; readonly onRetry: () => void };
 
 const EXPECTED_BLOCKS = 8;
 
@@ -20,7 +20,7 @@ const translateStep = (p: Dict['processing'], kind: ScanKind | 'unknown', found:
   return p.translateUnknown;
 };
 
-export const ProcessingScreen = ({ scan, batch, onSwitch, onAdd, onCancel, onPeek, onRetry }: Props) => {
+export const ProcessingScreen = ({ scan, batch, onSwitch, onAdd, onCancel, cancelLabel, onPeek, onRetry }: Props) => {
   const t = useT();
   const kind: ScanKind | 'unknown' = scan.kindKnown ? scan.kind : 'unknown';
   // 판정 전(unknown)에도 팁·진행 블록은 메뉴판 기준으로 보여준다(대부분 메뉴판). 아이콘만은 확정된 메뉴판에서만 라멘
@@ -38,7 +38,7 @@ export const ProcessingScreen = ({ scan, batch, onSwitch, onAdd, onCancel, onPee
 
   return (
     <div className="app">
-      <TopBar onBack={onCancel} backLabel={t.processing.cancelHome} center={
+      <TopBar onBack={onCancel} backLabel={cancelLabel} center={
         <div className="dot" style={{ fontSize: 16 }}>{failed ? t.processing.failedTitle : title}</div>
       } />
       <BatchStrip scans={batch} currentId={scan.id} onSwitch={onSwitch} onAdd={onAdd} />
