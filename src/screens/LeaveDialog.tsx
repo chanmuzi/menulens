@@ -1,6 +1,6 @@
 /** 나가기(홈 또는 전체 보기로) 전 확인. 읽는 중인 사진이 있으면 그 호출을 끊을지 묻는다(뒤에서 계속 돌면 OCR·LLM 비용이 든다). */
-import { useEffect } from 'react';
 import { useT } from '../i18n';
+import { useBackLayer } from '../lib/backNav';
 
 type Props = {
   /** 읽는 중인 사진 수 */
@@ -15,11 +15,8 @@ type Props = {
 
 export const LeaveDialog = ({ busy, detailingOnly, onStay, onLeave, leaveLabel }: Props) => {
   const t = useT();
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onStay(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onStay]);
+  // 시스템 뒤로 가기(안드로이드 뒤로 버튼, Safari 스와이프)와 Escape 는 화면을 옮기기 전에 이것부터 닫는다
+  useBackLayer(true, onStay);
   return (
     <div role="alertdialog" aria-modal="true" aria-labelledby="leave-title" style={{ position: 'fixed', inset: 0, zIndex: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <button type="button" tabIndex={-1} aria-hidden="true" onClick={onStay} style={{ position: 'absolute', inset: 0, background: 'rgba(42,33,27,.45)', border: 0, cursor: 'pointer' }} />

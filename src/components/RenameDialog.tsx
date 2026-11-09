@@ -1,6 +1,7 @@
 /** 기록 이름 고치기. 이모지를 고르는 UI 는 없고 글자만 고친다(자동 제목의 이모지는 입력란에 그대로 들어 있어 지우거나 키보드로 바꾼다). 비우거나 자동 제목과 같게 저장하면 자동 제목으로 돌아간다. 모양은 ConfirmDialog 와 같다. */
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useT } from '../i18n';
+import { useBackLayer } from '../lib/backNav';
 
 type Props = {
   /** 지금 보이는 이름(고친 이름 또는 자동 제목) */
@@ -17,12 +18,9 @@ const MAX = 30;
 
 export const RenameDialog = ({ current, auto, edited, onCancel, onSave }: Props) => {
   const t = useT();
+  // 시스템 뒤로 가기(안드로이드 뒤로 버튼, Safari 스와이프)와 Escape 는 화면을 옮기기 전에 이것부터 닫는다
+  useBackLayer(true, onCancel);
   const [name, setName] = useState(current);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onCancel]);
   const submit = (e: FormEvent) => {
     e.preventDefault();
     const v = name.trim();

@@ -1,6 +1,6 @@
 /** 상대에게 크게 보여주기: 화면 가득 상대 언어(또는 영어) + 히라가나(일본어일 때), 아래에 내가 소리 내 읽을 발음 */
-import { useEffect } from 'react';
 import { useT } from '../i18n';
+import { useBackLayer } from '../lib/backNav';
 
 type Props = {
   readonly text: string;
@@ -14,11 +14,8 @@ type Props = {
 
 export const ShowBig = ({ text, lang, kana, pron, pronLang, onClose }: Props) => {
   const t = useT();
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  // 시스템 뒤로 가기(안드로이드 뒤로 버튼, Safari 스와이프)와 Escape 는 화면을 옮기기 전에 이것부터 닫는다
+  useBackLayer(true, onClose);
   return (
     <div role="dialog" aria-modal="true" aria-label={t.talk.showBigTitle} style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'var(--paper-2)', display: 'flex', flexDirection: 'column', padding: 'calc(12px + max(var(--safe-top) + 8px, var(--edge-top))) 20px calc(20px + var(--safe-bottom))' }}>
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>

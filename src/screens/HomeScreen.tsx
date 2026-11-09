@@ -15,6 +15,7 @@ import { DotGlyph } from '../components/DotGlyph';
 import { Segmented } from '../components/Segmented';
 import { loadHomeTab, saveHomeTab, type HomeTab } from '../lib/storage';
 import { toggleLang, useLang, useT } from '../i18n';
+import { useBackLayer } from '../lib/backNav';
 
 type Props = {
   readonly scans: readonly Scan[];
@@ -53,6 +54,7 @@ export const HomeScreen = ({ scans, installHint, onPick, onShowAll, onOpen, onRe
   /** iOS 홈 화면 앱 등에서 clipboard.read 가 막혔을 때 띄우는 붙여넣기 상자 */
   const [pasteBox, setPasteBox] = useState(false);
   const pasteBoxRef = useRef<HTMLDivElement>(null);
+  useBackLayer(pasteBox, () => setPasteBox(false));
   const groups = groupScans(scans);
   const handle = (source: PickSource) => (e: ChangeEvent<HTMLInputElement>) => {
     const list = Array.from(e.target.files ?? []);

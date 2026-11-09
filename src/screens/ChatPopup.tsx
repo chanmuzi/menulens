@@ -7,6 +7,7 @@ import { PixelIcon } from '../components/PixelIcon';
 import { askMenu, chatContext, imagePart, itemKey, loadBatchChat, loadChat, photoInQuestion, refFromKey, resolveRef, saveChat, wantsImage, type ChatMsg } from '../lib/chat';
 import { chatTitle } from '../lib/kind';
 import { dict, useT } from '../i18n';
+import { useBackLayer } from '../lib/backNav';
 
 type Props = {
   /** 묶음 전부(한 장이면 하나). 맥락은 이 전체 */
@@ -35,6 +36,8 @@ const MAX_IMAGES_PER_ASK = 2;
 
 export const ChatPopup = ({ batch, scan, open, focus, onClearFocus, onOpenItem, onClose, onAnswered }: Props) => {
   const t = useT();
+  // 시스템 뒤로 가기(안드로이드 뒤로 버튼, Safari 스와이프)와 Escape 는 화면을 옮기기 전에 이것부터 닫는다
+  useBackLayer(open, onClose);
   const photos = batch.length;
   const currentPhoto = Math.max(1, batch.findIndex((s) => s.id === scan.id) + 1);
   // 대화 저장 키: 마운트 때 묶음에서 완료된(기록에 저장되는) 첫 사진. 실패한 사진은 기록에 남지 않아 그 키로 저장하면 다시 열 때 대화가 사라진다. 한 번 정하면 바꾸지 않는다(바뀌면 정리 effect 가 진행 중인 답을 끊는다)
@@ -55,12 +58,6 @@ export const ChatPopup = ({ batch, scan, open, focus, onClearFocus, onOpenItem, 
   useEffect(() => () => { if (ac.current && !ac.current.signal.aborted) { ac.current.abort(); const saved = loadChat(chatKey); if (saved[saved.length - 1]?.role === 'me') saveChat(chatKey, [...saved, { role: 'bot', text: dict().chat.disconnected, refs: [], sawImage: false, at: Date.now() }]); } }, [chatKey]);
   // 열리면 포커스를 팝업 안으로(입력칸 자동 포커스는 iOS 키보드를 띄우니 피한다)
   useEffect(() => { if (open) boxRef.current?.focus(); }, [open]);
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
 
   const ask = async (question: string) => {
     const q = question.trim();

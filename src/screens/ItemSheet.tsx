@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import type { Currency, ImageMode, MenuItem, Rate, ScanLang } from '../types';
 import { formatConverted, formatPrice, payable } from '../lib/money';
 import { buildOneOrderText } from '../lib/order';
@@ -6,17 +5,15 @@ import { ItemImage } from '../components/ItemImage';
 import { QtyStepper } from '../components/QtyStepper';
 import { PixelIcon } from '../components/PixelIcon';
 import { useT, tagLabel } from '../i18n';
+import { useBackLayer } from '../lib/backNav';
 
 type Props = { readonly item: MenuItem; readonly rate: Rate | null; readonly currency: Currency; /** 사진의 방향(원문·앱 언어). 원문이 일본어면 세리프 글꼴, 주문 문구의 언어와 발음도 이것으로 */ readonly lang: ScanLang; readonly mode: ImageMode; readonly onClose: () => void; /** null 이면 주문 기능 없음(안내문) */ readonly qty?: number | null; readonly onQty?: (qty: number) => void; /** 설명이 아직 올 수 있는가(스캔 진행 중). 기록에서 연 미완 스캔은 false 라 깜빡이지 않는다 */ readonly pending?: boolean; /** 이 항목을 맥락으로 챗 열기 */ readonly onAsk?: () => void };
 
 /** 메뉴 하나의 상세 바텀시트. 주문할 때 보여줄 원문 문구와 발음을 함께 보여준다(order.ts 규칙). */
 export const ItemSheet = ({ item, rate, currency, lang, mode, onClose, qty = null, onQty, pending = false, onAsk }: Props) => {
   const t = useT();
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  // 시스템 뒤로 가기(안드로이드 뒤로 버튼, Safari 스와이프)와 Escape 는 화면을 옮기기 전에 이것부터 닫는다
+  useBackLayer(true, onClose);
 
   const srcLang = lang.src;
   const one = item.category !== '기타' ? buildOneOrderText(item, lang) : null;
