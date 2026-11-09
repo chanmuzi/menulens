@@ -7,6 +7,7 @@ export const result: typeof Ko = {
   viewCards: 'カード',
   savePhotosAria: (n) => (n > 1 ? `写真${n}枚を端末に保存` : '写真を端末に保存'),
   savePhotoTitle: '写真を保存',
+  toTop: 'トップへ',
   saveShared: (n) => `共有シートで「画像を保存」を押すと${n > 1 ? `${n}枚が` : ''}写真アプリに入ります`,
   saveOpened: (total) => `新しいタブの写真を長押しして保存してください${total > 1 ? '(1枚目だけ開きました。残りは写真を切り替えて保存)' : ''}`,
   saveUnsupported: 'このブラウザでは保存に対応していません',

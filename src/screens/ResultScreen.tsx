@@ -13,6 +13,7 @@ import { OrderSheet } from './OrderSheet';
 import { DotGlyph } from '../components/DotGlyph';
 import { BatchStrip } from '../components/BatchStrip';
 import { ChatFab, FAB_SIZE, fabBottom } from '../components/ChatFab';
+import { TO_TOP_SPACE, ToTopFab } from '../components/ToTopFab';
 import { ChatPopup } from './ChatPopup';
 import { chatTitle, kindLabel } from '../lib/kind';
 import { useT } from '../i18n';
@@ -122,10 +123,12 @@ export const ResultScreen = ({ scan, batch, view, onView, showMarks, onShowMarks
         ? <OverlayView key={scan.id} scan={scan} selectedId={selectedItem?.id ?? null} onSelect={select} selectedNote={selectedNote} onNote={toggleNote} rate={rate} showMarks={showMarks} />
         : <CardsView key={scan.id} scan={scan} rate={rate} mode={mode} onMode={onMode} onSelect={select} order={currentOrder} onQty={canOrder ? setQty : undefined} />}
 
-      {/* 아래 여백: 주문서 바(실측) + 말풍선 버튼 자리. 마지막 카드의 스테퍼가 버튼에 가려지지 않게 */}
-      <div aria-hidden="true" style={{ height: fabBottom(barHeight) + FAB_SIZE + 16 }} />
+      {/* 아래 여백: 주문서 바(실측) + 말풍선 버튼 + 맨 위로 버튼 자리. 마지막 카드의 스테퍼가 버튼에 가려지지 않게 */}
+      <div aria-hidden="true" style={{ height: fabBottom(barHeight) + FAB_SIZE + TO_TOP_SPACE + 16 }} />
       {hasMenu && <OrderBar lines={lines} rate={rate} onOpen={() => setOrderOpen(true)} onHeight={setBarHeight} />}
       {orderOpen && <OrderSheet lines={lines} rate={rate} photos={batch.length} onQty={setQtyOf} onClear={() => { setOrder(clearedBatchOrder); setOrderOpen(false); }} onClose={() => setOrderOpen(false)} />}
+      {/* 맨 위로: 말풍선과 같이 시트·챗이 열리면 숨긴다 */}
+      {!orderOpen && !selectedItem && !chatOpen && <ToTopFab barHeight={barHeight} />}
       {!orderOpen && !selectedItem && !chatOpen && <ChatFab title={chatTitle(scan.kind)} buttonRef={fabRef} unread={unread} barHeight={barHeight} onClick={openChat} />}
       {chatMounted && <ChatPopup batch={batch} scan={scan} open={chatOpen} focus={chatFocus} onClearFocus={() => setChatFocus(null)} onOpenItem={jumpTo} onClose={closeChat} onAnswered={() => { if (!chatOpenRef.current) setUnread((n) => n + 1); }} />}
       {selectedItem && <ItemSheet item={selectedItem} rate={rate} currency={scan.currency} lang={scan.lang} mode={mode} onClose={() => setSelected(null)} qty={isMenu && canOrder ? (currentOrder[selectedItem.id] ?? 0) : null} onQty={(q) => setQty(selectedItem.id, q)} pending={scan.status !== 'done' && scan.status !== 'error'} onAsk={openChat} />}
